@@ -20,7 +20,7 @@
 #ifndef CUTILS_HDR
 #define CUTILS_HDR
 
-#define CUTILS_VERSION 1
+#define CUTILS_VERSION 2
 
 #if defined (__cplusplus)
 extern "C" {
@@ -28,11 +28,9 @@ extern "C" {
 
 /* ==========================================================================
  *
- * ----------------------------- Build settings -----------------------------
+ * ------------------------------ User settings -----------------------------
  *
  * ========================================================================== */
-
-
 
 #if !defined (CU_SETTING_FUNCS)
 #  define CU_SETTING_FUNCS 1
@@ -51,30 +49,36 @@ extern "C" {
 #  if !defined (CU_SETTING_TIME_FUNCS)
 #    define CU_SETTING_TIME_FUNCS 1
 #  endif
+#  if !defined (CU_SETTING_NETWORK_FUNCS)
+#    define CU_SETTING_NETWORK_FUNCS 1
+#  endif
 #  if !defined (CU_SETTING_THREAD_FUNCS)
 #    define CU_SETTING_THREAD_FUNCS 1
 #  endif
 #  if !defined (CU_SETTING_ALLOC_FUNCS)
 #    define CU_SETTING_ALLOC_FUNCS 1
-#    if !defined (CU_SETTING_CUSTOM_ALLOCS)
-#      define CU_SETTING_CUSTOM_ALLOCS 1
-#    endif
 #  endif
-#endif
-
-#if !defined (CU_SETTING_QUIET)
-#  define CU_SETTING_QUIET 0
+#else
+#  define CU_SETTING_FILE_FUNCS 0
+#  define CU_SETTING_RAND_FUNCS 0
+#  define CU_SETTING_RESOURCES_FUNCS 0
+#  define CU_SETTING_TIME_FUNCS 0
+#  define CU_SETTING_NETWORK_FUNCS 0
+#  define CU_SETTING_THREAD_FUNCS 0
+#  define CU_SETTING_ALLOC_FUNCS 0
 #endif
 
 #if !defined (CU_SETTING_FORCE_DEBUG)
 #  define CU_SETTING_FORCE_DEBUG 0
 #endif
 
-#if !defined (CU_SETTING_BUILDLIB)
-#  define CU_SETTING_BUILDLIB 0
+#if !defined (CU_SETTING_QUIET)
+#  define CU_SETTING_QUIET 0
 #endif
 
-
+#if !defined (CU_SETTING_CUSTOM_ALLOCS)
+#  define CU_SETTING_CUSTOM_ALLOCS CU_SETTING_ALLOC_FUNCS
+#endif
 
 /* ==========================================================================
  *
@@ -82,17 +86,15 @@ extern "C" {
  *
  * ========================================================================== */
 
-
-
-#define CU_COMPVER_MAKE(major, minor, patch) (((major - 0) * 1000000) + ((minor - 0) * 1000) + (patch - 0))
+#define CU_COMPVER_MAKE(major, minor, patch) (((major) * 1000000) + ((minor) * 1000) + (patch))
 #define CU_COMPVERP(compiler, major, minor, patch) (CU_COMP_ ## compiler >= CU_COMPVER_MAKE(major, minor, patch))
 #define CU_COMPVER(compiler, major, minor) (CU_COMP_ ## compiler >= CU_COMPVER_MAKE(major, minor, 0))
 
 #define CU_COMPILER_ISVER(compiler, major, minor) CU_COMPVER(compiler, major, minor)
 
-#define CU_COMPVER_MAJOR(compiler) ((compiler) / 1000000)
-#define CU_COMPVER_MINOR(compiler) (((compiler) / 1000) % 1000)
-#define CU_COMPVER_PATCH(compiler) ((compiler) % 1000)
+#define CU_COMPILER_MAJOR(compiler) ((CU_COMP_ ## compiler) / 1000000)
+#define CU_COMPILER_MINOR(compiler) (((CU_COMP_ ## compiler) / 1000) % 1000)
+#define CU_COMPILER_PATCH(compiler) ((CU_COMP_ ## compiler) % 1000)
 
 #if defined (_ACC_)
 #  define CU_COMP_ACC 1
@@ -299,9 +301,9 @@ extern "C" {
 #endif
 
 #if defined (__IMAGECRAFT__)
-#  define CU_COMP_IMGCRFT 1
+#  define CU_COMP_IMAGECRAFT 1
 #else
-#  define CU_COMP_IMGCRFT 0
+#  define CU_COMP_IMAGECRAFT 0
 #endif
 
 #if defined (__INTEL_COMPILER) && defined (__INTEL_COMPILER_UPDATE) && !defined (__ICL)
@@ -369,7 +371,7 @@ extern "C" {
 #endif
 
 #if defined (_MSC_FULL_VER) && (_MSC_FULL_VER >= 140000000) && !defined (__ICL)
-#  define CU_COMP_MSVC CU_COMPVER_MAKE(_MSC_FULL_VER / 10000000, (_MSC_FULL_VER % 10000000) / 100000, (_MSC_FULL_VER % 100000) / 100)
+#  define CU_COMP_MSVC CU_COMPVER_MAKE(_MSC_FULL_VER / 10000000, (_MSC_FULL_VER % 10000000) / 100000, (_MSC_FULL_VER % 100000) / 1000)
 #elif defined (_MSC_FULL_VER) && !defined (__ICL)
 #  define CU_COMP_MSVC CU_COMPVER_MAKE(_MSC_FULL_VER / 1000000, (_MSC_FULL_VER % 1000000) / 10000, (_MSC_FULL_VER % 10000) / 10)
 #elif defined (_MSC_VER) && !defined (__ICL)
@@ -633,15 +635,11 @@ extern "C" {
 
 #define CU_COMP_GCC CU_COMP_GNU
 
-
-
 /* ==========================================================================
  *
  * ---------------------------- OS identification ---------------------------
  *
  * ========================================================================== */
-
-
 
 #if defined (_AIX)
 #  if defined (__AIX43)
@@ -1218,6 +1216,7 @@ extern "C" {
     defined (__WIN32__) || defined (_WIN16) || defined (__TOS_WIN__) || \
     defined (__WINDOWS__) || defined (__MINGW32__) || defined (__MINGW64__)
 #  define CU_OS_WINDOWS 1
+#  define WIN32_LEAN_AND_MEAN
 #  if defined (_WIN64)
 #    define CU_OS_WIN64 1
 #    define CU_OS_WIN32 0
@@ -1270,15 +1269,11 @@ extern "C" {
 #  define CU_OS_16BIT 0
 #endif
 
-
-
 /* ==========================================================================
  *
  * ----------------------- Architecture identification ----------------------
  *
  * ========================================================================== */
-
-
 
 #if defined (__alpha__) || defined (__alpha) || defined (_M_ALPHA)
 #  if defined (__alpha_ev6__)
@@ -1428,11 +1423,18 @@ extern "C" {
 #  define CU_ARCH_X80 0
 #endif
 
-#if defined (i386) || defined (__i386__) || defined (__i386) || \
+#if defined (__x86_64) || defined (__x86_64__) || defined (_M_X64)
+#  define CU_ARCH_X86 700
+#  if !defined (CU_ARCH_64BIT)
+#    define CU_ARCH_64BIT 1
+#  endif
+#elif defined (i386) || defined (__i386__) || defined (__i386) || \
     defined (__i486__) || defined (__i586__) || defined (__i686__) || \
     defined (_M_IX86) || defined (_X86_) || defined (__THW_INTEL__) || \
     defined (__I86__) || defined (__INTEL__)
-#  if defined (__i686__)
+#  if defined (_M_IX86)
+#    define CU_ARCH_X86 _M_IX86
+#  elif defined (__i686__) || defined (__I86__)
 #    define CU_ARCH_X86 600
 #  elif defined (__i586__)
 #    define CU_ARCH_X86 500
@@ -1440,16 +1442,10 @@ extern "C" {
 #    define CU_ARCH_X86 400
 #  elif defined (__i386__)
 #    define CU_ARCH_X86 300
-#  elif defined (__I86__) || defined (_M_IX86)
-#    define CU_ARCH_X86 1
 #  else
 #    define CU_ARCH_X86 1
 #  endif
-#elif defined (__x86_64) || defined (__x86_64__) || defined (_M_X64)
-#  define CU_ARCH_X86 1
-#  if !defined (CU_ARCH_64BIT)
-#    define CU_ARCH_64BIT 1
-#  endif
+#  define CU_ARCH_32BIT 1
 #else
 #  define CU_ARCH_X86 0
 #endif
@@ -1627,14 +1623,11 @@ extern "C" {
 #  define CU_ARCH_32BIT 0
 #endif
 
-
 /* ==========================================================================
  *
  * ------------------------- Platform identification ------------------------
  *
  * ========================================================================== */
-
-
 
 #if defined (__ANDROID__)
 #  include <android/api-level.h>
@@ -1719,15 +1712,11 @@ extern "C" {
 #  define CU_PLAT_UWP 0
 #endif
 
-
-
 /* ==========================================================================
  *
- * ------------------------- Language identification ------------------------
+ * ---------------------------- Language features ---------------------------
  *
  * ========================================================================== */
-
-
 
 #define CU_LANG_C23 202311L
 #define CU_LANG_C17 201710L
@@ -1747,7 +1736,54 @@ extern "C" {
 #  define CU_LANG_C CU_LANG_CKR
 #endif
 
+#if CU_COMPVER(GNU, 2, 0)
+#  define CU_GNU_EXT __extension__
+#else
+#  define CU_GNU_EXT
+#endif
 
+#if CU_LANG_C >= CU_LANG_C23
+#  define CU_TYPEOF(x) typeof(x)
+#  define CU_TYPEOF_AVAILABLE 1
+#elif CU_COMP_GNU
+#  define CU_TYPEOF(x) __typeof__(x)
+#  define CU_TYPEOF_AVAILABLE 1
+#else
+#  define CU_TYPEOF(x)
+#  define CU_TYPEOF_AVAILABLE 0
+#endif
+
+#if CU_COMP_MSVC || (CU_COMP_DMC && CU_ARCH_X86)
+#  define CU_ASM __asm
+#elif CU_COMP_GNU && !CU_COMP_CHIBICC
+#  define CU_ASM __asm__
+#else
+#  define CU_ASM asm
+#endif
+
+#if defined (__STDC_THREADS__)
+#  define CU_THREAD_C_AVAILABLE 1
+#else
+#  define CU_THREAD_C_AVAILABLE 0
+#endif
+
+#if CU_OS_WINDOWS
+#  define CU_THREAD_WIN_AVAILABLE 1
+#else
+#  define CU_THREAD_WIN_AVAILABLE 0
+#endif
+
+#if CU_OS_UNIX || defined (_POSIX_THREADS) || defined (__EMSCRIPTEN_PTHREADS__)
+#  define CU_THREAD_POSIX_AVAILABLE 1
+#else
+#  define CU_THREAD_POSIX_AVAILABLE 0
+#endif
+
+#if CU_THREAD_POSIX_AVAILABLE || CU_THREAD_C_AVAILABLE || CU_THREAD_WIN_AVAILABLE
+#  define CU_THREAD_ANY_AVAILABLE 1
+#else
+#  define CU_THREAD_ANY_AVAILABLE 0
+#endif
 
 /* ==========================================================================
  *
@@ -1755,13 +1791,13 @@ extern "C" {
  *
  * ========================================================================== */
 
-
-
-#define CU_STRINGIFY_DETAIL(a) #a
+#define CU_CONCAT3_DETAIL(a, b, c) a ## b ## c
 #define CU_CONCAT_DETAIL(a, b) a ## b
+#define CU_STRINGIFY_DETAIL(a) #a
 
-#define CU_STRINGIFY(a) CU_STRINGIFY_DETAIL(a)
+#define CU_CONCAT3(a, b, c) CU_CONCAT3_DETAIL(a, b, c)
 #define CU_CONCAT(a, b) CU_CONCAT_DETAIL(a, b)
+#define CU_STRINGIFY(a) CU_STRINGIFY_DETAIL(a)
 #define CU_EVAL(a) a
 
 #if defined (__has_include)
@@ -1835,7 +1871,7 @@ extern "C" {
 #  define CU_FILE __builtin_FILE()
 #  define CU_FILE_AVAILABLE 2
 #else
-#  define CU_FILE "N/A"
+#  define CU_FILE ((const char *)(0))
 #  define CU_FILE_AVAILABLE 0
 #endif
 
@@ -1843,7 +1879,7 @@ extern "C" {
 #  define CU_DATE CU_EVAL(__DATE__)
 #  define CU_DATE_AVAILABLE 1
 #else
-#  define CU_DATE "N/A"
+#  define CU_DATE ((const char *)(0))
 #  define CU_DATE_AVAILABLE 0
 #endif
 
@@ -1851,11 +1887,17 @@ extern "C" {
 #  define CU_TIME CU_EVAL(__TIME__)
 #  define CU_TIME_AVAILABLE 1
 #else
-#  define CU_TIME "N/A"
+#  define CU_TIME ((const char *)(0))
 #  define CU_TIME_AVAILABLE 0
 #endif
 
-#define CU_FUNC CU_STRINGIFY(__PRETTY_FUNCTION__)
+#if CU_COMPVER(GNU, 2, 4)
+#  define CU_FUNC CU_GNU_EXT __PRETTY_FUNCTION__
+#elif CU_LANG_C >= CU_LANG_C99 || CU_COMP_MSVC
+#  define CU_FUNC __func__
+#else
+#  define CU_FUNC ((const char *)(0))
+#endif
 
 #if defined (__LINE__)
 #  define CU_LINE __LINE__
@@ -1875,7 +1917,7 @@ extern "C" {
 #  define CU_COUNTER_AVAILABLE 0
 #endif
 
-#if CU_COMPVER(MSVC, 15, 0) && defined (__C99_PRAGMA_OPERATOR)
+#if CU_COMPVER(MSVC, 15, 0)
 #  define CU_PRAGMA(arg) __pragma(arg)
 #  define CU_PRAGMA_AVAILABLE 1
 #elif CU_COMPVER(GNU, 3, 0) || \
@@ -1895,74 +1937,11 @@ extern "C" {
 #  define CU_PRAGMA_AVAILABLE 0
 #endif
 
-
-
-/* ==========================================================================
- *
- * ---------------------------- Language features ---------------------------
- *
- * ========================================================================== */
-
-
-
-#if CU_COMPVER(GNU, 2, 0)
-#  define CU_GNU_EXT __extension__
-#else
-#  define CU_GNU_EXT
-#endif
-
-#if CU_LANG_C >= CU_LANG_C23
-#  define CU_TYPEOF(x) typeof(x)
-#  define CU_TYPEOF_AVAILABLE 1
-#elif CU_COMP_GNU
-#  define CU_TYPEOF(x) __typeof__(x)
-#  define CU_TYPEOF_AVAILABLE 1
-#else
-#  define CU_TYPEOF(x)
-#  define CU_TYPEOF_AVAILABLE 0
-#endif
-
-#if CU_COMP_MSVC || (CU_COMP_DMC && CU_ARCH_X86)
-#  define CU_ASM __asm
-#elif CU_COMP_GNU && !CU_COMP_CHIBICC
-#  define CU_ASM __asm__
-#else
-#  define CU_ASM asm
-#endif
-
-#if defined (__STDC_THREADS__)
-#  define CU_THREAD_C_AVAILABLE 1
-#else
-#  define CU_THREAD_C_AVAILABLE 0
-#endif
-
-#if CU_OS_WINDOWS
-#  define CU_THREAD_WIN_AVAILABLE 1
-#else
-#  define CU_THREAD_WIN_AVAILABLE 0
-#endif
-
-#if CU_OS_UNIX || defined (_POSIX_THREADS) || defined (__EMSCRIPTEN_PTHREADS__)
-#  define CU_THREAD_POSIX_AVAILABLE 1
-#else
-#  define CU_THREAD_POSIX_AVAILABLE 0
-#endif
-
-#if CU_THREAD_POSIX_AVAILABLE || CU_THREAD_C_AVAILABLE || CU_THREAD_WIN_AVAILABLE
-#  define CU_THREAD_ANY_AVAILABLE 1
-#else
-#  define CU_THREAD_ANY_AVAILABLE 0
-#endif
-
-
-
 /* ==========================================================================
  *
  * ------------------------------- Endianness -------------------------------
  *
  * ========================================================================== */
-
-
 
 #if CU_HAS_INCLUDE(<endian.h>)
 #  include <endian.h>
@@ -2015,15 +1994,11 @@ extern "C" {
 #  define CU_DWSHIFT(val, bits) ((val) << (bits))
 #endif
 
-
-
 /* ==========================================================================
  *
  * -------------------------------- Keywords --------------------------------
  *
  * ========================================================================== */
-
-
 
 #if CU_LANG_C >= CU_LANG_C99
 #  define CU_INLINE inline
@@ -2131,15 +2106,11 @@ extern "C" {
 #  define CU_ATOMIC_AVAILABLE 0
 #endif
 
-
-
 /* ==========================================================================
  *
  * ------------------------------- Attributes -------------------------------
  *
  * ========================================================================== */
-
-
 
 #if CU_COMPVER(GNU, 2, 5) || defined (__TI_GNU_ATTRIBUTE_SUPPORT__)
 #  define CU_EXT_ATTRIBS 1
@@ -2366,20 +2337,18 @@ extern "C" {
 #  define CU_VISIBILITY_IMPORT extern
 #endif
 
-#if CU_SETTING_BUILDLIB
+#if 0
 #  define CU_API CU_VISIBILITY_PUBLIC
-#else
+#elif 0
 #  define CU_API CU_VISIBILITY_IMPORT
+#else
+#  define CU_API
 #endif
 
-#if (CU_COMP_MINGW || CU_COMP_MSVC) && !CU_COMP_CLANG
-#  define CU_API_SOURCE CU_API
-#else
-#  define CU_API_SOURCE
-#endif
+#define CU_API_SOURCE CU_API
 
 #if CU_COMPVER(CLANG, 12, 0) || CU_COMPVER(GNU, 7, 0) || (CU_HAS_ATTRIBUTE(__fallthrough__) && !CU_COMP_CLANG) || CU_COMPVERP(MCST, 1, 25, 10)
-#  define CU_FALLTHROUGH __attribute__ ((__fallthrough__))
+#  define CU_FALLTHROUGH  ((void)(0)); __attribute__ ((__fallthrough__));
 #  define CU_FALLTHROUGH_AVAILABLE 1
 #elif defined (__fallthrough)
 #  define CU_FALLTHROUGH __fallthrough
@@ -2388,19 +2357,15 @@ extern "C" {
 #  define CU_FALLTHROUGH [[__fallthrough__]]
 #  define CU_FALLTHROUGH_AVAILABLE 1
 #else
-#  define CU_FALLTHROUGH
+#  define CU_FALLTHROUGH ((void)(0))
 #  define CU_FALLTHROUGH_AVAILABLE 0
 #endif
-
-
 
 /* ==========================================================================
  *
  * -------------------------------- Debugging -------------------------------
  *
  * ========================================================================== */
-
-
 
 #if (defined (NDEBUG) || (defined (_DEBUG) && !(_DEBUG - 0))) && !CU_SETTING_FORCE_DEBUG
 #  define CU_RELEASE 1
@@ -2552,7 +2517,7 @@ CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_
 #elif defined (_6x_)
 CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("NOP\n .word 0x10000000"); }
 #elif CU_OS_UNIX
-#include <signal.h>
+#  include <signal.h>
 CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)
 {
 #if defined (SIGTRAP)
@@ -2592,24 +2557,20 @@ CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NORETURN static void __cu_trap
 #  define CU_ASSERT(cond) assert(cond)
 #elif CU_SETTING_ALLOC_FUNCS
 #  define CU_ASSERT(cond) do { \
-	if (!(CU_LIKELY((cond)))) cu_deballoc_assert_fail(CU_FILE ":" CU_STRINGIFY(CU_LINE) ": Assertion '" #cond "' failed."); \
+	if (!(CU_LIKELY((cond)))) cu_deballoc_assert_fail(CU_LINE, CU_FUNC, CU_FILE, CU_STRINGIFY(cond)); \
 } while (0)
 #else
 #  define CU_ASSERT(cond) do { if (!(CU_LIKELY((cond)))) CU_BREAKPOINT(); } while (0)
 #endif
 
-
 #define CU_UNUSED(var) ((void)(var))
-
-
+#define CU_EMPTY() ((void)(0))
 
 /* ==========================================================================
  *
  * ------------------------------- Data model -------------------------------
  *
  * ========================================================================== */
-
-
 
 #if (defined (__fourbyteints__) && !(__fourbyteints__ - 0))
 #  define CU_DM_LP32 1
@@ -2629,7 +2590,7 @@ CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NORETURN static void __cu_trap
 #  define CU_DM_LP64 0
 #endif
 
-#if CU_COMP_MSVC || CU_COMP_MINGW
+#if defined (__LLP64__)
 #  define CU_DM_LLP64 1
 #else
 #  define CU_DM_LLP64 0
@@ -2649,29 +2610,27 @@ CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NORETURN static void __cu_trap
 #  define CU_DM_16BIT 0
 #endif
 
-#if CU_HAS_INCLUDE(<limits.h>)
-#  include <limits.h>
-#endif
-
-#if !defined (CHAR_BIT)
-#  if defined (__CHAR_BIT__)
-#    define CU_DM_BYTESIZE __CHAR_BIT__
-#  else
-#    define CU_DM_BYTESIZE 8
-#  endif
+#if CU_DM_LLP64 || CU_COMP_MSVC || CU_COMP_MINGW || CU_ARCH_M68K || CU_ARCH_MIPS
+#  define CU_DM_LONGSUF ll
+#  define CU_DM_LL 1
 #else
-#  define CU_DM_BYTESIZE CHAR_BIT
+#  define CU_DM_LONGSUF l
+#  define CU_DM_LL 0
 #endif
 
-
+#if defined (CHAR_BIT)
+#  define CU_DM_BYTESIZE CHAR_BIT
+#elif defined (__CHAR_BIT__)
+#  define CU_DM_BYTESIZE __CHAR_BIT__
+#else
+#  define CU_DM_BYTESIZE 8
+#endif
 
 /* ==========================================================================
  *
  * ---------------------------------- Types ---------------------------------
  *
  * ========================================================================== */
-
-
 
 #if CU_LANG_C < CU_LANG_C23
 #  if CU_LANG_C >= CU_LANG_C99 && CU_HAS_INCLUDE(<stdbool.h>)
@@ -2693,7 +2652,7 @@ typedef unsigned int uint;
 
 #define CU_ENUM_MAX 0x7FFFFFFF
 
-#if CU_HAS_INCLUDE(<stdint.h>) || CU_COMPVER(GNU, 4, 5) || defined (_STDINT_H) || defined (_STDINT_H_) || defined (_STDINT_H_INCLUDED)
+#if CU_HAS_INCLUDE(<stdint.h>) || CU_COMPVER(GNU, 4, 5) || defined (_STDINT) || defined (_STDINT_H) || defined (_STDINT_H_) || defined (_STDINT_H_INCLUDED)
 #  include <stdint.h>
    typedef int32_t i32;
    typedef int64_t i64;
@@ -2808,39 +2767,35 @@ typedef unsigned int uint;
    typedef uintptr_t uptr;
    typedef intmax_t imax;
    typedef uintmax_t umax;
-#  define CU_UPTR_BYTES __SIZEOF_POINTER__
+#  define CU_PTR_BYTES __SIZEOF_POINTER__
 #else
 #  if CU_DM_64BIT
      typedef i64 iptr;
      typedef u64 uptr;
-#    define CU_UPTR_BYTES 8
+#    define CU_PTR_BYTES 8
 #  elif CU_DM_32BIT
      typedef i32 iptr;
      typedef u32 uptr;
-#    define CU_UPTR_BYTES 4
+#    define CU_PTR_BYTES 4
 #  else
      typedef i16 iptr;
      typedef u16 uptr;
-#    define CU_UPTR_BYTES 2
+#    define CU_PTR_BYTES 2
 #  endif
    typedef i64 imax;
    typedef u64 umax;
 #endif
 
-#if CU_DM_LLP64 || CU_ARCH_M68K || CU_ARCH_MIPS || defined (CU_LLONG_64BIT)
+#if CU_DM_LL || defined (CU_LLONG_64BIT)
 #  define CU_U64_C(a) a ## ULL
 #  define CU_I64_C(a) a ## LL
 #  define CU_U64_FMT "llu"
 #  define CU_I64_FMT "ll"
-#  if !defined(CU_LLONG_64BIT)
-#    define CU_LLONG_64BIT 1
-#  endif
 #else
 #  define CU_U64_C(a) a ## UL
 #  define CU_I64_C(a) a ## L
 #  define CU_U64_FMT "lu"
 #  define CU_I64_FMT "l"
-#  define CU_LLONG_64BIT 0
 #endif
 
 #if CU_DM_64BIT
@@ -2923,40 +2878,6 @@ typedef unsigned int uint;
 #  endif
 #endif
 
-#if CU_TYPEOF_AVAILABLE
-#  define CU_INTERNAL_SIZE_T CU_TYPEOF(sizeof(0))
-#elif defined (__SIZE_TYPE__)
-#  define CU_INTERNAL_SIZE_T __SIZE_TYPE__
-#elif defined (_SIZE_T) || defined (_SIZE_T_DEFINED) || defined (__size_t__) || defined (__SIZE_T__)
-#  define CU_INTERNAL_SIZE_T size_t
-#elif defined (__SIZEOF_SIZE_T__)
-#  if __SIZEOF_SIZE_T__ == 8
-#    define CU_INTERNAL_SIZE_T u64
-#  elif __SIZEOF_SIZE_T__ == 4
-#    define CU_INTERNAL_SIZE_T u32
-#  elif __SIZEOF_SIZE_T__ == 2
-#    define CU_INTERNAL_SIZE_T u16
-#  else
-#    define CU_INTERNAL_SIZE_T u64
-#  endif
-#elif defined (__SIZE_MAX__)
-#  if __SIZE_MAX__ == 0xFFFFFFFFFFFFFFFF
-#    define CU_INTERNAL_SIZE_T u64
-#  elif __SIZE_MAX__ == 0xFFFFFFFF
-#    define CU_INTERNAL_SIZE_T u32
-#  elif __SIZE_MAX__ == 0xFFFF
-#    define CU_INTERNAL_SIZE_T u16
-#  else
-#    define CU_INTERNAL_SIZE_T u64
-#  endif
-#elif CU_DM_64BIT
-#  define CU_INTERNAL_SIZE_T u64
-#elif CU_DM_32BIT
-#  define CU_INTERNAL_SIZE_T u32
-#else
-#  define CU_INTERNAL_SIZE_T u16
-#endif
-
 CU_STATIC_ASSERT(sizeof(i32) == 4, "Invalid type size (i32)")
 #if !CU_COMP_CC65
 CU_STATIC_ASSERT(sizeof(i64) == 8, "Invalid type size (i64)")
@@ -2964,15 +2885,11 @@ CU_STATIC_ASSERT(sizeof(i64) == 8, "Invalid type size (i64)")
 CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
 CU_STATIC_ASSERT(sizeof(imax) >= sizeof(void *), "Invalid type size (imax)")
 
-
-
 /* ==========================================================================
  *
  * ------------------------------ Optimization ------------------------------
  *
  * ========================================================================== */
-
-
 
 #if CU_PRAGMA_AVAILABLE && CU_COMPVER(GNU, 3, 0)
 #  define CU_UNROLL(n) CU_PRAGMA("GCC unroll " #n)
@@ -2985,6 +2902,7 @@ CU_STATIC_ASSERT(sizeof(imax) >= sizeof(void *), "Invalid type size (imax)")
 #elif CU_HAS_BUILTIN(__builtin_assume)
 #  define CU_ASSUME(expr) __builtin_assume(expr)
 #endif
+
 #if (CU_HAS_BUILTIN(__builtin_unreachable) && !CU_COMP_ARM) || \
      CU_COMPVER(GNU, 4, 5) || \
      CU_COMPVER(PGI, 18, 10) || \
@@ -3016,7 +2934,7 @@ CU_STATIC_ASSERT(sizeof(imax) >= sizeof(void *), "Invalid type size (imax)")
       CU_COMPVERP(TINYC, 0, 9, 27) || \
       CU_COMPVER(CRAY, 8, 1) || \
       CU_COMPVERP(MCST, 1, 25, 10)
-#  define CU_PREDICT(expr, result, probability) (((probability > 0.9) ? __builtin_expect((expr), (expected)) : ((void)((result)), (expr))))
+#  define CU_PREDICT(expr, result, probability) (((probability > 0.5) ? __builtin_expect((expr), (result)) : ((void)((result)), (expr))))
 #  define CU_LIKELY(expr) __builtin_expect(!!(expr), 1)
 #  define CU_UNLIKELY(expr) __builtin_expect(!!(expr), 0)
 #else
@@ -3031,15 +2949,11 @@ CU_STATIC_ASSERT(sizeof(imax) >= sizeof(void *), "Invalid type size (imax)")
 #  define CU_UNPREDICTABLE(expr) CU_PREDICT(expr, 1, 0.5)
 #endif
 
-
-
 /* ==========================================================================
  *
  * ---------------------------- Bit manipulation ----------------------------
  *
  * ========================================================================== */
-
-
 
 #if CU_COMP_CHIBICC || CU_COMP_CC65 || CU_COMP_MSVC || CU_COMP_NORCROFT || CU_COMP_TI || !CU_HAS_BUILTIN(__builtin_ffs)
 #  define CU_BUILTIN_BITOPS 0
@@ -3048,127 +2962,60 @@ CU_STATIC_ASSERT(sizeof(imax) >= sizeof(void *), "Invalid type size (imax)")
 #endif
 
 #if CU_BUILTIN_BITOPS
-#  define CU_BITOP_FUNC(n, f, t) CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NOTHROW \
-   CU_ATTRIB_CONST CU_ATTRIB_WARN_UNUSED_RESULT static int cu_bitop_##f(t x) { return __builtin_##n(x); }
+#  define CU_BITOP_FUNC(n, f, t) CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NOTHROW CU_ATTRIB_CONST CU_ATTRIB_WARN_UNUSED_RESULT \
+   static int cu_bitop_##f(t x) { return CU_CONCAT(__builtin_##n, CU_DM_LONGSUF)(x); }
 
-   CU_BITOP_FUNC(ffs, ffs, int)
-   CU_BITOP_FUNC(clz, clz, unsigned int)
-   CU_BITOP_FUNC(ctz, ctz, unsigned int)
-   CU_BITOP_FUNC(clrsb, clrsb, int)
-   CU_BITOP_FUNC(popcount, popcount, unsigned int)
-   CU_BITOP_FUNC(parity, parity, unsigned int)
-#  if CU_DM_LLP64
-     CU_BITOP_FUNC(ffsll, ffs64, long long int)
-     CU_BITOP_FUNC(clzll, clz64, unsigned long long int)
-     CU_BITOP_FUNC(ctzll, ctz64, unsigned long long int)
-     CU_BITOP_FUNC(clrsbll, clrsb64, long long int)
-     CU_BITOP_FUNC(popcountll, popcount64, unsigned long long int)
-     CU_BITOP_FUNC(parityll, parity64, unsigned long long int)
-#  else
-     CU_BITOP_FUNC(ffsl, ffs64, long int)
-     CU_BITOP_FUNC(clzl, clz64, unsigned long int)
-     CU_BITOP_FUNC(ctzl, ctz64, unsigned long int)
-     CU_BITOP_FUNC(clrsbl, clrsb64, long int)
-     CU_BITOP_FUNC(popcountl, popcount64, unsigned long int)
-     CU_BITOP_FUNC(parityl, parity64, unsigned long int)
-#  endif
+   CU_BITOP_FUNC(ffs, ffs, i64)
+   CU_BITOP_FUNC(clz, clz, u64)
+   CU_BITOP_FUNC(ctz, ctz, u64)
+   CU_BITOP_FUNC(clrsb, clrsb, i64)
+   CU_BITOP_FUNC(popcount, popcount, u64)
+   CU_BITOP_FUNC(parity, parity, u64)
 #else
-#  define CU_BITOP_DECL(n) \
+#  define CU_BITOP_DEFN(n) \
    CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NOTHROW \
    CU_ATTRIB_CONST CU_ATTRIB_WARN_UNUSED_RESULT static int cu_bitop_##n
 
-CU_BITOP_DECL(INTERNAL_lzcnt)(unsigned x)
+CU_BITOP_DEFN(INTERNAL_lzcnt)(u64 x)
 {
 	int bits;
 	for (bits = sizeof x * CU_DM_BYTESIZE; x; --bits, x = CU_DWSHIFT(x, 1));
 	return bits;
 }
-CU_BITOP_DECL(INTERNAL_lzcnt64)(u64 x)
-{
-	int bits;
-	for (bits = sizeof x * CU_DM_BYTESIZE; x; --bits, x = CU_DWSHIFT(x, 1));
-	return bits;
-}
-
-CU_BITOP_DECL(ffs)(int x)
+CU_BITOP_DEFN(ffs)(i64 x)
 {
 	int bits;
 	if (!x) return 0;
 	for (bits = 1; !(x & 1); ++bits, x = CU_DWSHIFT(x, 1));
 	return bits;
 }
-CU_BITOP_DECL(clz)(unsigned int x)
-{
-	return cu_bitop_INTERNAL_lzcnt(x);
-}
-CU_BITOP_DECL(ctz)(unsigned int x)
+CU_BITOP_DEFN(clz)(u64 x) { return cu_bitop_INTERNAL_lzcnt(x); }
+CU_BITOP_DEFN(ctz)(u64 x)
 {
 	int bits;
 	if (!x) return 0;
 	for (bits = 0; !(x & 1); ++bits, x = CU_DWSHIFT(x, 1));
 	return bits;
 }
-CU_BITOP_DECL(clrsb)(int x)
-{
-	return (cu_bitop_INTERNAL_lzcnt(CU_DWSHIFT(x, sizeof x * 8 - 1) ^ x)) - 1;
-}
-CU_BITOP_DECL(popcount)(unsigned int x)
+CU_BITOP_DEFN(clrsb)(i64 x) { return (cu_bitop_INTERNAL_lzcnt((u64)(CU_DWSHIFT(x, sizeof x * 8 - 1) ^ x))) - 1; }
+CU_BITOP_DEFN(popcount)(u64 x)
 {
 	int bits;
 	for (bits = 0; x; ++bits, x &= x - 1);
 	return bits;
 }
-CU_BITOP_DECL(parity)(unsigned int x)
-{
-	return cu_bitop_popcount(x) & 1;
-}
+CU_BITOP_DEFN(parity)(u64 x) { return cu_bitop_popcount(x) & 1; }
 
-CU_BITOP_DECL(ffs64)(i64 x)
-{
-	int bits;
-	if (!x) return 0;
-	for (bits = 1; !(x & 1); ++bits, x = CU_DWSHIFT(x, 1));
-	return bits;
-}
-CU_BITOP_DECL(clz64)(u64 x)
-{
-	return cu_bitop_INTERNAL_lzcnt64(x);
-}
-CU_BITOP_DECL(ctz64)(u64 x)
-{
-	int bits;
-	if (!x) return 0;
-	for (bits = 0; !(x & 1); ++bits, x = CU_DWSHIFT(x, 1));
-	return bits;
-}
-CU_BITOP_DECL(clrsb64)(i64 x)
-{
-	return (cu_bitop_INTERNAL_lzcnt64((u64)(CU_DWSHIFT(x, sizeof x * 8 - 1) ^ x))) - 1;
-}
-CU_BITOP_DECL(popcount64)(u64 x)
-{
-	int bits;
-	for (bits = 0; x; ++bits, x &= x - 1);
-	return bits;
-}
-CU_BITOP_DECL(parity64)(u64 x)
-{
-	return cu_bitop_popcount64(x) & 1;
-}
 #endif
 
 #define CU_BITOF(x, bit) (CU_DWSHIFT(x, bit) & 1)
 #define CU_BITSOF(x, start, end) (CU_DWSHIFT(x, start) & (CU_UPSHIFT(1, (1 + (end - start))) - 1))
-
-
 
 /* ==========================================================================
  *
  * -------------------------------- Constants -------------------------------
  *
  * ========================================================================== */
-
-
 
 #define CU_PI     3.141592653589793238462643383279502884197169399375105820974944
 #define CU_SQRT2  1.414213562373095048801688724209698078569671875376948073176679
@@ -3187,7 +3034,7 @@ CU_BITOP_DECL(parity64)(u64 x)
 #define CU_I64MAX 0x7FFFFFFFFFFFFFFF
 #define CU_U64MAX 0xFFFFFFFFFFFFFFFF
 
-#if CU_DM_LLP64 || CU_DM_32BIT
+#if CU_DM_LL
 #  define CU_INTMAX CU_I32MAX
 #  define CU_UINTMAX CU_U32MAX
 #  define CU_LONGMAX CU_I32MAX
@@ -3203,12 +3050,15 @@ CU_BITOP_DECL(parity64)(u64 x)
 #  define CU_ULLONGMAX CU_U64MAX
 #endif
 
-#if CU_UPTR_BYTES == 8
+#if CU_PTR_BYTES == 8
 #  define CU_UPTRMAX CU_U64MAX
-#elif CU_UPTR_BYTES == 4
+#  define CU_IPTRMAX CU_U64MAX
+#elif CU_PTR_BYTES == 4
 #  define CU_UPTRMAX CU_U32MAX
-#elif CU_UPTR_BYTES == 2
+#  define CU_IPTRMAX CU_I32MAX
+#elif CU_PTR_BYTES == 2
 #  define CU_UPTRMAX CU_U16MAX
+#  define CU_IPTRMAX CU_I16MAX
 #endif
 
 #if defined (PATH_MAX)
@@ -3233,8 +3083,6 @@ CU_BITOP_DECL(parity64)(u64 x)
 #  define NULL ((void *)(0))
 #endif
 
-
-
 /* ==========================================================================
  *
  * ---------------------------- Function support ----------------------------
@@ -3243,26 +3091,40 @@ CU_BITOP_DECL(parity64)(u64 x)
 
 #if !CU_SETTING_QUIET
 
+/* Define CU_SETTING_QUIET to 1 before including this header file or as part of your compiler options to disable support warnings. */
+
 #if CU_SETTING_FILE_FUNCS && !CU_OS_WINDOWS && (!CU_HAS_INCLUDE(<dirent.h>) || CU_ARCH_M68K || defined (__MSP430__))
-CU_WARNING("dirent.h not supported, recursive directory deletion will always fail. Use '#define CU_SETTING_QUIET 1' before including cutils.h to disable this warning.")
+CU_WARNING("Recursive directory deletion is unavailable.")
 #endif
 
 #if CU_SETTING_FILE_FUNCS && !CU_HAS_INCLUDE(<sys/stat.h>)
-CU_WARNING("sys/stat.h not found, no file functions are available. Use '#define CU_SETTING_QUIET 1' before including cutils.h to disable this warning.")
+CU_WARNING("File functions are unavailable.")
 #  undef CU_SETTING_FILE_FUNCS
 #  define CU_SETTING_FILE_FUNCS 0
 #endif
 
 #if CU_SETTING_RESOURCES_FUNCS && !CU_HAS_INCLUDE(<cpuid.h>) && !CU_COMP_MSVC
-CU_WARNING("cpuid instruction not fully supported; cu_res_cpuinfo will be limited. Use '#define CU_SETTING_QUIET 1' before including cutils.h to disable this warning.")
+CU_WARNING("cpuid instruction not fully supported so cu_res_cpuinfo will be limited.")
 #endif
 
-#if CU_SETTING_THREAD_FUNCS && CU_OS_UNIX
+#if CU_SETTING_NETWORK_FUNCS && !CU_OS_WINDOWS && !CU_OS_UNIX
+CU_WARNING("Networking functions are unavailable.")
+#  undef CU_SETTING_NETWORK_FUNCS
+#  define CU_SETTING_NETWORK_FUNCS 0
+#endif
+
+#if CU_SETTING_THREAD_FUNCS && !CU_THREAD_ANY_AVAILABLE
+CU_WARNING("Threading functions are unavailable.")
+#  undef CU_SETTING_THREAD_FUNCS
+#  define CU_SETTING_THREAD_FUNCS 0
+#endif
+
+#if CU_SETTING_THREAD_FUNCS && CU_OS_UNIX && !defined(SYS_gettid)
 #  if CU_HAS_INCLUDE(<sys/syscall.h>)
 #    include <sys/syscall.h>
 #  endif
 #  if !defined (SYS_gettid)
-CU_WARNING("gettid not supported, cu_thread_tid will always return 0. Use '#define CU_SETTING_QUIET 1' before including cutils.h to disable this warning.")
+CU_WARNING("cu_thread_gettid will always return 0.")
 #  endif
 #endif
 
@@ -3276,24 +3138,24 @@ CU_WARNING("gettid not supported, cu_thread_tid will always return 0. Use '#defi
  *
  * ========================================================================== */
 
-
-
 typedef struct custr
 {
 	char *str;
 	uptr len, cap;
 } custr;
 
+#define CUSTR_EMPTY { NULL, 0, 0 }
+
 /* Creates a custr from a normal string.
-   The given custr pointer should not be allocated beforehand. */
+   The given custr pointer should be uninitialized or, if it contains allocated text, cleared with custr_clear. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
-CU_API int custr_create(custr *c, const char *str);
+CU_API int custr_create(custr *CU_RESTRICT c, const char *CU_RESTRICT str);
 /* Creates a custr using an already allocated string; returns the given custr.
    You can provide the allocated size or 0 to assume it is strlen + 1.
-   The given custr pointer should not be allocated beforehand.
-   The allocated string pointer should not be used independently afterwards. */
+   The given custr pointer should be uninitialized or, if it contains allocated text, cleared with custr_clear.
+   The allocated string pointer should not be used directly. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
-CU_API custr *custr_allocd(custr *c, const char *allocdstr, uptr allocd_bytes);
+CU_API custr *custr_allocd(custr *CU_RESTRICT c, const char *CU_RESTRICT allocdstr, uptr allocd_bytes);
 /* Returns a temporary custr for use in reasonable custr functions.
    No cleanup or deallocations are needed: can pass in directly as the argument. */
 CU_ATTRIB_NOTHROW
@@ -3308,20 +3170,20 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_reserve(custr *c, uptr bytes);
 /* Copies a custr to another. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
-CU_API int custr_copy(const custr *copy, custr *paste);
+CU_API int custr_copy(const custr *CU_RESTRICT copy, custr *CU_RESTRICT paste);
 
 /* Sets custr length and moves terminator. Fails if given length is not smaller than current length. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_shrinkto(custr *c, uptr shrinked_len);
-/* Deallocates a custr's data. */
+/* Deallocates a custr's data and returns it. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API void custr_clear(custr *c);
+CU_API custr *custr_clear(custr *c);
 /* Optimizes the capacity of the given custr. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_optimize(custr *c);
 
 /* Inserts 'to_insert' into 'c' at their respective offsets. */
-CU_ATTRIB_NOTHROW
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3))
 CU_API int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const custr *CU_RESTRICT to_insert, uptr to_insert_offset);
 /* Same as custr_insert but 'c_offset' is the length of 'c'. */
 CU_ATTRIB_NOTHROW
@@ -3334,7 +3196,7 @@ CU_API int custr_sub(const custr *CU_RESTRICT c, custr *CU_RESTRICT subresult, u
 /* Sets the given custr to a substring of itself. The ending index is clamped to the last character. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_tosub(custr *c, uptr start_ind, uptr end_ind);
-/* Removes a specified section of the given custr. Count is clamped if it would go past the end.
+/* Removes a specified section of the given custr. count is clamped if it would go past the end.
    No effect if starting index is past the end of the string. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API void custr_cut(custr *c, uptr start_ind, uptr count);
@@ -3342,6 +3204,9 @@ CU_API void custr_cut(custr *c, uptr start_ind, uptr count);
 /* Returns the number of occurrences of a character in a custr. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_count(const custr *c, char target);
+/* Returns the number of occurrences of a substring in a custr. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
+CU_API int custr_countsub(const custr *CU_RESTRICT c, const custr *CU_RESTRICT target);
 
 /* Sets the given custr to describe a variadically formated string.
    The custr should not be allocated beforehand.
@@ -3356,16 +3221,20 @@ CU_API int custr_fmt(custr *CU_RESTRICT c, char *CU_RESTRICT fmt, ...);
    If given name is NULL, 'c' will be changed to describe the parent directory instead. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_cd(custr *CU_RESTRICT c, const custr *CU_RESTRICT name);
-/* Simplify the given path. */
+/* Simplify the given path, assuming 'c' describes one. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API int custr_simplify(custr *c);
+CU_API void custr_simplify(custr *c);
 
 /* Returns the index of the nth occurrence of a character in a custr, or CU_UPTRMAX if not found.
    n =  0,  1 returns the first and second occurrence respectively.
    n = -1, -2 returns the last and second last occurrence respectively.
    If searching backwards (negative n), the offset will also apply backwards. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API uptr custr_find(const custr *c, uptr c_offset, char target_char, int n);
+CU_API uptr custr_find(const custr *c, uptr c_offset, char target, int n);
+/* Same as custr_find, but searches for any character that is NOT target. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+CU_API uptr custr_findnot(const custr *c, uptr c_offset, char target, int n);
+
 /* Returns the index of the first character of the nth occurrence of a substring in a custr, or CU_UPTRMAX if not found.
    n =  0,  1 returns the first and second occurrence respectively.
    n = -1, -2 returns the last and second last occurrence respectively.
@@ -3379,11 +3248,9 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API void custr_replace(custr *c, uptr c_offset, char target, char replacement);
 
 /* Replaces a substring with another. A replacement of a null pointer or null custr removes all occurrences.
-   No effect if target substring is a null pointer or is a null string. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+   No effect if target substring is a null or empty string. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 3))
 CU_API int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const custr *CU_RESTRICT target, const custr *replacement);
-
-
 
 /* ==========================================================================
  *
@@ -3501,7 +3368,7 @@ typedef struct cu_res_mem
 	uptr phys_present;  /* Total physical memory on the system. */
 	uptr phys_tot_used; /* Total physical memory used. */
 	uptr phys_loc_used; /* Total physical memory used by this process. */
-	
+
 	uptr virt_present;  /* Total virtual memory on the system. */
 	uptr virt_tot_used; /* Total virtual memory used. */
 	uptr virt_loc_used; /* Total virtual memory used by this process. */
@@ -3534,6 +3401,8 @@ typedef struct cu_res_cpu
 
 /* Maximum size (including terminator) of string needed by byte formatting. */
 #define CU_RES_BYTEFMT_MAXSIZE 10
+/* Maximum size (including termiantor) of string needed for OS name. */
+#define CU_RES_OSNAME_MAXSIZE 256
 
 /* Sets string to formatted digital storage text of given bytes count.
    Maximum terminated size is given by the CU_RES_BYTEFMT_MAXSIZE macro.
@@ -3552,6 +3421,12 @@ CU_API real64 cu_res_cpuusage(void);
 /* Get general CPU information. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int cu_res_cpuinfo(cu_res_cpu *info);
+
+/* Get OS name and place into namebuf, if not NULL.
+   At most 256 bytes (includes terminator) is needed.
+   Returns length of OS name string, or 0 on error. */
+CU_ATTRIB_NOTHROW
+CU_API uptr cu_res_osname(char *namebuf);
 
 #endif
 
@@ -3603,6 +3478,198 @@ CU_API real64 cu_timer_endf(const cu_timer *tm);
 
 /* ==========================================================================
  *
+ * -------------------------- Networking functions --------------------------
+ *
+ * ========================================================================== */
+
+#if CU_SETTING_NETWORK_FUNCS
+
+#if CU_OS_APPLE
+#  define _DARWIN_UNLIMITED_SELECT
+#endif
+
+#if !CU_OS_UNIX
+#  include <winsock2.h>
+   typedef SOCKET cu_socket;
+#else
+   typedef int cu_socket;
+#endif
+
+#define CU_NET_IPADDR_LEN 46
+
+/* Error values returned by networking functions. */
+enum cu_net_error
+{
+	CUERR_NONE, /* Successful call. */
+
+	CUERR_ARGS, /* Invalid arguments. */
+	CUERR_MEM, /* Could not allocate memory. */
+
+	CUERR_GENERIC, /* Generic error. */
+	CUERR_ADDR, /* Could not get address info. */
+	CUERR_CONNECT, /* Could not connect to address or the remote was disconnected. */
+	CUERR_LISTEN /* Server could not start listening. */
+};
+
+/* Identifiers for listen events. */
+enum cu_net_event
+{
+	/* 'data' and 'n' of the remote event function pointer arguments are left as NULL and 0 respectively in the function pointer call unless stated otherwise. */
+
+	/* Data has been recieved from the target remote.
+	   'data' (malloc'd, needs to be free'd) and 'n' are filled with recieved data. */
+	CUEVT_MESSAGE,
+	/* Client connected to server.
+	   On a server, 'n' is set to the updated number of connected clients. */
+	CUEVT_CONNECT,
+	/* Target remote disconnected.
+	   On a server, 'n' is set to the updated number of connected clients and there is no need to disconnect the given client manually.
+	   On a client, the listening function returns after this event and 'n' is set to whether it was a client-side disconnection. */
+	CUEVT_DISCONNECT,
+
+	/* Listen or recieve was interrupted by a signal.
+	   If a recieve was interrupted, the client is given.
+	   If the event handler returns 0, the listening function returns. */
+	CUEVT_SIGNAL,
+
+	/* This event can be run at a fixed interval by the server and client. */
+	CUEVT_HEARTBEAT,
+
+	/* Could not allocate some data. 'n' is set to the number of bytes that was attempted to be allocated.
+	   If this occurs from a server and a client was given, this means it failed to allocate space for their sent data. */
+	CUEVT_ALLOCDMEMERR,
+	/* A client attempted to connect, but an error occurred while accepting the connection.
+	   n=maxclients (i.e. non-zero) if this is from reaching the client limit. */
+	CUEVT_REMOTECONERR,
+	/* Generic issue from listening for messages. */ 
+	CUEVT_MSGLISTENERR
+};
+
+/* Information on an open connection. */
+typedef struct cu_net_remote
+{
+	/* IP address of remote. */
+	char ip[CU_NET_IPADDR_LEN + 2];
+	/* Can be used to identify this remote in the context of your program. */
+	void *ext;
+	/* Internal value. Do not change or use for identification. */
+	cu_socket fd;
+} cu_net_remote;
+
+struct cu_net_server;
+
+/* Client's event handler for listening. You should return 1 unless a specific effect for the given event is desired. */
+typedef int (*cu_client_event)(cu_net_remote *remote, enum cu_net_event event_type, void *data, uptr n);
+/* Server's event handler for listening. You should return 1 unless a specific effect for the given event is desired. */
+typedef int (*cu_server_event)(struct cu_net_server *server, cu_net_remote *remote, enum cu_net_event event_type, void *data, uptr n);
+
+/* Server data. */
+typedef struct cu_net_server
+{
+	/* Connected remotes. First is server's local remote, all others belong to each client. Order is not guaranteed. */
+	cu_net_remote *remotes;
+	/* Number of connected clients. */
+	int clients_count;
+	/* Maximum number of clients allowed at once as determined by user. Can be modified at any time. */
+	int max_clients;
+	/* Given server event handler. */
+	cu_server_event event_handler;
+
+	int remotes_capacity;
+	struct pollfd *pfds;
+} cu_net_server;
+
+/* ------------ Client functions ------------ */
+
+/* Connect to a server at the given port and address.
+   Port must be in the range [1024, 65535].
+   Returns CUERR_NONE on success, otherwise CUERR_ARGS, CUERR_ADDR or CUERR_CONNECT. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+CU_API enum cu_net_error cu_client_start(cu_net_remote *CU_RESTRICT server_info, const char *CU_RESTRICT address, u16 port);
+
+/* Listens for network events related to the given server, running the event handler appropriately.
+   The possible events are: CUEVT_MESSAGE, CUEVT_DISCONNECT, CUEVT_SIGNAL, CUEVT_ALLOCDMEMERR, CUEVT_MSGLISTENERR and CUEVT_HEARTBEAT.
+   If the heartbeat event delay is negative, it does not occur.
+   Catches SIGINT signal (set to default handler afterwards) and blocks until 0 is returned on a CUEVT_SIGNAL or the server disconnects. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
+CU_API void cu_client_listen(cu_net_remote *CU_RESTRICT server_info, cu_client_event event_handler, int heartbeat_delay_msec);
+
+/* Closes the connection to the given server. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+CU_API void cu_client_close(cu_net_remote *server_info);
+
+/* ------------ Server functions ------------ */
+
+/* Start a server with the given settings.
+   Port must be in the range [1024, 65535] and maximum clients should be larger than 0.
+   Returns CUERR_NONE on success and CUERR_ARGS, CUERR_LISTEN, CUERR_MEM or CUERR_ADDR otherwise. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+CU_API enum cu_net_error cu_server_start(cu_net_server *server, u16 port, int max_clients);
+
+/* Listens for network events, running the server's event handler function pointer member when one occurs.
+   The possible events are: CUEVT_MESSAGE, CUEVT_CONNECT, CUEVT_DISCONNECT, CUEVT_ALLOCDMEMERR, CUEVT_REMOTECONERR, CUEVT_MSGLISTENERR, CUEVT_SIGNAL and CUEVT_HEARTBEAT.
+   If the heartbeat event delay is negative, it does not occur.
+   Catches SIGINT signal (set to default handler afterwards) and blocks until 0 is returned on a CUEVT_SIGNAL. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+CU_API void cu_server_listen(cu_net_server *server, cu_server_event event_handler, int heartbeat_delay_msec);
+
+/* Broadcast data to all connected clients except for the ones in the given array.
+   Returns CUERR_NONE on success and CUERR_GENERIC otherwise. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
+CU_API enum cu_net_error cu_server_broadcast(const cu_net_server *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote **CU_RESTRICT except, int except_length);
+
+/* Disconnect the given client and runs the CUEVT_DISCONNECT event. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
+CU_API void cu_server_disconnect_client(cu_net_server *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client);
+
+/* Closes the server and all client connections. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+CU_API void cu_server_close(cu_net_server *server);
+
+/* ------------ General functions ------------ */
+
+/* Initialize networking libraries. */
+CU_ATTRIB_NOTHROW
+CU_API int cu_net_init(void);
+/* Terminate networking libraries. */
+CU_ATTRIB_NOTHROW
+CU_API void cu_net_terminate(void);
+
+/* Sends n bytes of data to the target remote.
+   Returns CUERR_NONE on success and CUERR_GENERIC otherwise. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
+CU_API enum cu_net_error cu_net_sendmsg(const cu_net_remote *CU_RESTRICT target, const void *CU_RESTRICT data, uptr n);
+
+/* Waits until data is recieved from the target remote.
+   On a memory error (CUERR_MEM), 'bytes' is set to the number of bytes it attempted to allocate.
+   Returns CUERR_NONE on success and CUERR_MEM, CUERR_CONNECT (target remote sdisconnected) or CUERR_GENERIC otherwise. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2, 3))
+CU_API enum cu_net_error cu_net_recvmsg(const cu_net_remote *CU_RESTRICT target, void **CU_RESTRICT data, uptr *CU_RESTRICT bytes);
+
+/* Sets the given string to the device's local interfaces.
+   At most CU_NET_IPADDR_LEN bytes of string is used, including the terminator.
+   A specific interface format can be requested using the CU_NET_INTERFACE_* macros.
+   You can increase 'id' to use another found interface, starting from id 0.
+   Returns the given string on success or NULL on error. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+CU_API char *cu_net_interfaces(char *ipbuf, int if_fmt, int id);
+
+/* Determine whether a given remote has been closed. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
+CU_API int cu_net_isclosed(const cu_net_remote *remote);
+
+/* Returns a string describing the last encountered error. */
+CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
+CU_API const char *cu_net_lasterr(void);
+
+#define CU_NET_INTERFACE_ANY 0
+#define CU_NET_INTERFACE_IPV4 1
+#define CU_NET_INTERFACE_IPV6 2
+
+#endif
+
+/* ==========================================================================
+ *
  * --------------------------- Threading functions --------------------------
  *
  * ========================================================================== */
@@ -3643,16 +3710,6 @@ CU_API real64 cu_timer_endf(const cu_timer *tm);
    typedef int cu_thread_return;
    typedef cu_thread_return (*cu_thread_func)(cu_thread_arg);
 #  define CU_THREAD_FUNCTION(name, argname) cu_thread_return name(cu_thread_arg argname)
-#else
-#  define CU_THREAD_POSIX_USED 0
-#  define CU_THREAD_WIN_USED 0
-#  define CU_THREAD_C_USED 0
-   typedef int cu_thread;
-   typedef int cu_thread_mutex;
-   typedef void *cu_thread_arg;
-   typedef void *cu_thread_return;
-   typedef cu_thread_return (*cu_thread_func)(cu_thread_arg);
-#  define CU_THREAD_FUNCTION(name, argname) cu_thread_return name(cu_thread_arg argname)
 #endif
 
 #define CU_THREAD_RETURN_VAL ((cu_thread_return)0)
@@ -3661,7 +3718,7 @@ CU_API real64 cu_timer_endf(const cu_timer *tm);
 CU_ATTRIB_NOTHROW
 CU_API int cu_thread_count(void);
 /* Sleeps for the given time frame. This does not affect timers. */
-CU_API int cu_thread_sleep(u64 secs, u64 microsecs);
+CU_API void cu_thread_sleep(u64 secs, u64 microsecs);
 
 /* Get current process ID. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
@@ -3673,13 +3730,16 @@ CU_API u32 cu_thread_tid(void);
 /* Creates a thread. Returns 0 if failed. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg);
+/* Returns the current thread. */
+CU_ATTRIB_NOTHROW
+CU_API cu_thread cu_thread_self(void);
 
-/* Joins the given thread. Returns 0 if failed. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API int cu_thread_join(cu_thread *thread);
+/* Waits for the given thread to finish. Returns 0 if failed. */
+CU_ATTRIB_NOTHROW
+CU_API int cu_thread_join(cu_thread thread);
 /* Detaches the given thread. Returns 0 if failed. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API int cu_thread_detach(cu_thread *thread);
+CU_ATTRIB_NOTHROW
+CU_API int cu_thread_detach(cu_thread thread);
 
 /* Initializes the given mutex. Returns 0 if failed. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
@@ -3708,17 +3768,17 @@ CU_API int cu_thread_mutex_destroy(cu_thread_mutex *mutex);
 #if CU_SETTING_ALLOC_FUNCS
 
 /* Custom assertion fail handler. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_NORETURN CU_ATTRIB_NONNULL((1)) CU_ATTRIB_COLD
-CU_API void cu_deballoc_assert_fail(const char *cond_str);
+CU_ATTRIB_NOTHROW CU_ATTRIB_NORETURN CU_ATTRIB_COLD
+CU_API void cu_deballoc_assert_fail(int line, const char *func, const char *file, const char *cond);
 
 CU_ATTRIB_NOTHROW
-CU_API void cu_deballoc_free(const char *CU_RESTRICT call_location, void *CU_RESTRICT ptr);
-CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE(2) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 2) CU_ATTRIB_WARN_UNUSED_RESULT
-CU_API void *cu_deballoc_malloc(const char *call_location, uptr bytes);
-CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE_MUL(2, 3) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 2) CU_ATTRIB_WARN_UNUSED_RESULT
-CU_API void *cu_deballoc_calloc(const char *call_location, uptr n, uptr size_each);
-CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE(3) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 2) CU_ATTRIB_WARN_UNUSED_RESULT
-CU_API void *cu_deballoc_realloc(const char *CU_RESTRICT call_location, void *CU_RESTRICT ptr, uptr bytes);
+CU_API void cu_deballoc_free(int line, const char *CU_RESTRICT func, const char *CU_RESTRICT file, void *CU_RESTRICT ptr);
+CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE(4) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 4) CU_ATTRIB_WARN_UNUSED_RESULT
+CU_API void *cu_deballoc_malloc(int line, const char *CU_RESTRICT func, const char *CU_RESTRICT file, uptr bytes);
+CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE_MUL(4, 5) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 4) CU_ATTRIB_WARN_UNUSED_RESULT
+CU_API void *cu_deballoc_calloc(int line, const char *CU_RESTRICT func, const char *CU_RESTRICT file, uptr n, uptr size_each);
+CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE(5) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 4) CU_ATTRIB_WARN_UNUSED_RESULT
+CU_API void *cu_deballoc_realloc(int line, const char *CU_RESTRICT func, const char *CU_RESTRICT file, void *CU_RESTRICT ptr, uptr bytes);
 
 /* Allocation statistics. */
 typedef struct cu_deballoc_stats
@@ -3744,7 +3804,8 @@ typedef struct cu_deballoc_stats
 	uptr invalid_free, invalid_realloc, empty_realloc;
 } cu_deballoc_stats;
 
-/* Returns current allocation statistics. */
+/* Returns current allocation statistics.
+   Do not save the stored pointer, as this also checks for buffer under/overruns. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_RETURNS_NONNULL CU_ATTRIB_COLD
 CU_API const cu_deballoc_stats *cu_deballoc_getstats(void);
 /* Prints out summary of allocation statistics and all detected allocation errors. */
@@ -3763,13 +3824,11 @@ CU_API void cu_deballoc_end(void);
 #define CU_FREE(ptr) do { free(ptr); ptr = NULL; } while (0)
 
 #if CU_DEBUG && CU_SETTING_CUSTOM_ALLOCS
-#  define CU_ALLOC_CALL_LOC_SIZED(sz) CU_FILE ":" CU_FUNC ":" CU_STRINGIFY(CU_LINE) " BYTES: '" CU_STRINGIFY(sz) "'"
-#  define CU_ALLOC_CALL_LOC_NAMED(var) CU_FILE ":" CU_FUNC ":" CU_STRINGIFY(CU_LINE) " VAR: '" CU_STRINGIFY(var) "'"
 #  define CU_REPLACED_ALLOC 1
-#  define malloc(n) cu_deballoc_malloc(CU_ALLOC_CALL_LOC_SIZED(n), n)
-#  define realloc(p, n) cu_deballoc_realloc(CU_ALLOC_CALL_LOC_NAMED(p), p, n)
-#  define calloc(n, s) cu_deballoc_calloc(CU_ALLOC_CALL_LOC_SIZED(n), n, s)
-#  define free(p) cu_deballoc_free(CU_ALLOC_CALL_LOC_NAMED(p), p)
+#  define malloc(n) cu_deballoc_malloc(CU_LINE, CU_FUNC, CU_FILE, n)
+#  define realloc(p, n) cu_deballoc_realloc(CU_LINE, CU_FUNC, CU_FILE, p, n)
+#  define calloc(n, s) cu_deballoc_calloc(CU_LINE, CU_FUNC, CU_FILE, n, s)
+#  define free(p) cu_deballoc_free(CU_LINE, CU_FUNC, CU_FILE, p)
 #else
 #  define CU_REPLACED_ALLOC 0
 #endif

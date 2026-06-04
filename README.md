@@ -1,7 +1,7 @@
 ## Overview
 A portable C utilities library.
 
-This offers identification macros, wrappers for OS-specific functions and other QOL additions to your C project, simplifying writing applications by not having to worry about coding and testing multiple implementations for different systems.
+This offers identification macros, wrappers for OS-specific functions and other QOL additions for your C projects, simplifying writing applications by not having to worry about coding and testing multiple implementations for different systems.
 
 ## Features
 
@@ -17,21 +17,27 @@ Macros are available for identifying the following:
 Most version values for compilers are simplified into a major, minor and revision format.
 
 ### Functions
-Functions for common tasks that may have different implementations depending on the OS (or even compiler!). You can selectively disable certain function groups, or choose to only have the macros provided by the header.
-
+Functions are provided for tasks that simplify development or those that are OS/compiler specific. <br>
 The functions provided are as follows:
 
-- String and path functions (find, replace and path traversal)
+- String and path functions (insert, replace, path traversal, etc)
 - File management functions
 - Random number generation (pseudo and cryptographic)
-- CPU and memory information retrieval
-- Time and timing functions
+- Hardware information functions
+- Time-related functions
+- Networking functions (TCP, client and server)
 - Threading and mutex functions
 - Allocation debugging functions (detects buffer underruns, overruns and invalid calls)
 
-Bit operation functions are also provided directly in the header. Compiler builtins are used if available, but a local implementation is used otherwise.
+Bit operation functions (e.g. popcount, count leading zeros) are also provided directly in the header.
 
-Warnings are given if you are compiling the library and a lack of support for specific functions are detected. Compilation can still continue, but the relevant functions will always fail, or may not be available.
+An example of a chat server and client is provided in the following [file](net_test.c).
+
+You can selectively disable certain function groups by defining their specific `CU_SETTING_*_FUNCS` macro to `0`:
+```c
+#define CU_SETTING_NETWORK_FUNCS 0
+#include "cutils.h"
+```
 
 ### Optimization and Debugging
 Macros are also available for simplifying optimizing and debugging your code:
@@ -39,7 +45,6 @@ Macros are also available for simplifying optimizing and debugging your code:
 - Assertion macros (compile and run-time)
 - Function attributes (e.g. const, nothrow)
 - Branch prediction and assumption macros
-- Loop unrolling suggestions
 - Compiler diagnostic macros
 - Explicit breakpoints and traps
 
@@ -52,16 +57,15 @@ Finally, there are some general macros for providing functionality which require
 - C version checking
 - Common mathematical constants
 
-The macros are also written in such a way to simplify checks (no need to write #ifdef everywhere), and helper macros are also provided to do so.
+The macros are also written in such a way to simplify checks (no need to check if defined), and helper macros are also provided to do so as well.
 
 ```c
-/* Check if compiling on Linux, at least GCC 8.1, then the X86 architecture. */
 #if CU_OS_LINUX
-...
+/* Compiled on Linux */
 #elif CU_COMPILER_ISVER(GCC, 8, 1)
-...
+/* Compiler is based on GCC 8.1 or higher */
 #elif CU_ARCH_X86
-...
+/* Compiled for the x86 architecture */ 
 ```
 
 ##### 
@@ -69,29 +73,40 @@ The macros are also written in such a way to simplify checks (no need to write #
 ## Support
 This is mostly aimed towards being used for creating applications that can be compiled for the Unix, MacOS and Windows operating systems as well as the major compilers without needing to write specific code for each, although most features are designed to be OS and compiler agnostic.
 
-The CPU information (name, vendor, etc) only supports x86 CPUs as it requires support for the [cpuid](https://en.wikipedia.org/wiki/CPUID) instruction, but will compile for other architectures and will attempt to retrieve all other information possible without the instruction.
+Warnings are given if you are compiling the library and a lack of support for specific functions are detected. Compilation can still continue, but the relevant functions will always fail (i.e. return 0), or may not be available.
 
-The source code is written in C89 so any reasonable compiler should have no problem compiling it. If you encounter any errors resulting from the code itself (incorrect results or compiler errors), it would be great if you open an issue or offer a solution.
+The source code is written in C89 so any reasonable compiler should have no problem compiling it. If you encounter any errors resulting from the source code itself, it would be great if you open an issue or offer a solution.
 
 ## Building
-A [Makefile](Makefile) is provided. Adjust the CFLAGS variable as you see fit and run `make` on the containing directory.
-Alternatively, you can download the static library from the Releases section.
+You can download the static library from the Releases section for each version. <br>
+Alternatively, both a [Makefile](Makefile) and [CMakeLists.txt](CMakeLists.txt) are provided to build the library:
 
-If you are compiling the library alongside your project, you only need to compile `cutils.c` and include the header file. However, you should set the `CU_SETTING_BUILDLIB` macro to 1 before including `cutils.h`.
-
-Example:
-```c
-#define CU_SETTING_BUILDLIB 1
-#include "cutils.h"
-```
-Or, more simply, you can set the macro directly in the compiler options:
 ```bash
-$ gcc main.c cutils.c -DCU_SETTING_BUILD=1 ...
+# Using CMake (omit '-DCU_BUILD_MISC=1' to only build the library):
+$ cmake -B build -DCMAKE_BUILD_TYPE=MinSizeRel -DCU_BUILD_MISC=1
+$ cmake --build build --config MinSizeRel
+
+# Using make (omit 'all' to only build the library):
+$ make all
 ```
+Results can be found in the `build` directory. <br>
+Additional documentation can be found in the aforementioned files.
 
 ## Sources
-Identification macros are from [predef](https://github.com/cpredef/predef) and [Boost](https://www.boost.org/doc/libs/latest/libs/predef/doc/index.html). <br>
-Some attributes are sourced from [Hedley](https://github.com/nemequ/hedley).
+Most identification macros are from [predef](https://github.com/cpredef/predef) and [Boost](https://www.boost.org/doc/libs/latest/libs/predef/doc/index.html). <br>
+Optimization macros and some attributes are from [Hedley](https://github.com/nemequ/hedley). <br>
+Other macros are from own tests and may have incorrect detection.
 
-Other macros are from own tests and may have incorrect detection(s). <br>
-If you notice any instance of this, please create an issue.
+## Changelog
+### cu2
+- Networking functions added (cu_client_*, cu_server_* and cu_net_*) with chat server example
+- custr_findnot, cu_res_osname and cu_thread_self added
+- Reduced code size of string functions and fixed memory leaks for Unix functions
+- Minor formatting changes to sources and debug allocation functions
+- CMakeLists.txt added
+- 'Releases' packaging changes
+
+### cu1
+- Initial release of cutils library
+- Identification, debugging/optimization and QOL macros
+- String/path, file, RNG, hardware, time, threading and allocation functions

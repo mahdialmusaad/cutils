@@ -1,6 +1,6 @@
 /*
    Tests for provided functions from the cutils library.
-   Main library code can found in cutils.c and cutils.h in the same directory.
+   Main library code and documentation can found in cutils.c and cutils.h in the same directory.
    The cutils library is licensed under the GPLv2, see aforementioned files for full statement.
 */
 
@@ -76,12 +76,16 @@ int main(int argc, char **argv)
 	void *allocs[5];
 
 	char *exe;
+	char osbuf[CU_RES_OSNAME_MAXSIZE];
 	const char original[] = PATH_PREFIX SEP2 SEP "abc" SEP "123" SEP2 SEP ".." SEP "." SEP "456" SEP "test1" SEP2 ".." SEP "test1" SEP2 "." SEP "def" SEP2 ".." SEP "789" SEP2 SEP2 "." SEP;
 	const char *parents[] = { PATH_PREFIX SEP, PATH_PREFIX SEP, PATH_PREFIX SEP "abc" SEP, PATH_PREFIX SEP "abc" SEP "456" SEP, PATH_PREFIX SEP "abc" SEP "456" SEP "test1" SEP };
 	const char test_text[] = "Test text for test text file. This is 68 bytes excluding terminator.";
+	const char search_replace_text[] = "Example string for S+R tests. More Example string.";
+	const char opposite_search_text[] = "////////.//////.///";
 	char batch_name[6] = { 'f', 'i', 'l', 'e', '#', '\0' };
 	char test_text_tmp[sizeof test_text];
 
+	char ipaddrres[CU_NET_IPADDR_LEN];
 	char bytefmtres[CU_RES_BYTEFMT_MAXSIZE];
 
 #if 0
@@ -94,26 +98,33 @@ int main(int argc, char **argv)
 	cu_timer_begin(&timer);
 	cu_deballoc_start(1, 1);
 
-	if (cu_res_cpuinfo(&cpu)) {
-		fprintf(printfile, COL_BOLD "Found CPU info:\n" COL_RESET);
-		fprintf(printfile, COL_BLUE "Name:" COL_RESET " %s\n", cpu.name);
-		fprintf(printfile, COL_BLUE "Vendor:" COL_RESET " %s\n", cpu.vendor);
-		fprintf(printfile, COL_BLUE "Clock speed (MHz):" COL_RESET " Base: %u, Max: %u\n", (unsigned)(cpu.base_freq_hz / 1000 / 1000), (unsigned)(cpu.max_freq_hz / 1000 / 1000));
-		fprintf(printfile, COL_BLUE "Endianness:" COL_RESET " %s\n", cpu.little_endian ? "Little" : "Big");
-		fprintf(printfile, COL_BLUE "Stepping:" COL_RESET " %u\n", cpu.stepping_id);
-		fprintf(printfile, COL_BLUE "Model:" COL_RESET " %u\n", cpu.model_id);
-		fprintf(printfile, COL_BLUE "Family:" COL_RESET " %u\n", cpu.family_id);
-		fprintf(printfile, COL_BLUE "Threads:" COL_RESET " %d\n", cu_thread_count());
-		fprintf(printfile, COL_BLUE "Caches:" COL_RESET "\n");
-		fprintf(printfile, COL_BLUE "  L1i:" COL_RESET " Line: %uB; Associativity: %u; Size: %uB (%s)\n", cpu.l1d.line, cpu.l1d.assoc, cpu.l1d.size, cu_res_bytefmt(bytefmtres, cpu.l1d.size));
-		fprintf(printfile, COL_BLUE "  L1d:" COL_RESET " Line: %uB; Associativity: %u; Size: %uB (%s)\n", cpu.l1i.line, cpu.l1i.assoc, cpu.l1i.size, cu_res_bytefmt(bytefmtres, cpu.l1i.size));
-		fprintf(printfile, COL_BLUE "  L2:" COL_RESET "  Line: %uB; Associativity: %u; Size: %uB (%s)\n", cpu.l2.line, cpu.l2.assoc, cpu.l2.size, cu_res_bytefmt(bytefmtres, cpu.l2.size));
-		fprintf(printfile, COL_BLUE "  L3:" COL_RESET "  Line: %uB; Associativity: %u; Size: %uB (%s)\n", cpu.l3.line, cpu.l3.assoc, cpu.l3.size, cu_res_bytefmt(bytefmtres, cpu.l3.size));
-		(void)(cu_cond(1));
-	} else {
-		fprintf(printfile, COL_RED "Unable to retrieve CPU info.\n" COL_RESET);
-		(void)(cu_cond(0));
+
+	fprintf(printfile, COL_BOLD "System information:\n" COL_RESET);
+	sr = cu_res_osname(osbuf);
+	fprintf(printfile, COL_BLUE "OS:" COL_RESET " %s (%s)\n", osbuf, cu_cond(sr != 0));
+	fprintf(printfile, COL_BLUE "NETWORK INTERFACES:" COL_RESET);
+
+	for (i = 0; ; ++i) {
+		char *interfaceres = cu_net_interfaces(ipaddrres, CU_NET_INTERFACE_ANY, i);
+		if (!interfaceres) break;
+		fprintf(printfile, "\n  %d: %s", i + 1, ipaddrres);
 	}
+	fprintf(printfile, "\n  Found %d interfaces (%s)\n", i, cu_cond(i != 0));
+
+	fprintf(printfile, COL_BLUE "CPU" COL_RESET " (%s)" COL_BLUE":\n" COL_RESET, cu_cond(cu_res_cpuinfo(&cpu)));
+	fprintf(printfile, COL_BLUE "  Name:" COL_RESET " %s\n", cpu.name);
+	fprintf(printfile, COL_BLUE "  Vendor:" COL_RESET " %s\n", cpu.vendor);
+	fprintf(printfile, COL_BLUE "  Clock speed (MHz):" COL_RESET " Base: %u, Max: %u\n", (unsigned)(cpu.base_freq_hz / 1000 / 1000), (unsigned)(cpu.max_freq_hz / 1000 / 1000));
+	fprintf(printfile, COL_BLUE "  Endianness:" COL_RESET " %s\n", cpu.little_endian ? "Little" : "Big");
+	fprintf(printfile, COL_BLUE "  Stepping:" COL_RESET " %u\n", cpu.stepping_id);
+	fprintf(printfile, COL_BLUE "  Model:" COL_RESET " %u\n", cpu.model_id);
+	fprintf(printfile, COL_BLUE "  Family:" COL_RESET " %u\n", cpu.family_id);
+	fprintf(printfile, COL_BLUE "  Threads:" COL_RESET " %d\n", cu_thread_count());
+	fprintf(printfile, COL_BLUE "  Caches:" COL_RESET "\n");
+	fprintf(printfile, COL_BLUE "    L1i:" COL_RESET " Line: %uB; Associativity: %u; Size: %uB (%s)\n", cpu.l1d.line, cpu.l1d.assoc, cpu.l1d.size, cu_res_bytefmt(bytefmtres, cpu.l1d.size));
+	fprintf(printfile, COL_BLUE "    L1d:" COL_RESET " Line: %uB; Associativity: %u; Size: %uB (%s)\n", cpu.l1i.line, cpu.l1i.assoc, cpu.l1i.size, cu_res_bytefmt(bytefmtres, cpu.l1i.size));
+	fprintf(printfile, COL_BLUE "    L2:" COL_RESET "  Line: %uB; Associativity: %u; Size: %uB (%s)\n", cpu.l2.line, cpu.l2.assoc, cpu.l2.size, cu_res_bytefmt(bytefmtres, cpu.l2.size));
+	fprintf(printfile, COL_BLUE "    L3:" COL_RESET "  Line: %uB; Associativity: %u; Size: %uB (%s)\n", cpu.l3.line, cpu.l3.assoc, cpu.l3.size, cu_res_bytefmt(bytefmtres, cpu.l3.size));
 
 	if (cu_res_meminfo(&mem)) {
 		fprintf(printfile, COL_BOLD "\nFound memory info:\n" COL_RESET);
@@ -127,9 +138,9 @@ int main(int argc, char **argv)
 		(void)(cu_cond(0));
 	}
 
-	
+
 	fprintf(printfile, COL_BOLD "\nByte formatting test:\n" COL_RESET);
-	
+
 	#define BYTES_TEST(size, expected) \
 	cu_res_bytefmt(bytefmtres, size); \
 	fprintf(printfile,  \
@@ -161,6 +172,11 @@ int main(int argc, char **argv)
 	INSERT_TEST("inserted2", 26, "inserted0Testinserted1Testinserted2Test");
 	INSERT_TEST("inserted3", 39, "inserted0Testinserted1Testinserted2Testinserted3");
 
+	res = custr_count(&c, 'e');
+	fprintf(printfile, COL_BLUE "COUNT TEST:" COL_RESET " Expected 11 instances of 'e' char, got %d (%s)\n", res, cu_cond(res == 11));
+	res = custr_countsub(&c, custr_c("Test"));
+	fprintf(printfile, COL_BLUE "COUNT TEST:" COL_RESET " Expected 3 instances of 'Test' substring, got %d (%s)\n", res, cu_cond(res == 3));
+
 	custr_clear(&c);
 
 	for (i = 0; i < 26; ++i) {
@@ -175,10 +191,10 @@ int main(int argc, char **argv)
 	custr_clear(&c);
 
 	custr_create(&c, original);
-	res = custr_simplify(&c);
+	custr_simplify(&c);
 
 	fprintf(printfile, COL_BLUE "Original:" COL_RESET " %s\n", original);
-	fprintf(printfile, COL_BLUE "Simplified:" COL_RESET " %s (%s)\n", !res ? "(simplify returned 0)" : c.str, cu_cond(res && strcmp(c.str, PATH_PREFIX SEP "abc" SEP "456" SEP "test1" SEP "789" SEP) == 0));
+	fprintf(printfile, COL_BLUE "Simplified:" COL_RESET " %s (%s)\n", c.str, cu_cond(strcmp(c.str, PATH_PREFIX SEP "abc" SEP "456" SEP "test1" SEP "789" SEP) == 0));
 	if (!res) {
 		fprintf(printfile, COL_RED "Skipping parent test.\n");
 		cu_cond(0);
@@ -186,21 +202,26 @@ int main(int argc, char **argv)
 	}
 
 	fprintf(printfile, COL_BLUE "Parents: " COL_RESET);
-	for (i = custr_count(&c, CU_FILE_SEPARATOR) - 1; i >= 0; --i) {
+	for (i = 4; i >= 0; --i) {
 		custr_cd(&c, NULL);
 		fprintf(printfile, "%s (%s)%s", c.str, cu_cond(strcmp(c.str, parents[i]) == 0), i ? ", " : "");
 		fflush(stdout);
 	}
 
 skip_parents:
-	custr_create(&c, "Example string for S+R tests. More Example string.");
-	fprintf(printfile, "\nUsing search+replace example string \"%s\"\n", c.str);
+	fprintf(printfile, "\nUsing search+replace example string \"%s\" and opposite search example string \"%s\"\n", search_replace_text, opposite_search_text);
 
 	#define SEARCH_TEST(func, offset, target, nth, expected) \
 	fprintf(printfile, COL_BLUE "SEARCH TEST:" COL_RESET " Function: '%s', offset: %d, target: %s (char no. %d), expected index: %d,", #func, offset, #target, nth, expected); \
 	fflush(stdout); \
 	sr = func(&c, offset, target, nth); \
 	fprintf(printfile, " got %" CU_UPTR_FMT " (%s)\n", sr, cu_cond(sr == expected))
+
+	custr_create(custr_clear(&c), opposite_search_text);
+	SEARCH_TEST(custr_findnot, 0, '/', 0, 8);
+	SEARCH_TEST(custr_findnot, 4, '/', -1, 8);
+
+	custr_create(custr_clear(&c), search_replace_text);
 
 	SEARCH_TEST(custr_find, 0, 'e', 1, 24);
 	SEARCH_TEST(custr_find, 9, 'e', -1, 33);
@@ -214,19 +235,20 @@ skip_parents:
 
 	REPLACE_TEST(custr_replace, 0, '+', '&', "Example string for S&R tests. More Example string.");
 	REPLACE_TEST(custr_replace, 0, '&', '\0', "Example string for SR tests. More Example string.");
-	REPLACE_TEST(custr_replace, 0, '.', '!', "Example string for SR tests! More Example string!");
-	REPLACE_TEST(custr_replace, 17, 'o', 'e', "Example string for SR tests! Mere Example string!");
+	REPLACE_TEST(custr_replace, 0, '.', ';', "Example string for SR tests; More Example string;");
+	REPLACE_TEST(custr_replace, 17, 'o', 'e', "Example string for SR tests; Mere Example string;");
 
-	REPLACE_TEST(custr_replacesub, 1, custr_c("Example"), custr_c("test"), "Example string for SR tests! Mere test string!");
-	REPLACE_TEST(custr_replacesub, 0, custr_c("string"), custr_c("text"), "Example text for SR tests! Mere test text!");
-	REPLACE_TEST(custr_replacesub, 0, custr_c("text"), custr_c("string"), "Example string for SR tests! Mere test string!");
+	REPLACE_TEST(custr_replacesub, 1, custr_c("Example"), custr_c("test"), "Example string for SR tests; Mere test string;");
+	REPLACE_TEST(custr_replacesub, 0, custr_c("string"), custr_c("text"), "Example text for SR tests; Mere test text;");
+	REPLACE_TEST(custr_replacesub, 0, custr_c("text"), custr_c("string"), "Example string for SR tests; Mere test string;");
 
 	custr_clear(&c);
 
 	#define FMT_TEST(fmt, va, expected) \
 	fprintf(printfile, COL_BLUE "FMT TEST:" COL_RESET " '%s' with args " #va ", expected '%s' of len %d", fmt, expected, (int)strlen(expected)); \
 	if (!custr_fmt(&c, fmt, va)) fprintf(printfile, ", returned 0 instead (%s)\n", cu_cond(0)); \
-	else fprintf(printfile, ", got '%s' of len %d/%d (%s)\n", c.str, (int)c.len, (int)strlen(c.str), cu_cond(strcmp(expected, c.str) == 0))
+	else fprintf(printfile, ", got '%s' of len %d/%d (%s)\n", c.str, (int)c.len, (int)strlen(c.str), cu_cond(strcmp(expected, c.str) == 0)); \
+	custr_clear(&c)
 
 	FMT_TEST("%d %s %.2f", 123 VA_C "fmt_str" VA_C 1.23, "123 fmt_str 1.23");
 	FMT_TEST("%%, %c, %X", 'c' VA_C 255u, "%, c, FF");
@@ -234,20 +256,20 @@ skip_parents:
 
 	fprintf(printfile, COL_BOLD "\nFile management tests:\n" COL_RESET);
 	exe = cu_file_exe_path(*argv, NULL);
-	fprintf(printfile, COL_BLUE "Determined executable true path:" COL_RESET " %s (%s)\n", exe, cu_cond(exe != NULL));
+	fprintf(printfile, COL_BLUE "EXE PATH:" COL_RESET " %s (%s)\n", exe, cu_cond(exe != NULL));
 	if (!exe) goto fail_exe;
 	res = cu_file_write("test.txt", test_text, CU_FILE_WRITETXT, strlen(test_text));
-	fprintf(printfile, COL_BLUE "FILE CREATION TEST:" COL_RESET " writing test text to 'test.txt' (%s)\n", cu_cond(res));
+	fprintf(printfile, COL_BLUE "FILE CREATION TEST:" COL_RESET " Writing test text to 'test.txt' (%s)\n", cu_cond(res));
 	read_res = cu_file_read("test.txt", test_text_tmp, 0, NULL);
 	test_text_tmp[sizeof test_text - 1] = '\0';
-	fprintf(printfile, COL_BLUE "FILE READ TEST:" COL_RESET " reading 'test.txt' gives same text back (%s)\n", cu_cond(read_res && strcmp(test_text_tmp, test_text) == 0));
-	fprintf(printfile, COL_BLUE "FILE DELETE TEST:" COL_RESET " deleting 'test.txt' succeeds (%s)\n", cu_cond(cu_file_delete("./test.txt"))); 
+	fprintf(printfile, COL_BLUE "FILE READ TEST:" COL_RESET " Reading 'test.txt' gives same text back (%s)\n", cu_cond(read_res && strcmp(test_text_tmp, test_text) == 0));
+	fprintf(printfile, COL_BLUE "FILE DELETE TEST:" COL_RESET " Deleting 'test.txt' succeeds (%s)\n", cu_cond(cu_file_delete("./test.txt"))); 
 
 	custr_allocd(&c, exe, 0);
 	custr_simplify(&c);
 	custr_cd(&c, NULL);
 	custr_cd(&c, custr_c("testdir"));
-	fprintf(printfile, COL_BLUE "DIRECTORY TEST:" COL_RESET " creating dir '%s' (%s)\n", c.str, cu_cond(cu_dir_create(c.str)));
+	fprintf(printfile, COL_BLUE "DIRECTORY TEST:" COL_RESET " Creating dir '%s' (%s)\n", c.str, cu_cond(cu_dir_create(c.str)));
 	custr_cd(&c, custr_c(batch_name));
 	if (!results[2]) {
 	fail_exe:
@@ -261,7 +283,7 @@ skip_parents:
 		res += cu_file_write(c.str, &content, CU_FILE_WRITETXT, sizeof content);
 	}
 
-	fprintf(printfile, COL_BLUE "BATCH WRITE TEST:" COL_RESET " created and wrote to %d/%d files in test dir (%s)\n", res, 5, cu_cond(res == 5));
+	fprintf(printfile, COL_BLUE "BATCH WRITE TEST:" COL_RESET " Created and wrote to %d/%d files in test dir (%s)\n", res, 5, cu_cond(res == 5));
 
 	for (i = res = 0; i < 3; ++i) {
 		char content = '0' + (char)i;
@@ -269,7 +291,7 @@ skip_parents:
 		res += cu_file_delete(c.str);
 	}
 
-	fprintf(printfile, COL_BLUE "BATCH DELETE TEST:" COL_RESET " deleted to %d/%d files in test dir (%s)\n", res, 3, cu_cond(res == 3));
+	fprintf(printfile, COL_BLUE "BATCH DELETE TEST:" COL_RESET " Deleted %d/%d files in test dir (%s)\n", res, 3, cu_cond(res == 3));
 
 	c.str[c.len - 1] = 'd';
 	cu_dir_create(c.str);
@@ -284,7 +306,7 @@ skip_parents:
 	custr_cd(&c, NULL);
 
 	CU_ASSERT(strcmp(c.str + c.len - 8, "testdir" SEP) == 0);
-	fprintf(printfile, COL_BLUE "RECURSIVE DELETE TEST:" COL_RESET " recursively deleting test dir (%s)\n", cu_cond(cu_dir_delete(c.str, 1)));
+	fprintf(printfile, COL_BLUE "RECURSIVE DELETE TEST:" COL_RESET " Recursively deleting test dir (%s)\n", cu_cond(cu_dir_delete(c.str, 1)));
 	custr_clear(&c);
 
 fail_dir:
@@ -299,10 +321,10 @@ fail_dir:
 	fprintf(printfile, "Sleeping until threaded work completes...");
 	while (!tid && i++ < 520) cu_thread_sleep(0, 16700);
 	if (!tid) fprintf(printfile, " (%s)\n" COL_RED "Took too long.\n" COL_RESET, cu_cond(0));
-	else fprintf(printfile, " (%s)\nThread TID: %u\n", cu_cond(1), tid);
-	fprintf(printfile, COL_BLUE "MUTEX LOCKING TEST:" COL_RESET " Expected counter to be %d, got %d (%s)\n", N*2, thread_counter, cu_cond(thread_counter == N*2));
+	else fprintf(printfile, " (%s)\nThread ID: %u\n", cu_cond(1), tid);
+	fprintf(printfile, COL_BLUE "MUTEX LOCKING TEST:" COL_RESET " Expected counter to be %d, got %d (%s)\n", N * 2, thread_counter, cu_cond(thread_counter == N * 2));
 	fprintf(printfile, COL_BLUE "MUTEX DESTROY TEST:" COL_RESET " Expected success (%s)\n", cu_cond(cu_thread_mutex_destroy(&mutex)));
-	fprintf(printfile, COL_BLUE "THREAD JOIN TEST:" COL_RESET " Expected success (%s)\n", cu_cond(cu_thread_join(&thr)));
+	fprintf(printfile, COL_BLUE "THREAD JOIN TEST:" COL_RESET " Expected success (%s)\n", cu_cond(cu_thread_join(thr)));
 	goto success_thread;
 fail_thread:
 	cu_thread_mutex_destroy(&mutex);
@@ -312,10 +334,10 @@ fail_thread_early:
 
 success_thread:
 	fprintf(printfile, COL_BOLD "\nAlloc debug tests:\n" COL_RESET);
-	for (i = 0; i < 5; ++i) if (!(allocs[i] = malloc((size_t)(i + 1)))) break;
+	for (i = 0; i < 5; ++i) if (!(allocs[i] = cu_deballoc_malloc(CU_LINE, CU_FUNC, CU_FILE, (size_t)(i + 1)))) break;
 	fprintf(printfile, COL_BLUE "MALLOC TEST:" COL_RESET " Allocating 5 times (%s)\n", cu_cond(i == 5));
 	for (i = 0; i < 5; ++i) {
-		void *r = realloc(allocs[i], (size_t)((i + 1) * 2));
+		void *r = cu_deballoc_realloc(CU_LINE, CU_FUNC, CU_FILE, allocs[i], (size_t)((i + 1) * 2));
 		if (!r) break; else allocs[i] = r;
 	}
 	fprintf(printfile, COL_BLUE "REALLOC TEST:" COL_RESET " Reallocating 5 times (%s)\n", cu_cond(i == 5));
@@ -325,8 +347,7 @@ success_thread:
 	*((u64 *)(allocs[0]) + 1) = 0;
 	fprintf(printfile, COL_BLUE "OVERRUN TEST:" COL_RESET " Expected debug stats to show overrun (%s)\n", cu_cond(cu_deballoc_getstats()->overruns == 1));
 
-	for (i = 0; i < 5; ++i) free(allocs[i]);
-
+	for (i = 0; i < 5; ++i) cu_deballoc_free(CU_LINE, CU_FUNC, CU_FILE, allocs[i]);
 
 	fprintf(printfile, COL_BOLD "\nRNG tests:\n" COL_RESET);
 	res = (int)cu_rand_cryptographic(&rnd, sizeof rnd);
@@ -338,6 +359,7 @@ success_thread:
 	cu_res_meminfo(&mem);
 	fprintf(printfile, "Virtual used by this program: %" CU_UPTR_FMT "B\n", mem.virt_loc_used);
 	fprintf(printfile, "Physical used by this program: %" CU_UPTR_FMT "B\n", mem.phys_loc_used);
+
 
 	cu_deballoc_end();
 	fprintf(printfile, "Time: %fs (excludes sleep time)\n", cu_timer_endf(&timer));
