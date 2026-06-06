@@ -26,6 +26,19 @@
 #  undef free
 #endif
 
+#if CU_COMPVER(CLANG, 3, 5)
+#  define s_strchr(S, C) \
+CU_DIAGNOSTICS_PUSH \
+CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
+CU_PRAGMA(clang diagnostic ignored "-Wc11-extensions") \
+CU_PRAGMA(clang diagnostic ignored "-Wpre-c11-compat") \
+CU_PRAGMA(clang diagnostic ignored "-Wdisabled-macro-expansion") \
+strchr(S, C) \
+CU_DIAGNOSTICS_POP
+#else
+#  define s_strchr(S, C) strchr(S, C)
+#endif
+
 #if CU_SETTING_FUNCS
 
 /* ==========================================================================
@@ -746,7 +759,7 @@ success:
 	fail_readlink:
 		free(buf);
 		return NULL;
-	} else if (strchr(argv, '/')) {
+	} else if (s_strchr(argv, '/')) {
 		uptr buflen = CU_PATH_MAX * 2, cwdlen = 0, argvlenterm = strlen(argv) + 1;
 		char *buf = malloc(buflen);
 
@@ -1078,8 +1091,8 @@ skip_id:
 			info->max_freq_hz = chunks[1] * 1000 * 1000;
 		} else info->base_freq_hz = info->max_freq_hz = 0;
 	} else {
-		float base_ghz;
-		char *base_ghz_parser = strchr(info->name, '@');
+		float base_ghz = 0.0f;
+		char *base_ghz_parser = s_strchr(info->name, '@');
 #if CU_OS_APPLE
 		long long result = -1;
 		uptr size = sizeof result;
@@ -1087,17 +1100,19 @@ skip_id:
 #elif !CU_OS_WINDOWS
 		FILE *f;
 		if ((f = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq", "r"))) {
-			fscanf(f, "%" CU_U64_FMT, &info->max_freq_hz);
+			int nscan = fscanf(f, "%" CU_U64_FMT, &info->max_freq_hz);
+			CU_UNUSED(nscan);
 			fclose(f);
 			info->max_freq_hz *= 1000;
 		}
 #endif
 		if (base_ghz_parser) {
 		#if CU_COMP_MSVC
-			sscanf_s(base_ghz_parser, "%*s%f", &base_ghz);
+			int nscan = sscanf_s(base_ghz_parser, "%*s%f", &base_ghz);
 		#else
-			sscanf(base_ghz_parser, "%*s%f", &base_ghz);
+			int nscan = sscanf(base_ghz_parser, "%*s%f", &base_ghz);
 		#endif
+			CU_UNUSED(nscan);
 			info->base_freq_hz = (u64)(base_ghz * 1000.0f) * 1000 * 1000;
 		}
 		#if CU_ARCH_X86
@@ -1308,7 +1323,7 @@ uptr cu_res_osname(char *namebuf)
 	if (!namebuf) return strlen(ubuf.sysname) + strlen(ubuf.release) + strlen(ubuf.machine) + 1;
 	else {
 		int written = sprintf(namebuf, "%s %s %s", ubuf.sysname, ubuf.release, ubuf.machine);
-		return written < 0 ? 0 : (uptr)written; 
+		return written < 0 ? 0 : (uptr)written;
 	}
 }
 
@@ -1442,12 +1457,11 @@ static int cu_net_gai_err;
 #  define CU_ENOTSOCK ENOTSOCK
 #  define CU_EINTR EINTR
 #  define CU_EBADF EBADF
-#  define CU_EAGAIN EAGAIN
-#  define CU_EWOULDBLOCK EWOULDBLOCK
 
 #  define CU_POLLHUP POLLHUP
 
 typedef ssize_t cu_net_data;
+typedef nfds_t cu_net_pollcnt;
 
 CU_API_SOURCE int cu_net_init(void) { return 1; }
 CU_API_SOURCE void cu_net_terminate(void) {}
@@ -1488,8 +1502,6 @@ static int cu_net_setsockopt(cu_socket sock, int opt, int val, size_t len)
 #  define CU_ENOTSOCK WSAENOTSOCK
 #  define CU_EINTR WSAEINTR
 #  define CU_EBADF WSAEBADF
-#  define CU_EAGAIN WSAEAGAIN
-#  define CU_EWOULDBLOCK WSAEWOULDBLOCK
 
 #  define CU_POLLHUP 0
 
@@ -1497,6 +1509,8 @@ static int cu_net_setsockopt(cu_socket sock, int opt, int val, size_t len)
 #  define CU_NET_SETERR(e) WSASetLastError(e)
 
 typedef int cu_net_data;
+typedef ULONG cu_net_pollcnt;
+
 static WSADATA cu_net_wsastate;
 static char *cu_net_wsaerrstr;
 
@@ -1639,7 +1653,7 @@ CU_API_SOURCE enum cu_net_error cu_server_start(cu_net_server *server, u16 port,
 	memset(server, 0, sizeof *server);
 
 	if (!(server->remotes = malloc(sizeof *server->remotes * (size_t)(server->remotes_capacity = 4)))) return CUERR_MEM;
-	if (!(server->pfds = malloc(sizeof *server->pfds * server->remotes_capacity))) { free(server->remotes); return CUERR_MEM; }
+	if (!(server->pfds = malloc(sizeof *server->pfds * (size_t)server->remotes_capacity))) { free(server->remotes); return CUERR_MEM; }
 	if ((sockerr = cu_net_getremotesock(server->remotes, port, NULL)) != CUERR_NONE) { free(server->remotes); free(server->pfds); return sockerr; }
 	if (listen(server->remotes->fd, SOMAXCONN) == CU_SOCKET_ERROR) { free(server->remotes); free(server->pfds); return CUERR_LISTEN; }
 
@@ -1651,7 +1665,7 @@ CU_API_SOURCE enum cu_net_error cu_server_start(cu_net_server *server, u16 port,
 	return CUERR_NONE;
 }
 
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) 
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 static void cu_server_process_connection(cu_net_server *CU_RESTRICT server, cu_server_event event_handler)
 {
 	struct sockaddr_storage saddr;
@@ -1661,7 +1675,7 @@ static void cu_server_process_connection(cu_net_server *CU_RESTRICT server, cu_s
 	cu_socket csock = CU_INVALID_SOCKET;
 
 	if (server->clients_count >= server->max_clients) {
-		event_handler(server, NULL, CUEVT_REMOTECONERR, NULL, server->clients_count);
+		event_handler(server, NULL, CUEVT_REMOTECONERR, NULL, (uptr)server->clients_count);
 		goto decline;
 	} else if (server->clients_count + 1 >= server->remotes_capacity) {
 		size_t rmalloc = sizeof *server->remotes * (size_t)(server->remotes_capacity * 2), pfdalloc = sizeof *server->pfds * (size_t)(server->remotes_capacity * 2);
@@ -1727,7 +1741,7 @@ CU_API_SOURCE void cu_server_listen(cu_net_server *server, cu_server_event event
 	server->event_handler = event_handler;
 
 	while (!cu_net_isclosed(server->remotes)) {
-		int i, pollres = poll(server->pfds, server->clients_count + 1, heartbeat_delay_msec);
+		int i, pollres = poll(server->pfds, (cu_net_pollcnt)(server->clients_count + 1), heartbeat_delay_msec);
 		if (pollres == 0) event_handler(server, NULL, CUEVT_HEARTBEAT, NULL, 0);
 		else if (pollres == CU_SOCKET_ERROR) {
 			if (!event_handler(server, NULL, CU_NET_GETERR() == CU_EINTR ? CUEVT_SIGNAL : CUEVT_MSGLISTENERR, NULL, 0)) break;
@@ -1747,7 +1761,8 @@ CU_API_SOURCE void cu_server_listen(cu_net_server *server, cu_server_event event
 
 CU_API_SOURCE enum cu_net_error cu_server_broadcast(const cu_net_server *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote **CU_RESTRICT except, int except_length)
 {
-	int i, j, goterr = 0;
+	enum cu_net_error goterr = CUERR_NONE;
+	int i, j;
 
 	for (i = 1; i <= server->clients_count; ++i) {
 		for (j = 0; j < except_length; ++j) {
@@ -1755,7 +1770,7 @@ CU_API_SOURCE enum cu_net_error cu_server_broadcast(const cu_net_server *CU_REST
 			if (except_length > 1) except[0] = except[--except_length];
 			goto outer;
 		}
-		goterr |= (int)cu_net_sendmsg(server->remotes + i, data, bytes);
+		goterr |= cu_net_sendmsg(server->remotes + i, data, bytes);
 	outer:
 		continue;
 	}
@@ -1765,7 +1780,7 @@ CU_API_SOURCE enum cu_net_error cu_server_broadcast(const cu_net_server *CU_REST
 
 CU_API_SOURCE void cu_server_disconnect_client(cu_net_server *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client)
 {
-	server->event_handler(server, client, CUEVT_DISCONNECT, NULL, (uptr)server->clients_count - 1);
+	server->event_handler(server, client, CUEVT_DISCONNECT, NULL, (uptr)(server->clients_count - 1));
 	cu_net_closesock(&client->fd);
 	*client = server->remotes[server->clients_count];
 	server->pfds[client - server->remotes] = server->pfds[server->clients_count--];
@@ -1785,7 +1800,7 @@ CU_API_SOURCE enum cu_net_error cu_net_sendmsg(const cu_net_remote *CU_RESTRICT 
 {
 	uptr offset = 0;
 	while (1) {
-		cu_net_data res = send(target->fd, (char *)(data) + offset, (size_t)(bytes - offset), MSG_NOSIGNAL);
+		cu_net_data res = send(target->fd, (const char *)(data) + offset, (size_t)(bytes - offset), MSG_NOSIGNAL);
 		if (res < 1) return CUERR_GENERIC;
 		else if ((offset += (uptr)res) >= bytes) return CUERR_NONE;
 	}
@@ -1794,6 +1809,7 @@ CU_API_SOURCE enum cu_net_error cu_net_sendmsg(const cu_net_remote *CU_RESTRICT 
 CU_API_SOURCE enum cu_net_error cu_net_recvmsg(const cu_net_remote *CU_RESTRICT target, void **data, uptr *CU_RESTRICT bytes)
 {
 	cu_net_data res;
+	void *rbuf_r;
 	char tmpchr;
 	CU_NET_SETERR(0);
 
@@ -1825,7 +1841,7 @@ CU_API_SOURCE enum cu_net_error cu_net_recvmsg(const cu_net_remote *CU_RESTRICT 
 
 		if ((size_t)res < CU_NET_RECVBUF) return CUERR_NONE;
 		else {
-			void *rbuf_r = realloc(*data, (size_t)*bytes + CU_NET_RECVBUF + 1);
+			rbuf_r = realloc(*data, (size_t)*bytes + CU_NET_RECVBUF + 1);
 			if (!rbuf_r) {
 				free(*data);
 			fail_mem:
@@ -2160,8 +2176,8 @@ CU_API_SOURCE void cu_deballoc_assert_fail(int line, const char *func, const cha
 	abort();
 #else
 	CU_BREAKPOINT();
-#endif
 	while (1);
+#endif
 }
 
 CU_API_SOURCE void cu_deballoc_free(int line, const char *func, const char *file, void *user_ptr)

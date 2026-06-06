@@ -65,10 +65,8 @@ The macros are also written in such a way to simplify checks (no need to check i
 #elif CU_COMPILER_ISVER(GCC, 8, 1)
 /* Compiler is based on GCC 8.1 or higher */
 #elif CU_ARCH_X86
-/* Compiled for the x86 architecture */ 
+/* Compiled for the x86 architecture */
 ```
-
-##### 
 
 ## Support
 This is mostly aimed towards being used for creating applications that can be compiled for the Unix, MacOS and Windows operating systems as well as the major compilers without needing to write specific code for each, although most features are designed to be OS and compiler agnostic.

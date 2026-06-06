@@ -19,7 +19,7 @@
 #  define FDFMT "u"
 #endif
 
-int client_event(cu_net_remote *server, enum cu_net_event event_type, void *data, uptr n)
+static int client_event(cu_net_remote *server, enum cu_net_event event_type, void *data, uptr n)
 {
 	CU_UNUSED(server);
 	if (event_type == CUEVT_MESSAGE) {
@@ -34,7 +34,7 @@ int client_event(cu_net_remote *server, enum cu_net_event event_type, void *data
 	} else if (event_type == CUEVT_HEARTBEAT) return 1;
 	return 1;
 }
-CU_THREAD_FUNCTION(client_scanf, server)
+static CU_THREAD_FUNCTION(client_scanf, server)
 {
 	while (1) {
 		char msg[1024], *res = fgets(msg, 1024, stdin);
@@ -47,7 +47,7 @@ CU_THREAD_FUNCTION(client_scanf, server)
 	return CU_THREAD_RETURN_VAL;
 }
 
-void client_main(char *addr, long port)
+static void client_main(char *addr, long port)
 {
 	cu_net_remote server;
 	enum cu_net_error err;
@@ -74,7 +74,7 @@ fail:
 
 static int named_clients;
 
-int server_event(cu_net_server *server, cu_net_remote *remote, enum cu_net_event event_type, void *data, uptr n)
+static int server_event(cu_net_server *server, cu_net_remote *remote, enum cu_net_event event_type, void *data, uptr n)
 {
 	if (event_type == CUEVT_MESSAGE) {
 		uptr u, displayable = 0;
@@ -96,7 +96,7 @@ int server_event(cu_net_server *server, cu_net_remote *remote, enum cu_net_event
 			custr notify = CUSTR_EMPTY;
 			int i;
 
-			if (n >= 31) strdata[30] = '\0'; 
+			if (n >= 31) strdata[30] = '\0';
 
 			for (i = 1; i <= server->clients_count; ++i) {
 				const char duplicate_msg[] = "[ Server ] That name is already in use.";
@@ -161,10 +161,10 @@ int server_event(cu_net_server *server, cu_net_remote *remote, enum cu_net_event
 	return 1;
 }
 
-void server_main(long port, long maxclients)
+static void server_main(long port, long maxclients)
 {
 	cu_net_server server;
-	enum cu_net_error err = cu_server_start(&server, (u16)port, maxclients);
+	enum cu_net_error err = cu_server_start(&server, (u16)port, (int)maxclients);
 
 	if (err == CUERR_NONE) printf("Started on port %ld, client limit %ld.\n", port, maxclients);
 	else {

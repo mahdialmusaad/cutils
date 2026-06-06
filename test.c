@@ -184,7 +184,7 @@ int main(int argc, char **argv)
 		custr_append(&c, t, 0);
 	}
 
-	fprintf(printfile, 
+	fprintf(printfile,
 		COL_BLUE "APPEND TEST:" COL_RESET " %s (%s), expected 26 chars and len, got %" CU_UPTR_FMT " chars and %" CU_UPTR_FMT " stored len. (%s)\n",
 		c.str, cu_cond(strcmp(c.str, "abcdefghijklmnopqrstuvwxyz") == 0), (uptr)strlen(c.str), c.len, cu_cond(c.len == strlen(c.str) && c.len == 26)
 	);
@@ -263,7 +263,7 @@ skip_parents:
 	read_res = cu_file_read("test.txt", test_text_tmp, 0, NULL);
 	test_text_tmp[sizeof test_text - 1] = '\0';
 	fprintf(printfile, COL_BLUE "FILE READ TEST:" COL_RESET " Reading 'test.txt' gives same text back (%s)\n", cu_cond(read_res && strcmp(test_text_tmp, test_text) == 0));
-	fprintf(printfile, COL_BLUE "FILE DELETE TEST:" COL_RESET " Deleting 'test.txt' succeeds (%s)\n", cu_cond(cu_file_delete("./test.txt"))); 
+	fprintf(printfile, COL_BLUE "FILE DELETE TEST:" COL_RESET " Deleting 'test.txt' succeeds (%s)\n", cu_cond(cu_file_delete("./test.txt")));
 
 	custr_allocd(&c, exe, 0);
 	custr_simplify(&c);
@@ -313,7 +313,7 @@ fail_dir:
 	fprintf(printfile, COL_BOLD "\nThread tests:\n" COL_RESET);
 	fprintf(printfile, "Process ID: %u\n", cu_thread_tid());
 	fprintf(printfile, COL_BLUE "MUTEX CREATION TEST:" COL_RESET " Expected success (%s)\n", cu_cond(cu_thread_mutex_init(&mutex)));
-	if (!results[2]) goto fail_thread_early; 
+	if (!results[2]) goto fail_thread_early;
 	thr = cu_thread_create(cu_test_add, NULL);
 	fprintf(printfile, COL_BLUE "THREAD CREATON TEST:" COL_RESET " Expected non-zero thread value (%s)\n", cu_cond(thr != 0));
 	if (!results[2]) goto fail_thread;

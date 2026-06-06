@@ -3541,19 +3541,19 @@ enum cu_net_event
 	/* A client attempted to connect, but an error occurred while accepting the connection.
 	   n=maxclients (i.e. non-zero) if this is from reaching the client limit. */
 	CUEVT_REMOTECONERR,
-	/* Generic issue from listening for messages. */ 
+	/* Generic issue from listening for messages. */
 	CUEVT_MSGLISTENERR
 };
 
 /* Information on an open connection. */
 typedef struct cu_net_remote
 {
-	/* IP address of remote. */
-	char ip[CU_NET_IPADDR_LEN + 2];
 	/* Can be used to identify this remote in the context of your program. */
 	void *ext;
 	/* Internal value. Do not change or use for identification. */
 	cu_socket fd;
+	/* IP address of remote. */
+	char ip[CU_NET_IPADDR_LEN + (CU_DM_64BIT * 6) + (CU_DM_32BIT * 2)];
 } cu_net_remote;
 
 struct cu_net_server;
@@ -3576,6 +3576,9 @@ typedef struct cu_net_server
 	cu_server_event event_handler;
 
 	int remotes_capacity;
+#if CU_DM_64BIT
+	int _pad;
+#endif
 	struct pollfd *pfds;
 } cu_net_server;
 
