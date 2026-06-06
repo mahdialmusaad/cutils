@@ -1,11 +1,10 @@
-cmake_minimum_required(VERSION 4.3 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(cutils
 	LANGUAGES C
 	VERSION 2
-	SPDX_LICENSE "GPL-2.0-only"
 	HOMEPAGE_URL "https://github.com/mahdialmusaad/cutils"
-	DESCRIPTION "A portable C utilities library."
+	DESCRIPTION "A portable C utilities library"
 )
 
 # ---------------------------- User options ----------------------------
