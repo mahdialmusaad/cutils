@@ -27,7 +27,6 @@ The functions provided are as follows:
 - Time-related functions
 - Networking functions (TCP, client and server)
 - Threading and mutex functions
-- Allocation debugging functions (detects buffer underruns, overruns and invalid calls)
 
 Bit operation functions (e.g. popcount, count leading zeros) are also provided directly in the header.
 

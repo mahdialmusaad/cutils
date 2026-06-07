@@ -14,7 +14,6 @@ option(CU_SETTING_RESOURCES_FUNCS, "Build the RESOURCES functions" ON)
 option(CU_SETTING_TIME_FUNCS, "Build the TIME functions" ON)
 option(CU_SETTING_NETWORK_FUNCS, "Build the NETWORK functions" ON)
 option(CU_SETTING_THREAD_FUNCS, "Build the THREAD functions" ON)
-option(CU_SETTING_ALLOC_FUNCS, "Build the ALLOC functions" ON)
 
 option(CU_BUILD_MISC "Build the test and example programs" ON)
 option(CU_INSTALL "Create installation target" OFF)
@@ -46,7 +45,6 @@ target_compile_definitions(cutils PRIVATE
 	${CU_SETTING_TIME_FUNCS}
 	${CU_SETTING_NETWORK_FUNCS}
 	${CU_SETTING_THREAD_FUNCS}
-	${CU_SETTING_ALLOC_FUNCS}
 )
 
 if (CU_INSTALL)
