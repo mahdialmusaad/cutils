@@ -69,11 +69,11 @@ The macros are also written in such a way to simplify checks (no need to check i
 ```
 
 ## Support
-This is mostly aimed towards being used for creating applications that can be compiled for the Unix, MacOS and Windows operating systems as well as the major compilers without needing to write specific code for each, although most features are designed to be OS and compiler agnostic.
+This is mostly aimed towards being used for creating applications that can be compiled for Unix and Windows operating systems as well as the major compilers without needing to write specific code for each.
 
 Warnings are given if you are compiling the library and a lack of support for specific functions are detected. Compilation can still continue, but the relevant functions will always fail (i.e. return 0), or may not be available.
 
-The source code is written in C89 so any reasonable compiler should have no problem compiling it. If you encounter any errors resulting from the source code itself, it would be great if you open an issue or offer a solution.
+The source code is written in C89 and checks for feature support so any reasonable compiler should have no problem compiling it. If you encounter any errors resulting from the source code itself, it would be great if you open an issue.
 
 ## Building
 You can download the static library from the Releases section for each version. <br>

@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 	void *allocs[5];
 
 	char *exe;
-	char osbuf[CU_RES_OSNAME_MAXSIZE];
+	char hwnamebuf[CU_RES_NAME_MAXSIZE];
 	const char original[] = PATH_PREFIX SEP2 SEP "abc" SEP "123" SEP2 SEP ".." SEP "." SEP "456" SEP "test1" SEP2 ".." SEP "test1" SEP2 "." SEP "def" SEP2 ".." SEP "789" SEP2 SEP2 "." SEP;
 	const char *parents[] = { PATH_PREFIX SEP, PATH_PREFIX SEP, PATH_PREFIX SEP "abc" SEP, PATH_PREFIX SEP "abc" SEP "456" SEP, PATH_PREFIX SEP "abc" SEP "456" SEP "test1" SEP };
 	const char test_text[] = "Test text for test text file. This is 68 bytes excluding terminator.";
@@ -100,8 +100,12 @@ int main(int argc, char **argv)
 
 
 	fprintf(printfile, COL_BOLD "System information:\n" COL_RESET);
-	sr = cu_res_osname(osbuf);
-	fprintf(printfile, COL_BLUE "OS:" COL_RESET " %s (%s)\n", osbuf, cu_cond(sr != 0));
+	sr = cu_res_osname(hwnamebuf);
+	fprintf(printfile, COL_BLUE "OS:" COL_RESET " %s (%d/%d chars) (%s)\n", hwnamebuf, (int)sr, (int)(strlen(hwnamebuf)) + 1, cu_cond(sr == ((uptr)strlen(hwnamebuf) + 1)));
+	sr = cu_res_username(hwnamebuf);
+	fprintf(printfile, COL_BLUE "USER:" COL_RESET " %s (%d/%d chars) (%s)\n", hwnamebuf, (int)sr, (int)(strlen(hwnamebuf)) + 1, cu_cond(sr == ((uptr)strlen(hwnamebuf) + 1)));
+	sr = cu_res_hostname(hwnamebuf);
+	fprintf(printfile, COL_BLUE "HOST:" COL_RESET " %s (%d/%d chars) (%s)\n", hwnamebuf, (int)sr, (int)(strlen(hwnamebuf)) + 1, cu_cond(sr == ((uptr)strlen(hwnamebuf) + 1)));
 	fprintf(printfile, COL_BLUE "NETWORK INTERFACES:" COL_RESET);
 
 	for (i = 0; ; ++i) {
@@ -111,10 +115,11 @@ int main(int argc, char **argv)
 	}
 	fprintf(printfile, "\n  Found %d interfaces (%s)\n", i, cu_cond(i != 0));
 
-	fprintf(printfile, COL_BLUE "CPU" COL_RESET " (%s)" COL_BLUE":\n" COL_RESET, cu_cond(cu_res_cpuinfo(&cpu)));
+	cu_res_cpuinfo(&cpu);
+	fprintf(printfile, COL_BLUE "CPU:\n" COL_RESET);
 	fprintf(printfile, COL_BLUE "  Name:" COL_RESET " %s\n", cpu.name);
 	fprintf(printfile, COL_BLUE "  Vendor:" COL_RESET " %s\n", cpu.vendor);
-	fprintf(printfile, COL_BLUE "  Clock speed (MHz):" COL_RESET " Base: %u, Max: %u\n", (unsigned)(cpu.base_freq_hz / 1000 / 1000), (unsigned)(cpu.max_freq_hz / 1000 / 1000));
+	fprintf(printfile, COL_BLUE "  Base clock speed (MHz):" COL_RESET "%u\n", (unsigned)(cpu.base_freq_hz / 1000000));
 	fprintf(printfile, COL_BLUE "  Endianness:" COL_RESET " %s\n", cpu.little_endian ? "Little" : "Big");
 	fprintf(printfile, COL_BLUE "  Stepping:" COL_RESET " %u\n", cpu.stepping_id);
 	fprintf(printfile, COL_BLUE "  Model:" COL_RESET " %u\n", cpu.model_id);
