@@ -4,7 +4,6 @@
    The cutils library is licensed under the GPLv2, see aforementioned files for full statement.
 */
 
-#define CU_SETTING_ALLOC_FUNCS 0
 #include "cutils.h"
 
 #include <stdlib.h>

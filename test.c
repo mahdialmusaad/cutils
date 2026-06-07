@@ -73,7 +73,6 @@ int main(int argc, char **argv)
 	uptr sr;
 	int i, res;
 	void *read_res;
-	void *allocs[5];
 
 	char *exe;
 	char hwnamebuf[CU_RES_NAME_MAXSIZE];
@@ -96,8 +95,6 @@ int main(int argc, char **argv)
 
 	CU_UNUSED(argc);
 	cu_timer_begin(&timer);
-	cu_deballoc_start(1, 1);
-
 
 	fprintf(printfile, COL_BOLD "System information:\n" COL_RESET);
 	sr = cu_res_osname(hwnamebuf);
@@ -338,22 +335,6 @@ fail_thread_early:
 
 
 success_thread:
-	fprintf(printfile, COL_BOLD "\nAlloc debug tests:\n" COL_RESET);
-	for (i = 0; i < 5; ++i) if (!(allocs[i] = cu_deballoc_malloc(CU_LINE, CU_FUNC, CU_FILE, (size_t)(i + 1)))) break;
-	fprintf(printfile, COL_BLUE "MALLOC TEST:" COL_RESET " Allocating 5 times (%s)\n", cu_cond(i == 5));
-	for (i = 0; i < 5; ++i) {
-		void *r = cu_deballoc_realloc(CU_LINE, CU_FUNC, CU_FILE, allocs[i], (size_t)((i + 1) * 2));
-		if (!r) break; else allocs[i] = r;
-	}
-	fprintf(printfile, COL_BLUE "REALLOC TEST:" COL_RESET " Reallocating 5 times (%s)\n", cu_cond(i == 5));
-
-	*((u64 *)(allocs[0]) - 1) = 0;
-	fprintf(printfile, COL_BLUE "UNDERRUN TEST:" COL_RESET " Expected debug stats to show underrun (%s)\n", cu_cond(cu_deballoc_getstats()->underruns == 1));
-	*((u64 *)(allocs[0]) + 1) = 0;
-	fprintf(printfile, COL_BLUE "OVERRUN TEST:" COL_RESET " Expected debug stats to show overrun (%s)\n", cu_cond(cu_deballoc_getstats()->overruns == 1));
-
-	for (i = 0; i < 5; ++i) cu_deballoc_free(CU_LINE, CU_FUNC, CU_FILE, allocs[i]);
-
 	fprintf(printfile, COL_BOLD "\nRNG tests:\n" COL_RESET);
 	res = (int)cu_rand_cryptographic(&rnd, sizeof rnd);
 	fprintf(printfile, COL_BLUE "OS RNG:" COL_RESET " %" CU_U64_FMT " (%s)\n", rnd, cu_cond(res == sizeof rnd));
@@ -366,9 +347,8 @@ success_thread:
 	fprintf(printfile, "Physical used by this program: %" CU_UPTR_FMT "B\n", mem.phys_loc_used);
 
 
-	cu_deballoc_end();
 	fprintf(printfile, "Time: %fs (excludes sleep time)\n", cu_timer_endf(&timer));
-	fprintf(printfile, "\n%sPassed %d / %d tests.\n\n" COL_RESET, results[0] == 0 ? COL_GREEN : COL_RED, results[1], results[0] + results[1]);
+	fprintf(printfile, "\n%sPassed %d / %d tests.\n" COL_RESET "\n", results[0] == 0 ? COL_GREEN : COL_RED, results[1], results[0] + results[1]);
 
 	return results[0] != 0;
 }

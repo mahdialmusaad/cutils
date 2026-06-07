@@ -55,9 +55,6 @@ extern "C" {
 #  if !defined (CU_SETTING_THREAD_FUNCS)
 #    define CU_SETTING_THREAD_FUNCS 1
 #  endif
-#  if !defined (CU_SETTING_ALLOC_FUNCS)
-#    define CU_SETTING_ALLOC_FUNCS 1
-#  endif
 #else
 #  define CU_SETTING_FILE_FUNCS 0
 #  define CU_SETTING_RAND_FUNCS 0
@@ -65,7 +62,6 @@ extern "C" {
 #  define CU_SETTING_TIME_FUNCS 0
 #  define CU_SETTING_NETWORK_FUNCS 0
 #  define CU_SETTING_THREAD_FUNCS 0
-#  define CU_SETTING_ALLOC_FUNCS 0
 #endif
 
 #if !defined (CU_SETTING_FORCE_DEBUG)
@@ -74,10 +70,6 @@ extern "C" {
 
 #if !defined (CU_SETTING_QUIET)
 #  define CU_SETTING_QUIET 0
-#endif
-
-#if !defined (CU_SETTING_CUSTOM_ALLOCS)
-#  define CU_SETTING_CUSTOM_ALLOCS CU_SETTING_ALLOC_FUNCS
 #endif
 
 /* ==========================================================================
@@ -2485,7 +2477,7 @@ CU_DIAGNOSTICS_POP
 #  define CU_WARNING(msg) CU_MESSAGE(msg)
 #endif
 
-#if CU_FREESTANDING && defined (__GNUC__)
+#if CU_FREESTANDING && CU_HAS_BUILTIN(__builtin_trap)
 #  define CU_BREAKPOINT() __builtin_trap()
 #elif defined (__ibmxl__) || defined (__xlC__)
 #  include <builtins.h>
@@ -2497,28 +2489,28 @@ CU_DIAGNOSTICS_POP
 #elif defined (__ARMCC_VERSION)
 #  define CU_BREAKPOINT() __breakpoint(42)
 #elif defined (__DMC__) && defined (_M_IX86)
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM int 3h; }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM int 3h; }
 #elif CU_ARCH_X86
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("int3"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("int3"); }
 #elif CU_ARCH_ARM_THUMB
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xde01"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xde01"); }
 #elif CU_ARCH_ARM_AARCH64
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xd4200000"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xd4200000"); }
 #elif CU_ARCH_ARM
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xe7f001f0"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xe7f001f0"); }
 #elif defined (__alpha__) && !defined (__osf__)
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("bpt"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("bpt"); }
 #elif defined (_54_)
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("ESTOP"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("ESTOP"); }
 #elif defined (_55_)
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(";\n .if (.MNEMONIC)\n ESTOP_1\n .else\n ESTOP_1()\n .endif\n NOP"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(";\n .if (.MNEMONIC)\n ESTOP_1\n .else\n ESTOP_1()\n .endif\n NOP"); }
 #elif defined (_64P_)
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("SWBP 0"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("SWBP 0"); }
 #elif defined (_6x_)
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("NOP\n .word 0x10000000"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("NOP\n .word 0x10000000"); }
 #elif CU_OS_UNIX
 #  include <signal.h>
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void)
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void)
 {
 #if defined (SIGTRAP)
 	raise(SIGTRAP);
@@ -2543,9 +2535,9 @@ CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { *(vo
 #if !defined (CU_TRAP)
 #  if CU_OS_UNIX
 #    include <signal.h>
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NORETURN static void __cu_trap(void) { signal(SIGABRT, SIG_DFL); while (1) raise(SIGABRT); }
+CU_ATTRIB_UNUSED CU_ATTRIB_NORETURN static void __cu_trap(void) { signal(SIGABRT, SIG_DFL); while (1) raise(SIGABRT); }
 #  else
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NORETURN static void __cu_trap(void) { while (1) *(volatile char *)0 = 0; }
+CU_ATTRIB_UNUSED CU_ATTRIB_NORETURN static void __cu_trap(void) { while (1) *(volatile char *)0 = 0; }
 #  endif
 #  define CU_TRAP() __cu_trap()
 #endif
@@ -2555,12 +2547,18 @@ CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED CU_ATTRIB_NORETURN static void __cu_trap
 #elif CU_HAS_INCLUDE(<assert.h>)
 #  include <assert.h>
 #  define CU_ASSERT(cond) assert(cond)
-#elif CU_SETTING_ALLOC_FUNCS
-#  define CU_ASSERT(cond) do { \
-	if (!(CU_LIKELY((cond)))) cu_deballoc_assert_fail(CU_LINE, CU_FUNC, CU_FILE, CU_STRINGIFY(cond)); \
-} while (0)
+#elif CU_HAS_INCLUDE(<stdlib.h>) && CU_HAS_INCLUDE(<stdio.h>)
+#  include <stdio.h>
+#  include <stdlib.h>
+CU_ATTRIB_NORETURN CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2, 3, 4)) CU_ATTRIB_UNUSED CU_ATTRIB_COLD
+static void __cu_assert_fail(int line, const char *func, const char *file, const char *cond)
+{
+	printf("%s:%d: %s: Assertion '%s' failed.\n", file, line, func, cond);
+	abort();
+}
+#  define CU_ASSERT(cond) do { if (CU_UNLIKELY(!(cond))) __cu_assert_fail(CU_LINE, CU_FUNC, CU_FILE, CU_STRINGIFY(cond)); } while (0)
 #else
-#  define CU_ASSERT(cond) do { if (!(CU_LIKELY((cond)))) CU_BREAKPOINT(); } while (0)
+#  define CU_ASSERT(cond) do { if (!(CU_LIKELY((cond)))) { CU_BREAKPOINT(); CU_TRAP(); } } while (0)
 #endif
 
 #define CU_UNUSED(var) ((void)(var))
@@ -3767,83 +3765,7 @@ CU_API int cu_thread_mutex_trylock(cu_thread_mutex *mutex);
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int cu_thread_mutex_destroy(cu_thread_mutex *mutex);
 
-#endif
-
-/* ==========================================================================
- *
- * ----------------------- Debug allocation functions -----------------------
- *
- * ========================================================================== */
-
-#if CU_SETTING_ALLOC_FUNCS
-
-/* Custom assertion fail handler. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_NORETURN CU_ATTRIB_COLD
-CU_API void cu_deballoc_assert_fail(int line, const char *func, const char *file, const char *cond);
-
-CU_ATTRIB_NOTHROW
-CU_API void cu_deballoc_free(int line, const char *CU_RESTRICT func, const char *CU_RESTRICT file, void *CU_RESTRICT ptr);
-CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE(4) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 4) CU_ATTRIB_WARN_UNUSED_RESULT
-CU_API void *cu_deballoc_malloc(int line, const char *CU_RESTRICT func, const char *CU_RESTRICT file, uptr bytes);
-CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE_MUL(4, 5) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 4) CU_ATTRIB_WARN_UNUSED_RESULT
-CU_API void *cu_deballoc_calloc(int line, const char *CU_RESTRICT func, const char *CU_RESTRICT file, uptr n, uptr size_each);
-CU_ATTRIB_NOTHROW CU_ATTRIB_ALLOCSIZE(5) CU_ATTRIB_MALLOC_FULL(cu_deballoc_free, 4) CU_ATTRIB_WARN_UNUSED_RESULT
-CU_API void *cu_deballoc_realloc(int line, const char *CU_RESTRICT func, const char *CU_RESTRICT file, void *CU_RESTRICT ptr, uptr bytes);
-
-/* Allocation statistics. */
-typedef struct cu_deballoc_stats
-{
-	/* Current memory usage in bytes. */
-	uptr memusage;
-	/* Highest memory usage in bytes. */
-	uptr highest_memusage;
-
-	uptr free_count; /* Number of 'free' calls. */
-	uptr malloc_count; /* Number of 'malloc' calls. */
-	uptr realloc_count; /* Number of 'realloc' calls. */
-	uptr calloc_count; /* Number of 'calloc' calls. */
-
-	/* Number of currently allocated pointers. */
-	uptr allocd_ptrs;
-	/* Number of times an allocation function returned NULL. */
-	uptr alloc_fails;
-
-	/* Number of times an out-of-bounds write was detected. */
-	uptr underruns, overruns;
-	/* Number of times an invalid call to an allocation function was made. */
-	uptr invalid_free, invalid_realloc, empty_realloc;
-} cu_deballoc_stats;
-
-/* Returns current allocation statistics.
-   Do not save the stored pointer, as this also checks for buffer under/overruns. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_RETURNS_NONNULL CU_ATTRIB_COLD
-CU_API const cu_deballoc_stats *cu_deballoc_getstats(void);
-/* Prints out summary of allocation statistics and all detected allocation errors. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_COLD
-CU_API void cu_deballoc_summary(void);
-
-/* Initializes debug allocation. Verbose logs also include allocations and deallocations. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_COLD
-CU_API int cu_deballoc_start(int log_file, int log_file_verbose);
-/* Cleans up resources used for debug allocation functions. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_COLD
-CU_API void cu_deballoc_end(void);
-
-#include <stdlib.h>
-
-#define CU_FREE(ptr) do { free(ptr); ptr = NULL; } while (0)
-
-#if CU_DEBUG && CU_SETTING_CUSTOM_ALLOCS
-#  define CU_REPLACED_ALLOC 1
-#  define malloc(n) cu_deballoc_malloc(CU_LINE, CU_FUNC, CU_FILE, n)
-#  define realloc(p, n) cu_deballoc_realloc(CU_LINE, CU_FUNC, CU_FILE, p, n)
-#  define calloc(n, s) cu_deballoc_calloc(CU_LINE, CU_FUNC, CU_FILE, n, s)
-#  define free(p) cu_deballoc_free(CU_LINE, CU_FUNC, CU_FILE, p)
-#else
-#  define CU_REPLACED_ALLOC 0
-#endif
-
-#endif /* CU_SETTING_ALLOC_FUNCS */
+#endif /* CU_SETTING_THREAD_FUNCS */
 
 #endif /* CU_SETTING_FUNCS */
 
