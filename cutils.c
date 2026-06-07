@@ -565,7 +565,7 @@ fail:
 	return res;
 }
 
-#elif CU_HAS_INCLUDE(<dirent.h>) && !CU_ARCH_M68K && !defined (__MSP430__)
+#elif CU_HAS_INCLUDE(<dirent.h>)
 #include <dirent.h>
 
 CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
@@ -893,157 +893,40 @@ CU_API_SOURCE u64 cu_rand_get(cu_rand_state *state)
 
 #include <string.h>
 
-#if !CU_OS_WINDOWS
-#  include <stdio.h>
-#endif
-
-#if CU_HAS_INCLUDE(<cpuid.h>) && CU_ARCH_X86
-#  include <cpuid.h>
-#  define CU_CPUID
-#endif
-
-#if CU_COMP_MSVC && !CU_ARCH_ARM
-#include <intrin.h>
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2))
-static i32 cu_res_cpuid(u32 id, u32 *regs)
-{
-	__cpuid((int *)regs, id);
-	return (i32)*regs;
-}
-#elif defined(CU_CPUID)
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2))
-static i32 cu_res_cpuid(u32 id, u32 *regs)
-{
-	return (i32)__get_cpuid(id, regs, regs + 1, regs + 2, regs + 3);
-}
+#if !CU_ARCH_X86
+#  define cu_res_cpuid(id, regs) 0
 #else
-CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2))
-static i32 cu_res_cpuid(u32 id, u32 *regs)
-{
-	CU_UNUSED(id);
-	CU_UNUSED(regs);
-	return 0;
-}
-#endif
-
-#if CU_OS_APPLE
-#  include <sys/types.h>
-#  include <sys/sysctl.h>
-#endif
-
-#if defined(CU_CPUID)
-
-#if !defined (__cpuid_count)
-#define __cpuid_count(__leaf, __count, __eax, __ebx, __ecx, __edx) \
-  __asm("  xchg{q|}  {%%|}rbx,%q1\n"                               \
-        "  cpuid\n"                                                \
-        "  xchg{q|}  {%%|}rbx,%q1"                                 \
-        : "=a"(__eax), "=r"(__ebx), "=c"(__ecx), "=d"(__edx)       \
-        : "0"(__leaf), "2"(__count))
-#endif
-
-static int cu_res_cpuinfo_cache(cu_res_cpu *info)
-{
-	int i;
-
-	for (i = 0; ; ++i) {
-		u32 eax, ebx, ecx, edx, c_size, c_line, c_assoc;
-		struct cu_res_cpu_cache *target;
-		__cpuid_count(0x04, i, eax, ebx, ecx, edx);
-		CU_UNUSED(edx);
-
-		c_assoc = (ebx >> 22) + 1;
-		c_line = (ebx & 0xFFF) + 1;
-		c_size = (((ebx >> 22) & 0x3FF) + 1) * (((ebx >> 12) & 0x3FF) + 1) * c_line * (ecx + 1);
-
-		switch ((eax >> 5) & 0x7)
-		{
-		case 1:
-			target = ((eax & 0x1F) == 1) ? &info->l1d : &info->l1i;
-			break;
-		case 2:
-			target = &info->l2;
-			break;
-		case 3:
-			target = &info->l3;
-			break;
-		default:
-			return 1;
-		}
-
-		target->line = c_line;
-		target->size = c_size;
-		target->assoc = c_assoc;
-	}
-}
-
-#elif CU_OS_WINDOWS
-#  include <windows.h>
-#  include <stdlib.h>
-static int cu_res_cpuinfo_cache(cu_res_cpu *info)
-{
-	SYSTEM_LOGICAL_PROCESSOR_INFORMATION *buffer;
-	DWORD buffer_size = 0;
-	int i, count;
-
-	GetLogicalProcessorInformation(NULL, &buffer_size);
-	if (!(buffer = malloc(buffer_size))) return 0;
-
-	GetLogicalProcessorInformation(buffer, &buffer_size);
-
-	for (count = buffer_size / sizeof *buffer, i = 0; i < count; ++i) {
-		SYSTEM_LOGICAL_PROCESSOR_INFORMATION *b = buffer + i;
-		struct cu_res_cpu_cache *target;
-		if (b->Relationship != RelationCache) continue;
-
-		switch (b->Cache.Level) {
-		case 1:
-			target = b->Cache.Type == CacheData ? &info->l1d : &info->l1i;
-			break;
-		case 2:
-			target = &info->l2;
-			break;
-		case 3:
-			target = &info->l3;
-			break;
-		default:
-			goto skip;
-		}
-
-		target->line = (u32)b->Cache.LineSize;
-		target->size = (u32)b->Cache.Size;
-		target->assoc = (u32)b->Cache.Associativity;
-	skip:
-		(void)(0);
-	}
-
-	free(buffer);
-	return 1;
-}
-#else
-static int cu_res_cpuinfo_cache(cu_res_cpu *info)
-{
-	return 0;
-}
-#endif
-
-#if CU_ARCH_X86
-#  include <time.h>
 #  if CU_COMP_MSVC
 #    include <intrin.h>
-#  endif
+#    define cu_res_rdtsc() __rdtsc()
+CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2))
+static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
+{
+	__cpuidex((int *)regs, id, count);
+	return *regs;
+}
+#  else
 CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NOTHROW
 static u64 cu_res_rdtsc(void)
 {
-#if CU_COMP_MSVC
-	return __rdtsc();
-#else
 	u32 low, high;
 	CU_ASM volatile ("rdtsc" : "=a" (low), "=d" (high));
 	return CU_UPSHIFT((u64)high, 32) | low;
-#endif
 }
-
+CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3))
+static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
+{
+	CU_ASM(
+		"  xchg{q|} {%%|}rbx,%q1\n"
+		"  cpuid\n"
+		"  xchg{q|} {%%|}rbx,%q1"
+		: "=a"(regs[0]), "=r"(regs[1]), "=c"(regs[2]), "=d"(regs[3])
+		: "0"(id), "2"(count)
+	);
+	return *regs;
+}
+#  endif
+#  include <time.h>
 CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NOTHROW
 static u64 cu_res_baseghz(void)
 {
@@ -1055,78 +938,66 @@ static u64 cu_res_baseghz(void)
 }
 #endif
 
-CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
+CU_API_SOURCE void cu_res_cpuinfo(cu_res_cpu *info)
 {
-	u32 chunks[4], cpu_family, i = 1;
-	int success_counter = 0;
+	u32 regs[4] = { 0, 0, 0, 0 }, cpu_family, level, i = 1;
+	struct cu_res_cpu_cache *target;
 
 	memset(info, 0, sizeof *info);
 	info->little_endian = (*(char *)&i) == 1;
 
-	if (!cu_res_cpuid(0x0, chunks)) goto skip_vendor;
-	info->cpuid_level = *chunks;
-	memcpy(info->vendor, chunks + 1, 4);
-	memcpy(info->vendor + 4, chunks + 3, 4);
-	memcpy(info->vendor + 8, chunks + 2, 4);
-	++success_counter;
-skip_vendor:
+	info->cpuid_level = cu_res_cpuid(0x0, 0, regs);
+	memcpy(info->vendor + 0, regs + 1, 4);
+	memcpy(info->vendor + 4, regs + 3, 4);
+	memcpy(info->vendor + 8, regs + 2, 4);
+	
 	for (i = 0; i < 3; ++i) {
-		if (!cu_res_cpuid(0x80000002 + i, chunks)) goto skip_name;
-		memcpy(info->name + i * 16, chunks, 16);
+		cu_res_cpuid(0x80000002 + i, 0, regs);
+		memcpy(info->name + i * 16, regs, 16);
 	}
-	++success_counter;
-skip_name:
-	if (!cu_res_cpuid(0x1, chunks)) goto skip_id;
-	info->stepping_id = (u32)(CU_BITSOF(chunks[0], 0, 3));
-	cpu_family = (u32)(CU_BITSOF(chunks[0], 8, 11));
-	info->model_id = (u32)(CU_BITSOF(chunks[0], 4, 7) + ((cpu_family == 6 || cpu_family == 15) * CU_UPSHIFT(CU_BITSOF(chunks[0], 16, 19), 4)));
-	info->family_id = (u32)(cpu_family + (CU_BITSOF(chunks[0], 20, 27) * (u32)(cpu_family == 15)));
-	++success_counter;
-skip_id:
-	success_counter += cu_res_cpuinfo_cache(info);
+	
+	cu_res_cpuid(0x1, 0, regs);
+	info->stepping_id = (u32)(CU_BITSOF(regs[0], 0, 3));
+	cpu_family = (u32)(CU_BITSOF(regs[0], 8, 11));
+	info->model_id = (u32)(CU_BITSOF(regs[0], 4, 7) + ((cpu_family == 6 || cpu_family == 15) * CU_UPSHIFT(CU_BITSOF(regs[0], 16, 19), 4)));
+	info->family_id = (u32)(cpu_family + (CU_BITSOF(regs[0], 20, 27) * (u32)(cpu_family == 15)));
 
-	if (info->cpuid_level >= 0x16) {
-		if (cu_res_cpuid(0x16, chunks)) {
-			info->base_freq_hz = chunks[0] * 1000 * 1000;
-			info->max_freq_hz = chunks[1] * 1000 * 1000;
-		} else info->base_freq_hz = info->max_freq_hz = 0;
-	} else {
+	for (i = 0; ; ++i) {
+		level = (cu_res_cpuid(0x04, i, regs) >> 5) & 0x7;
+		if (level == 1) target = ((regs[0] & 0x1F) == 1) ? &info->l1d : &info->l1i;
+		else if (level == 2) target = &info->l2;
+		else if (level == 3) target = &info->l3;
+		else break;
+
+		target->assoc = (regs[1] >> 22) + 1;
+		target->line = (regs[1] & 0xFFF) + 1;
+		target->size = (((regs[1] >> 22) & 0x3FF) + 1) * (((regs[1] >> 12) & 0x3FF) + 1) * target->line * (regs[2] + 1);
+	}
+
+	if (info->cpuid_level >= 0x16 && cu_res_cpuid(0x16, 0, regs)) info->base_freq_hz = regs[0] * 1000 * 1000;
+	else {
 		float base_ghz = 0.0f;
 		char *base_ghz_parser = s_strchr(info->name, '@');
-#if CU_OS_APPLE
-		long long result = -1;
-		uptr size = sizeof result;
-		if (!(sysctlbyname("hw.cpufrequency_max", &result, &size, NULL, 0))) info->max_freq_hz = (u64)result;
-#elif !CU_OS_WINDOWS
-		FILE *f;
-		if ((f = fopen("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq", "r"))) {
-			int nscan = fscanf(f, "%" CU_U64_FMT, &info->max_freq_hz);
-			CU_UNUSED(nscan);
-			fclose(f);
-			info->max_freq_hz *= 1000;
-		}
-#endif
 		if (base_ghz_parser) {
 		#if CU_COMP_MSVC
-			int nscan = sscanf_s(base_ghz_parser, "%*s%f", &base_ghz);
+			CU_UNUSED(sscanf_s(base_ghz_parser, "%*s%f", &base_ghz));
 		#else
-			int nscan = sscanf(base_ghz_parser, "%*s%f", &base_ghz);
+			CU_UNUSED(sscanf(base_ghz_parser, "%*s%f", &base_ghz));
 		#endif
-			CU_UNUSED(nscan);
 			info->base_freq_hz = (u64)(base_ghz * 1000.0f) * 1000 * 1000;
 		}
 		#if CU_ARCH_X86
 		else info->base_freq_hz = cu_res_baseghz();
 		#endif
-
-		if (!info->max_freq_hz) info->max_freq_hz = info->base_freq_hz;
 	}
-
-	return success_counter == 4;
 }
 
 #if CU_OS_WINDOWS
 #  include <psapi.h>
+#  include <stdio.h>
+#  if CU_COMP_MSVC
+#    pragma comment(lib, "Advapi32.lib")
+#  endif
 
 CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 {
@@ -1179,36 +1050,40 @@ CU_API_SOURCE real64 cu_res_cpuusage(void)
 	return res;
 }
 
-uptr cu_res_osname(char *namebuf)
+CU_API_SOURCE uptr cu_res_osname(char *namebuf)
 {
-	typedef NTSTATUS (WINAPI *RTL_getverfp)(_Out_ PRTL_OSVERSIONINFOW lpVersionInformation);
-	RTL_OSVERSIONINFOW verinfo;
-	RTL_getverfp getver;
-	HMODULE ntdll;
-
-	int ebuf = !namebuf;
-	uptr len;
-
-	if (!(ntdll = GetModuleHandle("ntdll.dll"))) return 0;
-	CU_DIAGNOSTICS_PUSH
-	CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
-	CU_PRAGMA(warning(disable:4191))
-	if (!(getver = (RTL_getverfp)GetProcAddress(ntdll, "RtlGetVersion"))) return 0;
-	CU_DIAGNOSTICS_POP
-	verinfo.dwOSVersionInfoSize = (ULONG)sizeof(verinfo);
-	if (getver(&verinfo) != 0) return 0;
-
-	if (ebuf && !(namebuf = calloc(1, 256))) return 0;
-	len = (uptr)sprintf_s(namebuf, 256, "Windows %d.%d.%d", (int)verinfo.dwMajorVersion, (int)verinfo.dwMinorVersion, (int)verinfo.dwBuildNumber);
-	if (ebuf) free(namebuf);
-
-	return len == (uptr)(-1) ? 0 : len;
+	DWORD dsize = namebuf ? CU_RES_NAME_MAXSIZE : 0, off = 0;
+	LONG res = RegGetValue(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion", "ProductName", RRF_RT_REG_SZ, NULL, namebuf, &dsize);
+	if (res != ERROR_SUCCESS) return 0;
+	off = dsize;
+	dsize = CU_RES_NAME_MAXSIZE - off;
+	if (namebuf) namebuf[off - 1] = ' ';
+	res = RegGetValue(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion", "DisplayVersion", RRF_RT_REG_SZ, NULL, namebuf ? namebuf + off : NULL, &dsize);
+	return res != ERROR_SUCCESS ? 0 : off + dsize;
+}
+CU_API_SOURCE uptr cu_res_hostname(char *namebuf)
+{
+	DWORD len = namebuf ? CU_RES_NAME_MAXSIZE : 1;
+	char lbuf;
+	GetComputerNameA(namebuf ? namebuf : &lbuf, &len);
+	return (uptr)len;
+}
+CU_API_SOURCE uptr cu_res_username(char *namebuf)
+{
+	DWORD len = namebuf ? CU_RES_NAME_MAXSIZE : 1;
+	char lbuf;
+	GetUserNameA(namebuf ? namebuf : &lbuf, &len);
+	return (uptr)len;
 }
 
 #elif CU_OS_UNIX
 #  include <sys/sysinfo.h>
+#  include <sys/utsname.h>
 #  include <sys/times.h>
+#  include <string.h>
+#  include <unistd.h>
 #  include <stdio.h>
+#  include <pwd.h>
 
 CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 {
@@ -1233,22 +1108,19 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 }
 CU_API_SOURCE real64 cu_res_cpuusage(void)
 {
+	static int proc_count = 0;
 	static clock_t ltm_cpu = 0, ltm_scpu = 0, ltm_ucpu = 0;
 	struct tms tms_buf;
 	clock_t ctm_cpu;
 	real64 res;
 
-#if CU_SETTING_THREAD_FUNCS
-	static int proc_count = 0;
-	if (!proc_count) {
-		proc_count = cu_thread_count();
-	}
-#else
-	static int proc_count = 1;
-#endif
+	if ((ctm_cpu = times(&tms_buf)) == -1) return 0.0;
 
-	ctm_cpu = times(&tms_buf);
-	if (ctm_cpu == -1) return 0.0;
+#if CU_SETTING_THREAD_FUNCS
+	if (!proc_count) proc_count = cu_thread_count();
+#else
+	proc_count = 1;
+#endif
 
 	res = (double)((tms_buf.tms_stime - ltm_scpu) + (tms_buf.tms_utime + ltm_ucpu)) / (0.01 * (double)(ctm_cpu - ltm_cpu) * proc_count);
 
@@ -1259,73 +1131,37 @@ CU_API_SOURCE real64 cu_res_cpuusage(void)
 	return res;
 }
 
-#elif CU_OS_MAC
-#  include <mach/vm_statistics.h>
-#  include <mach/mach_types.h>
-#  include <mach/mach_init.h>
-#  include <mach/mach_host.h>
-#  include <mach/mach.h>
-
-CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
+CU_API_SOURCE uptr cu_res_osname(char *namebuf)
 {
-	info->phys_present = 0;
-	info->phys_tot_used = 0;
-	info->phys_loc_used = 0;
-
-	info->virt_present = 0;
-	info->virt_tot_used = 0;
-	info->virt_loc_used = 0;
-
-	return 1;
+	struct utsname ubuf;
+	if (uname(&ubuf) < 0) return 0;
+	if (namebuf) sprintf(namebuf, "%s %s", ubuf.sysname, ubuf.release);
+	return (uptr)(strlen(ubuf.sysname) + strlen(ubuf.release) + 2);
 }
-CU_API_SOURCE real64 cu_res_cpuusage(void)
+CU_API_SOURCE uptr cu_res_hostname(char *namebuf)
 {
-	mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
-	host_cpu_load_info_data_t cpuinfo;
-	u64 ticks_cnt = 0;
-	int i;
-
-	if (host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, (host_info_t)&cpuinfo, &count) != KERN_SUCCESS) return 0.0;
-
-	for (i = 0; i < CPU_STATE_MAX; ++i) ticks_cnt += cpuinfo.cpu_ticks[i];
-	return CalculateCPULoad(cpuinfo.cpu_ticks[CPU_STATE_IDLE], ticks_cnt);
+	char tbuf[CU_RES_NAME_MAXSIZE];
+	if (!namebuf) namebuf = tbuf;
+	if (gethostname(namebuf, CU_RES_NAME_MAXSIZE)) return 0;
+	return strlen(namebuf) + 1;
+}
+CU_API_SOURCE uptr cu_res_username(char *namebuf)
+{
+	struct passwd *p = getpwuid(geteuid());
+	if (p) {
+		size_t tlen = strlen(p->pw_name) + 1;
+		if (namebuf) memcpy(namebuf, p->pw_name, tlen);
+		return tlen;
+	} else return 0;
 }
 
 #else
 
-CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
-{
-	info->phys_present = 0;
-	info->phys_tot_used = 0;
-	info->phys_loc_used = 0;
-
-	info->virt_present = 0;
-	info->virt_tot_used = 0;
-	info->virt_loc_used = 0;
-
-	return 0;
-}
-CU_API_SOURCE real64 cu_res_cpuusage(void)
-{
-	return (real64)(0);
-}
-
-#endif
-
-#if !CU_OS_WINDOWS && (CU_OS_UNIX || CU_OS_APPLE || CU_HAS_INCLUDE(<sys/utsname.h>))
-#  include <sys/utsname.h>
-#  include <stdio.h>
-
-uptr cu_res_osname(char *namebuf)
-{
-	struct utsname ubuf;
-	if (uname(&ubuf) < 0) return 0;
-	if (!namebuf) return strlen(ubuf.sysname) + strlen(ubuf.release) + strlen(ubuf.machine) + 1;
-	else {
-		int written = sprintf(namebuf, "%s %s %s", ubuf.sysname, ubuf.release, ubuf.machine);
-		return written < 0 ? 0 : (uptr)written;
-	}
-}
+CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info) { return 0; }
+CU_API_SOURCE real64 cu_res_cpuusage(void) { return 0.0; }
+CU_API_SOURCE uptr cu_res_osname(char *namebuf) { return 0; }
+CU_API_SOURCE uptr cu_res_hostname(char *namebuf) { return 0; }
+CU_API_SOURCE uptr cu_res_username(char *namebuf) { return 0;}
 
 #endif
 
@@ -1333,8 +1169,8 @@ CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
 {
 	static const char bytefmt_suffix[6] = { 'K', 'M', 'G', 'T', 'P', 'E' };
 	uptr prev = bytes % 1000, suffix = CU_UPTRMAX;
-	char *start = str;
 	int lkilo = bytes < 1000;
+	char *start = str;
 
 	if (!lkilo) {
 		while (1) {
@@ -1349,16 +1185,15 @@ CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
 	if (bytes >= 10) *str++ = '0' + (char)((bytes / 10) % 10);
 	*str++ = '0' + (char)(bytes % 10);
 
-	if (lkilo) goto end;
-
-	*str++ = '.';
-	*str++ = '0' + (char)((prev / 100) % 10);
-	*str++ = '0' + (char)((prev / 10) % 10);
-	*str++ = '0' + (char)(prev % 10);
-	*str++ = bytefmt_suffix[suffix];
-
-	*str++ = 'B';
-end:
+	if (!lkilo) {
+		*str++ = '.';
+		*str++ = '0' + (char)((prev / 100) % 10);
+		*str++ = '0' + (char)((prev / 10) % 10);
+		*str++ = '0' + (char)(prev % 10);
+		*str++ = bytefmt_suffix[suffix];
+		*str++ = 'B';
+	}
+	
 	*str++ = '\0';
 	return start;
 }
@@ -1450,15 +1285,25 @@ static int cu_net_gai_err;
 #  define CU_INVALID_SOCKET -1
 #  define CU_SOCKET_ERROR -1
 
-#  define CU_NET_GETERR() errno
-#  define CU_NET_SETERR(e) errno = e
-
 #  define CU_ECONNRESET ECONNRESET
 #  define CU_ENOTSOCK ENOTSOCK
 #  define CU_EINTR EINTR
 #  define CU_EBADF EBADF
 
 #  define CU_POLLHUP POLLHUP
+
+#  define CU_NET_GETERR() errno
+#  define CU_NET_SETERR(e) errno = e
+
+#  define CU_NETSIG_SETUP() struct sigaction sact; memset(&sact, 0, sizeof sact)
+#  define CU_NETSIG_SETFUNC(f) do { \
+CU_DIAGNOSTICS_PUSH \
+CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
+CU_PRAGMA(clang diagnostic ignored "-Wdisabled-macro-expansion") \
+sact.sa_handler = f; \
+CU_DIAGNOSTICS_POP \
+sigaction(SIGINT, &sact, NULL); \
+} while (0)
 
 typedef ssize_t cu_net_data;
 typedef nfds_t cu_net_pollcnt;
@@ -1507,6 +1352,9 @@ static int cu_net_setsockopt(cu_socket sock, int opt, int val, size_t len)
 
 #  define CU_NET_GETERR() WSAGetLastError()
 #  define CU_NET_SETERR(e) WSASetLastError(e)
+
+#  define CU_NETSIG_SETUP() CU_EMPTY()
+#  define CU_NETSIG_SETFUNC(f) signal(SIGINT, f)
 
 typedef int cu_net_data;
 typedef ULONG cu_net_pollcnt;
@@ -1582,8 +1430,8 @@ static enum cu_net_error cu_net_getremotesock(cu_net_remote *CU_RESTRICT remote,
 		if ((remote->fd = socket(addr_it->ai_family, addr_it->ai_socktype, addr_it->ai_protocol)) == CU_INVALID_SOCKET) continue;
 		if (is_server) {
 			cu_net_setsockopt(remote->fd, SO_REUSEADDR, 1, CU_UWSZ(sizeof(int), sizeof(BOOL)));
-			if ((res = bind(remote->fd, addr_it->ai_addr, addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
-		} else if ((res = connect(remote->fd, addr_it->ai_addr, addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
+			if ((res = bind(remote->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
+		} else if ((res = connect(remote->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
 		break;
 	fail:
 		cu_net_closesock(&remote->fd);
@@ -1605,14 +1453,8 @@ CU_API_SOURCE void cu_client_listen(cu_net_remote *server_info, cu_client_event 
 	void *recvd; uptr bytes;
 	enum cu_net_error err;
 	
-#if CU_OS_UNIX
-	struct sigaction sact;
-	memset(&sact, 0, sizeof sact);
-	sact.sa_handler = cu_net_sigint;
-	sigaction(SIGINT, &sact, NULL);
-#else
-	signal(SIGINT, cu_net_sigint);
-#endif
+	CU_NETSIG_SETUP();
+	CU_NETSIG_SETFUNC(cu_net_sigint);
 
 	server_pollfd.events = POLLIN | CU_POLLHUP;
 	server_pollfd.fd = server_info->fd;
@@ -1638,12 +1480,7 @@ CU_API_SOURCE void cu_client_listen(cu_net_remote *server_info, cu_client_event 
 		else if (!cu_net_isclosed(server_info)) { client_msgerr: event_handler(server_info, CUEVT_MSGLISTENERR, NULL, 0); }
 	}
 
-#if CU_OS_UNIX
-	sact.sa_handler = SIG_DFL;
-	sigaction(SIGINT, &sact, NULL);
-#else
-	signal(SIGINT, SIG_DFL);
-#endif
+	CU_NETSIG_SETFUNC(SIG_DFL);
 }
 
 CU_API_SOURCE enum cu_net_error cu_server_start(cu_net_server *server, u16 port, int max_clients)
@@ -1729,15 +1566,8 @@ static void cu_server_process_message(cu_net_server *CU_RESTRICT server, cu_serv
 
 CU_API_SOURCE void cu_server_listen(cu_net_server *server, cu_server_event event_handler, int heartbeat_delay_msec)
 {
-#if CU_OS_UNIX
-	struct sigaction sact;
-	memset(&sact, 0, sizeof sact);
-	sact.sa_handler = cu_net_sigint;
-	sigaction(SIGINT, &sact, NULL);
-#else
-	signal(SIGINT, cu_net_sigint);
-#endif
-
+	CU_NETSIG_SETUP();
+	CU_NETSIG_SETFUNC(cu_net_sigint);
 	server->event_handler = event_handler;
 
 	while (!cu_net_isclosed(server->remotes)) {
@@ -1751,12 +1581,8 @@ CU_API_SOURCE void cu_server_listen(cu_net_server *server, cu_server_event event
 			else cu_server_process_message(server, event_handler, server->remotes + i);
 		}
 	}
-#if CU_OS_UNIX
-	sact.sa_handler = SIG_DFL;
-	sigaction(SIGINT, &sact, NULL);
-#else
-	signal(SIGINT, SIG_DFL);
-#endif
+
+	CU_NETSIG_SETFUNC(SIG_DFL);
 }
 
 CU_API_SOURCE enum cu_net_error cu_server_broadcast(const cu_net_server *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote **CU_RESTRICT except, int except_length)
@@ -1800,7 +1626,7 @@ CU_API_SOURCE enum cu_net_error cu_net_sendmsg(const cu_net_remote *CU_RESTRICT 
 {
 	uptr offset = 0;
 	while (1) {
-		cu_net_data res = send(target->fd, (const char *)(data) + offset, (size_t)(bytes - offset), MSG_NOSIGNAL);
+		cu_net_data res = send(target->fd, (const char *)(data) + offset, (CU_UWSZ(size_t, int))(bytes - offset), MSG_NOSIGNAL);
 		if (res < 1) return CUERR_GENERIC;
 		else if ((offset += (uptr)res) >= bytes) return CUERR_NONE;
 	}

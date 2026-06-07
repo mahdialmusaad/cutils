@@ -3392,7 +3392,6 @@ typedef struct cu_res_cpu
 	u32 model_id;
 
 	u64 base_freq_hz;
-	u64 max_freq_hz;
 
 	struct cu_res_cpu_cache l1d, l1i, l2, l3;
 
@@ -3401,8 +3400,6 @@ typedef struct cu_res_cpu
 
 /* Maximum size (including terminator) of string needed by byte formatting. */
 #define CU_RES_BYTEFMT_MAXSIZE 10
-/* Maximum size (including termiantor) of string needed for OS name. */
-#define CU_RES_OSNAME_MAXSIZE 256
 
 /* Sets string to formatted digital storage text of given bytes count.
    Maximum terminated size is given by the CU_RES_BYTEFMT_MAXSIZE macro.
@@ -3420,13 +3417,23 @@ CU_API real64 cu_res_cpuusage(void);
 
 /* Get general CPU information. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API int cu_res_cpuinfo(cu_res_cpu *info);
+CU_API void cu_res_cpuinfo(cu_res_cpu *info);
 
-/* Get OS name and place into namebuf, if not NULL.
-   At most 256 bytes (includes terminator) is needed.
-   Returns length of OS name string, or 0 on error. */
+/* Maximum size (including terminator) of string needed for OS, computer or user name. */
+#define CU_RES_NAME_MAXSIZE 257
+
+/* Get OS name and place into namebuf if not NULL.
+   Returns terminated length of string, or 0 on error. */
 CU_ATTRIB_NOTHROW
 CU_API uptr cu_res_osname(char *namebuf);
+/* Get host name and place into namebuf if not NULL.
+   Returns terminated length of string, or 0 on error. */
+CU_ATTRIB_NOTHROW
+CU_API uptr cu_res_hostname(char *namebuf);
+/* Get current user's name and place into namebuf if not NULL.
+   Returns terminated length of string, or 0 on error. */
+CU_ATTRIB_NOTHROW
+CU_API uptr cu_res_username(char *namebuf);
 
 #endif
 
