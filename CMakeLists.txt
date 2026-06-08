@@ -8,12 +8,13 @@ project(cutils
 
 # ---------------------------- User options ----------------------------
 
-option(CU_SETTING_FILE_FUNCS, "Build the FILE functions" ON)
-option(CU_SETTING_RAND_FUNCS, "Build the RAND functions" ON)
-option(CU_SETTING_RESOURCES_FUNCS, "Build the RESOURCES functions" ON)
-option(CU_SETTING_TIME_FUNCS, "Build the TIME functions" ON)
-option(CU_SETTING_NETWORK_FUNCS, "Build the NETWORK functions" ON)
-option(CU_SETTING_THREAD_FUNCS, "Build the THREAD functions" ON)
+option(CU_SETTING_STRING_FUNCS, "Build the string functions" ON)
+option(CU_SETTING_FILE_FUNCS, "Build the file management functions" ON)
+option(CU_SETTING_RAND_FUNCS, "Build the RNG functions" ON)
+option(CU_SETTING_RESOURCES_FUNCS, "Build the hardware functions" ON)
+option(CU_SETTING_TIME_FUNCS, "Build the time functions" ON)
+option(CU_SETTING_NETWORK_FUNCS, "Build the networking functions" ON)
+option(CU_SETTING_THREAD_FUNCS, "Build the threading functions" ON)
 
 option(CU_BUILD_MISC "Build the test and example programs" ON)
 option(CU_INSTALL "Create installation target" OFF)
@@ -39,6 +40,7 @@ endif()
 set_target_properties(cutils PROPERTIES C_STANDARD 90)
 set_target_properties(cutils PROPERTIES C_EXTENSIONS OFF)
 target_compile_definitions(cutils PRIVATE
+	${CU_SETTING_STRING_FUNCS}
 	${CU_SETTING_FILE_FUNCS}
 	${CU_SETTING_RAND_FUNCS}
 	${CU_SETTING_RESOURCES_FUNCS}

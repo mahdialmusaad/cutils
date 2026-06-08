@@ -40,6 +40,8 @@ CU_DIAGNOSTICS_POP
  *
  * ========================================================================== */
 
+#if CU_SETTING_STRING_FUNCS
+
 #if !defined(_ISOC99_SOURCE)
 #  define _ISOC99_SOURCE
 #endif
@@ -55,6 +57,9 @@ CU_DIAGNOSTICS_POP
 #  endif
 #  include <stdio.h>
 #endif
+
+static CU_THREAD_LOCAL i8 custr_used = 0;
+#define CUSTR_C_END(tmp_var) do { custr_used &= !custr_istemp(tmp_var); } while (0)
 
 CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
 static int custr_istemp(const custr *c) { return c->cap == CU_UPTRMAX; }
@@ -80,16 +85,13 @@ static uptr custr_npow2(uptr v)
 CU_API_SOURCE int custr_create(custr *c, const char *str)
 {
 	const uptr len = (size_t)strlen(str), allocd = custr_npow2(len + 1);
-	if (!(c->str = malloc((size_t)allocd))) return 0;
+	if (!(c->str = (char *)malloc((size_t)allocd))) return 0;
 	memcpy(c->str, str, (size_t)(len + 1));
 	c->len = len;
 	c->cap = allocd;
 	return 1;
 }
-CU_DIAGNOSTICS_PUSH
-CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
-CU_PRAGMA(GCC diagnostic ignored "-Wcast-qual")
-CU_API_SOURCE custr *custr_allocd(custr *c, const char *allocdstr, uptr allocd)
+CU_API_SOURCE custr *custr_allocd(custr *c, char *allocdstr, uptr allocd)
 {
 	c->len = strlen(allocdstr);
 	if (CU_UNLIKELY(allocd && allocd <= c->len)) return NULL;
@@ -97,53 +99,23 @@ CU_API_SOURCE custr *custr_allocd(custr *c, const char *allocdstr, uptr allocd)
 	c->cap = allocd ? allocd : c->len + 1;
 	return c;
 }
-CU_DIAGNOSTICS_POP
 
-#if CU_THREAD_LOCAL_AVAILABLE
-
-static CU_THREAD_LOCAL int custr_used = 0;
-#define CUSTR_C_END(tmp_var) do { custr_used &= !custr_istemp(tmp_var); } while (0)
-
-CU_DIAGNOSTICS_PUSH
-CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
-CU_PRAGMA(GCC diagnostic ignored "-Wcast-qual")
 CU_API_SOURCE custr *custr_c(const char *tmpstr)
 {
 	static CU_THREAD_LOCAL custr c_custr, c_custr2;
 	custr *target = custr_used ? &c_custr2 : &c_custr;
 
+CU_DIAGNOSTICS_PUSH
+CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
+CU_PRAGMA(GCC diagnostic ignored "-Wcast-qual")
 	target->str = (char *)tmpstr;
+CU_DIAGNOSTICS_POP
 	target->len = strlen(tmpstr);
 	target->cap = CU_UPTRMAX;
 	custr_used = 1;
 
 	return target;
 }
-CU_DIAGNOSTICS_POP
-
-#else
-
-CU_DIAGNOSTICS_PUSH
-CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
-CU_PRAGMA(GCC diagnostic ignored "-Wcast-qual")
-
-#define CUSTR_C_END(tmp_var) do { if (custr_istemp(tmp_var)) custr_clear(tmp_var); } while (0) \
-
-CU_API_SOURCE custr *custr_c(const char *tmpstr)
-{
-	custr *target = malloc(sizeof *target);
-	if (!target) return NULL;
-
-	target->len = strlen(tmpstr);
-	target->str = malloc(target->len + 1);
-	if (!target->str) return NULL;
-	memcpy(target->str, tmpstr, target->len + 1);
-
-	target->cap = CU_UPTRMAX;
-	return target;
-}
-
-#endif
 
 CU_API_SOURCE custr *custr_char(char chr)
 {
@@ -157,11 +129,6 @@ CU_API_SOURCE int custr_reserve(custr *c, uptr bytes)
 	void *ptr;
 	CU_ASSERT(!custr_istemp(c));
 
-	if (CU_UNLIKELY(!bytes)) {
-		custr_clear(c);
-		return 1;
-	}
-
 	bytes = custr_npow2(bytes);
 	if (CU_LIKELY(bytes < 8)) bytes = 8;
 
@@ -171,7 +138,7 @@ CU_API_SOURCE int custr_reserve(custr *c, uptr bytes)
 
 	if (!(ptr = realloc(c->str, (size_t)bytes))) return 0;
 
-	c->str = ptr;
+	c->str = (char *)ptr;
 	c->cap = bytes;
 
 	return 1;
@@ -181,7 +148,7 @@ CU_API_SOURCE int custr_copy(const custr *copy, custr *paste)
 	CU_ASSERT(!custr_istemp(paste));
 	paste->len = copy->len;
 	paste->cap = paste->len + 1;
-	if (!(paste->str = malloc((size_t)paste->cap))) return 0;
+	if (!(paste->str = (char *)malloc((size_t)paste->cap))) return 0;
 	memcpy(paste->str, copy->str, (size_t)paste->cap);
 	return 1;
 }
@@ -219,17 +186,13 @@ CU_API_SOURCE int custr_insert(custr *c, uptr c_offset, const custr *to_insert, 
 	if (CU_UNLIKELY(c_offset > c->len || to_insert_offset >= to_insert->len)) return 0;
 
 	needed = c->len + (to_insert->len - to_insert_offset) + 1;
-	if (CU_UNLIKELY(needed > c->cap && !custr_reserve(c, needed))) return 0;
+	if (CU_UNLIKELY(!custr_reserve(c, needed))) return 0;
 
 	memmove(c->str + c_offset + (to_insert->len - to_insert_offset), c->str + c_offset, (size_t)((c->len + (c_offset != c->len)) - c_offset));
 	memmove(c->str + c_offset, to_insert->str + to_insert_offset, (size_t)(to_insert->len - to_insert_offset + (c_offset == c->len)));
 
 	c->len = needed - 1;
 	return 1;
-}
-CU_API_SOURCE int custr_append(custr *c, const custr *to_append, uptr to_append_offset)
-{
-	return custr_insert(c, c->len, to_append, to_append_offset);
 }
 
 CU_API_SOURCE int custr_sub(const custr *c, custr *subresult, uptr start_ind, uptr end_ind)
@@ -268,7 +231,6 @@ CU_API_SOURCE void custr_cut(custr *c, uptr start_ind, uptr count)
 
 	if (CU_UNLIKELY(start_ind >= c->len)) return;
 	if (CU_UNLIKELY(start_ind + count >= c->len)) count = c->len - start_ind - 1;
-	if (CU_UNLIKELY(count == 0)) return;
 
 	memmove(c->str + start_ind, c->str + start_ind + count, (size_t)((c->len + 1) - start_ind - count));
 	c->len -= count;
@@ -281,12 +243,9 @@ CU_API_SOURCE int custr_count(const custr *c, char target)
 	CUSTR_C_END(c);
 
 	while (1)  {
-		offset = custr_find(c, offset + 1, target, 0);
-		if (offset == CU_UPTRMAX) break;
+		if ((offset = custr_find(c, offset + 1, target, 0)) == CU_UPTRMAX) return n;
 		++n;
 	}
-
-	return n;
 }
 CU_API_SOURCE int custr_countsub(const custr *c, const custr *target)
 {
@@ -296,12 +255,9 @@ CU_API_SOURCE int custr_countsub(const custr *c, const custr *target)
 	CUSTR_C_END(target);
 
 	while (1)  {
-		offset = custr_findsub(c, offset + 1, target, 0);
-		if (offset == CU_UPTRMAX) break;
+		if ((offset = custr_findsub(c, offset + 1, target, 0)) == CU_UPTRMAX) return n;
 		++n;
 	}
-
-	return n;
 }
 
 CU_API_SOURCE int custr_fmt(custr *c, char *fmt, ...)
@@ -309,8 +265,6 @@ CU_API_SOURCE int custr_fmt(custr *c, char *fmt, ...)
 #if defined (CUSTR_FMT)
 	va_list va, copy;
 	int nchars, ret = 0;
-
-	memset(c, 0, sizeof *c);
 
 	va_start(va, fmt);
 
@@ -346,15 +300,13 @@ CU_API_SOURCE int custr_cd(custr *c, const custr *name)
 	custr_simplify(c);
 
 	if (!name) {
-		uptr ind;
-		ind = custr_find(c, 0, CU_FILE_SEPARATOR, -1 - (c->str[c->len - 1] == CU_FILE_SEPARATOR));
+		uptr ind = custr_find(c, 0, CU_FILE_SEPARATOR, -1 - (c->str[c->len - 1] == CU_FILE_SEPARATOR));
 		if (ind != CU_UPTRMAX) custr_shrinkto(c, ind + 1);
 		return 1;
 	}
 
 	if (c->str[c->len - 1] != CU_FILE_SEPARATOR && CU_UNLIKELY(!custr_append(c, custr_c(CU_FILE_SEPARATOR_DQ), 0))) goto fail;
 
-	tmp.cap = CU_UPTRMAX - 1;
 	if (!custr_copy(name, &tmp)) goto fail;
 	custr_simplify(&tmp);
 	ret = custr_append(c, &tmp, tmp.str[0] == CU_FILE_SEPARATOR);
@@ -374,8 +326,8 @@ CU_API_SOURCE void custr_simplify(custr *c)
 
 		if (c->str[ind + 1] == CU_FILE_SEPARATOR) {
 			uptr isep = custr_findnot(c, ind + 2, CU_FILE_SEPARATOR, 0);
-			if (isep == CU_UPTRMAX) isep = c->len;
-			memmove(c->str + ind + 1, c->str + isep, (size_t)(c->len - isep + 1 ));
+			if (isep == CU_UPTRMAX) isep = c->len - 1;
+			memmove(c->str + ind + 1, c->str + isep, (size_t)(c->len - isep + 1));
 			c->len -= (isep - ind) - 1;
 		}
 
@@ -472,8 +424,6 @@ CU_API_SOURCE int custr_replacesub(custr *c, uptr c_offset, const custr *target,
 	return 1;
 }
 
-#if !CU_THREAD_LOCAL_AVAILABLE
-CU_DIAGNOSTICS_POP
 #endif
 
 /* ==========================================================================
@@ -520,7 +470,7 @@ CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
 
 	full_len = strlen(path);
 	dir_bytes = full_len > (CU_PATH_MAX - 30) ? full_len * 2 : CU_PATH_MAX;
-	dir_path = malloc(dir_bytes);
+	dir_path = (char *)malloc(dir_bytes);
 
 	if (!dir_path) return 0;
 	res = 0;
@@ -542,7 +492,7 @@ CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
 		if (full_len + file_len + 2 > dir_bytes) {
 			void *r = realloc(dir_path, dir_bytes *= 2);
 			if (!r) goto fail;
-			dir_path = r;
+			dir_path = (char *)r;
 		}
 
 		memcpy(dir_path + full_len + 1, fd.cFileName, (size_t)(file_len + 1));
@@ -574,7 +524,7 @@ CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
 	plen = strlen(path);
 	dlen = 0xFF;
 
-	if (!(dbuf = malloc(plen + dlen + (path[plen - 1] != '/') + 1))) return 0;
+	if (!(dbuf = (char *)malloc(plen + dlen + (path[plen - 1] != '/') + 1))) return 0;
 	if (!(dir = opendir(path))) goto fail;
 
 	memcpy(dbuf, path, plen);
@@ -587,7 +537,7 @@ CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
 		if (entrylen > dlen) {
 			void *rel = realloc(dbuf, plen + entrylen);
 			if (!rel) goto fail_dir;
-			dbuf = rel;
+			dbuf = (char *)rel;
 		}
 
 		memcpy(dbuf + plen, entry->d_name, entrylen);
@@ -739,7 +689,7 @@ success:
 		do {
 			void *res = realloc(buf, buflen += CU_PATH_MAX);
 			if (!res) goto fail_readlink;
-			buf = res;
+			buf = (char *)res;
 
 			readlen = readlink(argv, buf, buflen);
 			if (readlen <= -1) goto fail_readlink;
@@ -754,7 +704,7 @@ success:
 		return NULL;
 	} else if (s_strchr(argv, '/')) {
 		uptr buflen = CU_PATH_MAX * 2, cwdlen = 0, argvlenterm = strlen(argv) + 1;
-		char *buf = malloc(buflen);
+		char *buf = (char *)malloc(buflen);
 
 		if (buf && getcwd(buf, buflen) && (cwdlen = strlen(buf)) < (buflen - argvlenterm)) {
 			if (strncmp(argv, "./", 2) == 0) ++argv;
@@ -771,7 +721,7 @@ skip:
 #if !CU_OS_APPLE && !CU_OS_WINDOWS
 	if (!argv) return NULL;
 	len = strlen(argv) + 1;
-	dup = malloc(len);
+	dup = (char *)malloc(len);
 	if (!dup) return NULL;
 	memcpy(dup, argv, len);
 	if (allocd) *allocd = len;
@@ -790,7 +740,7 @@ skip:
 #if CU_SETTING_RAND_FUNCS
 
 #if CU_OS_WINDOWS && CU_HAS_INCLUDE(<bcrypt.h>)
-#  include <ntsecapi.h>
+#  include <bcrypt.h>
 #elif CU_OS_UNIX
 #  include <stdio.h>
 #endif
@@ -1482,8 +1432,8 @@ CU_API_SOURCE enum cu_net_error cu_server_start(cu_net_server *server, u16 port,
 	if (max_clients < 1) return CUERR_ARGS;
 	memset(server, 0, sizeof *server);
 
-	if (!(server->remotes = malloc(sizeof *server->remotes * (size_t)(server->remotes_capacity = 4)))) return CUERR_MEM;
-	if (!(server->pfds = malloc(sizeof *server->pfds * (size_t)server->remotes_capacity))) { free(server->remotes); return CUERR_MEM; }
+	if (!(server->remotes = (cu_net_remote *)malloc(sizeof *server->remotes * (size_t)(server->remotes_capacity = 4)))) return CUERR_MEM;
+	if (!(server->pfds = (struct pollfd *)malloc(sizeof *server->pfds * (size_t)server->remotes_capacity))) { free(server->remotes); return CUERR_MEM; }
 	if ((sockerr = cu_net_getremotesock(server->remotes, port, NULL)) != CUERR_NONE) { free(server->remotes); free(server->pfds); return sockerr; }
 	if (listen(server->remotes->fd, SOMAXCONN) == CU_SOCKET_ERROR) { free(server->remotes); free(server->pfds); return CUERR_LISTEN; }
 
@@ -1517,8 +1467,8 @@ static void cu_server_process_connection(cu_net_server *CU_RESTRICT server, cu_s
 		}
 
 		server->remotes_capacity *= 2;
-		server->remotes = nrm;
-		server->pfds = npfd;
+		server->remotes = (cu_net_remote *)nrm;
+		server->pfds = (struct pollfd *)npfd;
 	}
 
 	if ((csock = accept(server->pfds->fd, (struct sockaddr *)&saddr, &addrlen)) == CU_INVALID_SOCKET) {
