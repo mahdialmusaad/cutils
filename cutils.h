@@ -37,6 +37,9 @@ extern "C" {
 #endif
 
 #if CU_SETTING_FUNCS
+#  if !defined (CU_SETTING_STRING_FUNCS)
+#    define CU_SETTING_STRING_FUNCS 1
+#  endif
 #  if !defined (CU_SETTING_FILE_FUNCS)
 #    define CU_SETTING_FILE_FUNCS 1
 #  endif
@@ -2069,17 +2072,17 @@ extern "C" {
 #  define CU_REGISTER_AVAILABLE 0
 #endif
 
-#if CU_LANG_C >= CU_LANG_C23
-#  define CU_THREAD_LOCAL thread_local
-#  define CU_THREAD_LOCAL_AVAILABLE 1
-#elif CU_LANG_C >= CU_LANG_C11
-#  define CU_THREAD_LOCAL _Thread_local
-#  define CU_THREAD_LOCAL_AVAILABLE 1
-#elif CU_COMPVER(GNU, 2, 0)
+#if CU_COMPVER(GNU, 2, 0)
 #  define CU_THREAD_LOCAL __thread
 #  define CU_THREAD_LOCAL_AVAILABLE 1
 #elif CU_COMP_MSVC
 #  define CU_THREAD_LOCAL __declspec(thread)
+#  define CU_THREAD_LOCAL_AVAILABLE 1
+#elif CU_LANG_C >= CU_LANG_C23
+#  define CU_THREAD_LOCAL thread_local
+#  define CU_THREAD_LOCAL_AVAILABLE 1
+#elif CU_LANG_C >= CU_LANG_C11
+#  define CU_THREAD_LOCAL _Thread_local
 #  define CU_THREAD_LOCAL_AVAILABLE 1
 #else
 #  define CU_THREAD_LOCAL volatile
@@ -2489,25 +2492,25 @@ CU_DIAGNOSTICS_POP
 #elif defined (__ARMCC_VERSION)
 #  define CU_BREAKPOINT() __breakpoint(42)
 #elif defined (__DMC__) && defined (_M_IX86)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM int 3h; }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM int 3h; }
 #elif CU_ARCH_X86
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("int3"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("int3"); }
 #elif CU_ARCH_ARM_THUMB
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xde01"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xde01"); }
 #elif CU_ARCH_ARM_AARCH64
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xd4200000"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xd4200000"); }
 #elif CU_ARCH_ARM
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(".inst 0xe7f001f0"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xe7f001f0"); }
 #elif defined (__alpha__) && !defined (__osf__)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("bpt"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("bpt"); }
 #elif defined (_54_)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("ESTOP"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("ESTOP"); }
 #elif defined (_55_)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__(";\n .if (.MNEMONIC)\n ESTOP_1\n .else\n ESTOP_1()\n .endif\n NOP"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__(";\n .if (.MNEMONIC)\n ESTOP_1\n .else\n ESTOP_1()\n .endif\n NOP"); }
 #elif defined (_64P_)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("SWBP 0"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("SWBP 0"); }
 #elif defined (_6x_)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)  { CU_ASM __volatile__("NOP\n .word 0x10000000"); }
+CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("NOP\n .word 0x10000000"); }
 #elif CU_OS_UNIX
 #  include <signal.h>
 CU_ATTRIB_UNUSED static void __cu_breakpoint(void)
@@ -3091,6 +3094,12 @@ CU_BITOP_DEFN(parity)(u64 x) { return cu_bitop_popcount(x) & 1; }
 
 /* Define CU_SETTING_QUIET to 1 before including this header file or as part of your compiler options to disable support warnings. */
 
+#if CU_SETTING_STRING_FUNCS && !CU_THREAD_LOCAL_AVAILABLE
+CU_WARNING("String functions are unavailable.")
+#  undef CU_SETTING_FILE_FUNCS
+#  define CU_SETTING_FILE_FUNCS 0
+#endif
+
 #if CU_SETTING_FILE_FUNCS && !CU_OS_WINDOWS && (!CU_HAS_INCLUDE(<dirent.h>) || CU_ARCH_M68K || defined (__MSP430__))
 CU_WARNING("Recursive directory deletion is unavailable.")
 #endif
@@ -3101,8 +3110,8 @@ CU_WARNING("File functions are unavailable.")
 #  define CU_SETTING_FILE_FUNCS 0
 #endif
 
-#if CU_SETTING_RESOURCES_FUNCS && !CU_HAS_INCLUDE(<cpuid.h>) && !CU_COMP_MSVC
-CU_WARNING("cpuid instruction not fully supported so cu_res_cpuinfo will be limited.")
+#if CU_SETTING_RESOURCES_FUNCS && !CU_ARCH_X86
+CU_WARNING("cpuid instruction not supported; cu_res_cpuinfo will be limited.")
 #endif
 
 #if CU_SETTING_NETWORK_FUNCS && !CU_OS_WINDOWS && !CU_OS_UNIX
@@ -3136,6 +3145,8 @@ CU_WARNING("cu_thread_gettid will always return 0.")
  *
  * ========================================================================== */
 
+#if CU_SETTING_STRING_FUNCS
+
 typedef struct custr
 {
 	char *str;
@@ -3148,12 +3159,12 @@ typedef struct custr
    The given custr pointer should be uninitialized or, if it contains allocated text, cleared with custr_clear. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 CU_API int custr_create(custr *CU_RESTRICT c, const char *CU_RESTRICT str);
-/* Creates a custr using an already allocated string; returns the given custr.
+/* Creates a custr using an already allocated string and returns the given custr.
    You can provide the allocated size or 0 to assume it is strlen + 1.
    The given custr pointer should be uninitialized or, if it contains allocated text, cleared with custr_clear.
    The allocated string pointer should not be used directly. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
-CU_API custr *custr_allocd(custr *CU_RESTRICT c, const char *CU_RESTRICT allocdstr, uptr allocd_bytes);
+CU_API custr *custr_allocd(custr *CU_RESTRICT c, char *CU_RESTRICT allocdstr, uptr allocd_bytes);
 /* Returns a temporary custr for use in reasonable custr functions.
    No cleanup or deallocations are needed: can pass in directly as the argument. */
 CU_ATTRIB_NOTHROW
@@ -3184,8 +3195,11 @@ CU_API int custr_optimize(custr *c);
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3))
 CU_API int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const custr *CU_RESTRICT to_insert, uptr to_insert_offset);
 /* Same as custr_insert but 'c_offset' is the length of 'c'. */
-CU_ATTRIB_NOTHROW
-CU_API int custr_append(custr *c, const custr *to_append, uptr to_append_offset);
+CU_ATTRIB_NOTHROW CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_UNUSED
+static int custr_append(custr *c, const custr *to_append, uptr to_append_offset)
+{
+	return custr_insert(c, c->len, to_append, to_append_offset);
+}
 
 /* Gets a substring of a given custr (inclusive indices). The ending index is clamped to the last character.
    The substring should not be allocated beforehand. */
@@ -3207,7 +3221,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 CU_API int custr_countsub(const custr *CU_RESTRICT c, const custr *CU_RESTRICT target);
 
 /* Sets the given custr to describe a variadically formated string.
-   The custr should not be allocated beforehand.
+   The given custr pointer should be uninitialized or, if it contains allocated text, cleared with custr_clear.
    Support for va_copy and snprintf is required. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 #if CU_COMPVER(GNU, 2, 0)
@@ -3224,6 +3238,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API void custr_simplify(custr *c);
 
 /* Returns the index of the nth occurrence of a character in a custr, or CU_UPTRMAX if not found.
+   The offset determines where to start the search. If c_offset >= length, CU_UPTRMAX is returned. 
    n =  0,  1 returns the first and second occurrence respectively.
    n = -1, -2 returns the last and second last occurrence respectively.
    If searching backwards (negative n), the offset will also apply backwards. */
@@ -3234,6 +3249,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API uptr custr_findnot(const custr *c, uptr c_offset, char target, int n);
 
 /* Returns the index of the first character of the nth occurrence of a substring in a custr, or CU_UPTRMAX if not found.
+   The offset determines where to start the search. If c_offset >= length, CU_UPTRMAX is returned. 
    n =  0,  1 returns the first and second occurrence respectively.
    n = -1, -2 returns the last and second last occurrence respectively.
    If searching backwards (negative n), the offset will also apply backwards. */
@@ -3249,6 +3265,8 @@ CU_API void custr_replace(custr *c, uptr c_offset, char target, char replacement
    No effect if target substring is a null or empty string. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 3))
 CU_API int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const custr *CU_RESTRICT target, const custr *replacement);
+
+#endif
 
 /* ==========================================================================
  *
