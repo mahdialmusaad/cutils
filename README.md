@@ -22,7 +22,7 @@ The functions provided are as follows:
 
 - String and path functions (insert, replace, path traversal, etc)
 - File management functions
-- Random number generation (pseudo and cryptographic)
+- Cryptographic RNG
 - Hardware information functions
 - Time-related functions
 - Networking functions (TCP, client and server)

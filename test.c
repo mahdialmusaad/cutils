@@ -153,12 +153,14 @@ int main(int argc, char **argv)
 		CU_U64_C(size), expected, bytefmtres, cu_cond(strcmp(bytefmtres, expected) == 0), (uptr)strlen(expected), (uptr)strlen(bytefmtres) \
 	)
 
-	BYTES_TEST(1234, "1.234KB");
-	BYTES_TEST(CU_U64MAX, "18.446EB");
-	BYTES_TEST(12345, "12.345KB");
-	BYTES_TEST(123456, "123.456KB");
-	BYTES_TEST(1234567, "1.234MB");
-	BYTES_TEST(1000000000, "1.000GB");
+	BYTES_TEST(123, "123B");
+	BYTES_TEST(1234, "1.2KB");
+	BYTES_TEST(CU_U64MAX, "18.4EB");
+	BYTES_TEST(12345, "12.3KB");
+	BYTES_TEST(123456, "123.4KB");
+	BYTES_TEST(1234567, "1.2MB");
+	BYTES_TEST(1000000000, "1.0GB");
+	BYTES_TEST(1020000000, "1.0GB");
 
 
 	custr_create(&c, "TestTestTest");
@@ -166,7 +168,7 @@ int main(int argc, char **argv)
 	fprintf(printfile, COL_BLUE "STRING CREATION TEST:" COL_RESET " Expected capacity of 16 and correct string (%s)\n", cu_cond(c.len == strlen(c.str) && c.cap == 16));
 
 	#define INSERT_TEST(ins, off, expected) \
-	if (!custr_insert(&c, off, custr_c(ins), 0)) fprintf(printfile, "Inserting '%s' to string (offset %d). Expected result: '%s', returned 0 instead.\n", ins, off, expected); \
+	if (!custr_insert(&c, off, ins, 0)) fprintf(printfile, "Inserting '%s' to string (offset %d). Expected result: '%s', returned 0 instead.\n", ins, off, expected); \
 	fprintf(printfile,  \
 		COL_BLUE "INSERT TEST:" COL_RESET " Inserting '%s' to string (offset %d). Expected result: '%s', got '%s' (%s). Expected %" CU_UPTR_FMT " chars, got %" CU_UPTR_FMT " chars, stored %" CU_UPTR_FMT " len (%s).\n", \
 		ins, off, expected, c.str, cu_cond(strcmp(c.str, expected) == 0), (uptr)strlen(expected), (uptr)strlen(c.str), c.len, cu_cond(c.len == strlen(c.str) && c.len && c.len == strlen(expected)) \
@@ -179,14 +181,14 @@ int main(int argc, char **argv)
 
 	res = custr_count(&c, 'e');
 	fprintf(printfile, COL_BLUE "COUNT TEST:" COL_RESET " Expected 11 instances of 'e' char, got %d (%s)\n", res, cu_cond(res == 11));
-	res = custr_countsub(&c, custr_c("Test"));
+	res = custr_countsub(&c, "Test");
 	fprintf(printfile, COL_BLUE "COUNT TEST:" COL_RESET " Expected 3 instances of 'Test' substring, got %d (%s)\n", res, cu_cond(res == 3));
 
 	custr_clear(&c);
 
 	for (i = 0; i < 26; ++i) {
-		custr *t = custr_char((char)(97 + i));
-		custr_append(&c, t, 0);
+		char let[2] = { 'a' + (char)i, '\0' };
+		custr_append(&c, let, 0);
 	}
 
 	fprintf(printfile,
@@ -230,8 +232,8 @@ skip_parents:
 
 	SEARCH_TEST(custr_find, 0, 'e', 1, 24);
 	SEARCH_TEST(custr_find, 9, 'e', -1, 33);
-	SEARCH_TEST(custr_findsub, 0, custr_c("le"), 1, 40);
-	SEARCH_TEST(custr_findsub, 0, custr_c("le "), -1, 40);
+	SEARCH_TEST(custr_findsub, 0, "le", 1, 40);
+	SEARCH_TEST(custr_findsub, 0, "le ", -1, 40);
 
 	#define REPLACE_TEST(func, offset, target, replacement, expected) \
 	fprintf(printfile, COL_BLUE "REPLACE TEST:" COL_RESET " %s with %s in test string, offset %d. ", #target, #replacement, offset); \
@@ -243,9 +245,9 @@ skip_parents:
 	REPLACE_TEST(custr_replace, 0, '.', ';', "Example string for SR tests; More Example string;");
 	REPLACE_TEST(custr_replace, 17, 'o', 'e', "Example string for SR tests; Mere Example string;");
 
-	REPLACE_TEST(custr_replacesub, 1, custr_c("Example"), custr_c("test"), "Example string for SR tests; Mere test string;");
-	REPLACE_TEST(custr_replacesub, 0, custr_c("string"), custr_c("text"), "Example text for SR tests; Mere test text;");
-	REPLACE_TEST(custr_replacesub, 0, custr_c("text"), custr_c("string"), "Example string for SR tests; Mere test string;");
+	REPLACE_TEST(custr_replacesub, 1, "Example", "test", "Example string for SR tests; Mere test string;");
+	REPLACE_TEST(custr_replacesub, 0, "string", "text", "Example text for SR tests; Mere test text;");
+	REPLACE_TEST(custr_replacesub, 0, "text", "string", "Example string for SR tests; Mere test string;");
 
 	custr_clear(&c);
 
@@ -273,9 +275,9 @@ skip_parents:
 	custr_allocd(&c, exe, 0);
 	custr_simplify(&c);
 	custr_cd(&c, NULL);
-	custr_cd(&c, custr_c("testdir"));
+	custr_cd(&c, "testdir");
 	fprintf(printfile, COL_BLUE "DIRECTORY TEST:" COL_RESET " Creating dir '%s' (%s)\n", c.str, cu_cond(cu_dir_create(c.str)));
-	custr_cd(&c, custr_c(batch_name));
+	custr_cd(&c, batch_name);
 	if (!results[2]) {
 	fail_exe:
 		fprintf(printfile, COL_RED "Skipping rest of file tests.\n" COL_RESET);
@@ -300,11 +302,11 @@ skip_parents:
 
 	c.str[c.len - 1] = 'd';
 	cu_dir_create(c.str);
-	custr_cd(&c, custr_c(batch_name));
+	custr_cd(&c, batch_name);
 	c.str[c.len - 1] = 'v';
 	cu_dir_create(c.str);
 	custr_cd(&c, NULL);
-	custr_cd(&c, custr_c(batch_name));
+	custr_cd(&c, batch_name);
 	c.str[c.len - 1] = 'i';
 	cu_file_write(c.str, c.str, CU_FILE_WRITETXT, c.len);
 	custr_cd(&c, NULL);
@@ -339,9 +341,8 @@ fail_thread_early:
 
 success_thread:
 	fprintf(printfile, COL_BOLD "\nRNG tests:\n" COL_RESET);
-	res = (int)cu_rand_cryptographic(&rnd, sizeof rnd);
+	res = (int)cu_res_crypto(&rnd, sizeof rnd);
 	fprintf(printfile, COL_BLUE "OS RNG:" COL_RESET " %" CU_U64_FMT " (%s)\n", rnd, cu_cond(res == sizeof rnd));
-	fprintf(printfile, COL_BLUE "cu_rand vals:" COL_RESET " %" CU_U64_FMT " %" CU_U64_FMT " %" CU_U64_FMT "\n", cu_rand(), cu_rand(), cu_rand());
 
 
 	fprintf(printfile, COL_BOLD "\nProgram stats:\n" COL_RESET);

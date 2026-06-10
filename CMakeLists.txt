@@ -10,7 +10,6 @@ project(cutils
 
 option(CU_SETTING_STRING_FUNCS, "Build the string functions" ON)
 option(CU_SETTING_FILE_FUNCS, "Build the file management functions" ON)
-option(CU_SETTING_RAND_FUNCS, "Build the RNG functions" ON)
 option(CU_SETTING_RESOURCES_FUNCS, "Build the hardware functions" ON)
 option(CU_SETTING_TIME_FUNCS, "Build the time functions" ON)
 option(CU_SETTING_NETWORK_FUNCS, "Build the networking functions" ON)
@@ -42,7 +41,6 @@ set_target_properties(cutils PROPERTIES C_EXTENSIONS OFF)
 target_compile_definitions(cutils PRIVATE
 	${CU_SETTING_STRING_FUNCS}
 	${CU_SETTING_FILE_FUNCS}
-	${CU_SETTING_RAND_FUNCS}
 	${CU_SETTING_RESOURCES_FUNCS}
 	${CU_SETTING_TIME_FUNCS}
 	${CU_SETTING_NETWORK_FUNCS}

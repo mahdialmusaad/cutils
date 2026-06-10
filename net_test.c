@@ -12,7 +12,7 @@
 
 #if CU_OS_UNIX
 #  define FDFMT "d"
-#elif defined(_WIN64)
+#elif defined (_WIN64)
 #  define FDFMT CU_U64_FMT
 #else
 #  define FDFMT "u"
@@ -40,9 +40,9 @@ static CU_THREAD_FUNCTION(client_scanf, server)
 		if (res && strlen(msg) && msg[strlen(msg) - 1] == '\n') msg[strlen(msg) - 1] = '\0';
 		if (!strlen(msg)) continue;
 		if (!res || !strcmp(msg, "exit") || !strcmp(msg, "EXIT")) break;
-		if (res && cu_net_sendmsg(server, msg, strlen(msg) + 1) != CUERR_NONE) fprintf(stderr, "Failed to send message to server.");
+		if (res && cu_net_sendmsg((cu_net_remote *)server, msg, strlen(msg) + 1) != CUERR_NONE) fprintf(stderr, "Failed to send message to server.");
 	}
-	cu_client_close(server);
+	cu_client_close((cu_net_remote *)server);
 	return CU_THREAD_RETURN_VAL;
 }
 
@@ -77,7 +77,7 @@ static int server_event(cu_net_server *server, cu_net_remote *remote, enum cu_ne
 {
 	if (event_type == CUEVT_MESSAGE) {
 		uptr u, displayable = 0;
-		char *strdata = data;
+		char *strdata = (char *)data;
 
 		if (!n && n > 1024) {
 			printf("Kicking client %s (SID %" FDFMT ") for large message.\n", remote->ip, remote->fd);
@@ -114,7 +114,7 @@ static int server_event(cu_net_server *server, cu_net_remote *remote, enum cu_ne
 					custr addfmt = CUSTR_EMPTY;
 					if (server->remotes + i == remote || !server->remotes[i].ext) continue;
 					custr_fmt(&addfmt, " '%s'", (char *)server->remotes[i].ext);
-					custr_append(&notify, &addfmt, 0);
+					custr_append(&notify, addfmt.str, 0);
 					custr_clear(&addfmt);
 				}
 			}
