@@ -19,6 +19,10 @@
 
 #include "cutils.h"
 
+#if CU_LANG_C11
+#  define __STDC_WANT_LIB_EXT1__ 1
+#endif
+
 #if CU_COMPVER(CLANG, 3, 5)
 #  define s_strchr(S, C) \
 CU_DIAGNOSTICS_PUSH \
@@ -1096,7 +1100,7 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info) { return 0; }
 CU_API_SOURCE real64 cu_res_cpuusage(void) { return 0.0; }
 CU_API_SOURCE uptr cu_res_osname(char *namebuf) { return 0; }
 CU_API_SOURCE uptr cu_res_hostname(char *namebuf) { return 0; }
-CU_API_SOURCE uptr cu_res_username(char *namebuf) { return 0;}
+CU_API_SOURCE uptr cu_res_username(char *namebuf) { return 0; }
 
 #endif
 
@@ -1186,6 +1190,10 @@ CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 #elif CU_COMP_MSVC
 	struct tm now_st;
 	CU_UNUSED(localtime_s(&now_st, &now_val));
+	now = &now_st;
+#elif CU_LANG_C11 && defined (__STDC_LIB_EXT1__)
+	struct tm now_st;
+	now = localtime_s(&now_val, &now_st);
 	now = &now_st;
 #elif CU_SETTING_THREAD_FUNCS
 	struct tm now_cp;
@@ -1771,6 +1779,8 @@ CU_API_SOURCE int cu_net_isclosed(const cu_net_remote *remote) { return remote->
 
 #if CU_THREAD_POSIX_USED
 #  include <pthread.h>
+#  include <unistd.h>
+#  include <errno.h>
 
 CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg)
 {
@@ -1788,8 +1798,56 @@ CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return pthrea
 CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return pthread_mutex_trylock(mutex) == 0; }
 CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return pthread_mutex_destroy(mutex) == 0; }
 
+CU_API_SOURCE int cu_thread_count(void) { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
+CU_API_SOURCE void cu_thread_sleep(u64 nsecs)
+{
+	struct timespec abstime;
+	pthread_cond_t fcond = PTHREAD_COND_INITIALIZER;
+	pthread_mutex_t fmut = PTHREAD_MUTEX_INITIALIZER;
+	abstime.tv_nsec = nsecs % CU_TIME_SEC;
+	abstime.tv_sec = nsecs / CU_TIME_SEC;
+	pthread_cond_timedwait(&fcond, &fmut, &abstime);
+}
+CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)getpid(); }
+CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)pthread_self(); }
+
+#elif CU_THREAD_WIN_USED
+#  include <windows.h>
+
+CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg) { return CreateThread(NULL, 0, function, arg, 0, 0); }
+CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
+CU_API_SOURCE int cu_thread_join(cu_thread thread) { return WaitForSingleObject(thread, INFINITE) == WAIT_OBJECT_0; }
+CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return CloseHandle(thread) != 0; }
+
+CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return (*mutex = CreateMutex(NULL, FALSE, NULL)) != NULL; }
+CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return WaitForSingleObject(*mutex, INFINITE) == WAIT_OBJECT_0; }
+CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return ReleaseMutex(*mutex) != 0; }
+CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return WaitForSingleObject(*mutex, 0u) == WAIT_OBJECT_0; }
+CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return CloseHandle(*mutex) != 0; }
+
+CU_API_SOURCE int cu_thread_count(void)
+{
+	SYSTEM_INFO info;
+	GetSystemInfo(&info);
+	return (int)info.dwNumberOfProcessors;
+}
+CU_API_SOURCE void cu_thread_sleep(u64 nsecs)
+{
+	HANDLE timer;
+	LARGE_INTEGER ft;
+	ft.QuadPart = nsecs / -100;
+
+	timer = CreateWaitableTimer(NULL, TRUE, NULL);
+	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
+	WaitForSingleObject(timer, INFINITE);
+	CloseHandle(timer);
+}
+CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)GetCurrentProcessId(); }
+CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)GetCurrentThreadId(); }
+
 #elif CU_THREAD_C_USED
 #  include <threads.h>
+#  include <time.h>
 
 CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg)
 {
@@ -1807,60 +1865,19 @@ CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return mtx_un
 CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return mtx_trylock(mutex) == thrd_success; }
 CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { mtx_destroy(mutex); return 1; }
 
-#elif CU_THREAD_WIN_USED
-#  include <windows.h>
-
-CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg) { return CreateThread(NULL, 0, function, arg, 0, 0); }
-CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
-CU_API_SOURCE int cu_thread_join(cu_thread thread) { return WaitForSingleObject(thread, INFINITE) == WAIT_OBJECT_0; }
-CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return CloseHandle(thread) != 0; }
-
-CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return (*mutex = CreateMutex(NULL, FALSE, NULL)) != NULL; }
-CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return WaitForSingleObject(*mutex, INFINITE) == WAIT_OBJECT_0; }
-CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return ReleaseMutex(*mutex) != 0; }
-CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return WaitForSingleObject(*mutex, 0u) == WAIT_OBJECT_0; }
-CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return CloseHandle(*mutex) != 0; }
-
-#endif
-
-#if CU_OS_WINDOWS
-#  include <windows.h>
-CU_API_SOURCE int cu_thread_count(void)
-{
-	SYSTEM_INFO info;
-	GetSystemInfo(&info);
-	return (int)info.dwNumberOfProcessors;
-}
-CU_API_SOURCE void cu_thread_sleep(u64 secs, u64 microsecs) { Sleep((DWORD)(secs * 1000 + (microsecs / 1000))); }
-CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)GetCurrentProcessId(); }
-CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)GetCurrentThreadId(); }
-#elif CU_OS_UNIX
-#  include <unistd.h>
-#  include <time.h>
-CU_API_SOURCE void cu_thread_sleep(u64 secs, u64 microsecs)
-{
-	while ((secs = (u64)sleep((unsigned int)secs)));
-	usleep((unsigned int)microsecs);
-}
-CU_API_SOURCE int cu_thread_count(void) { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
-CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)getpid(); }
-#  if defined (SYS_gettid)
-CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)syscall(SYS_gettid); }
-#  else
-CU_API_SOURCE u32 cu_thread_tid(void) { return 0u; }
-#  endif
-#else
-#  include <time.h>
-CU_API_SOURCE void cu_thread_sleep(u64 secs, u64 microsecs)
-{
-	const clock_t end = clock() + CLOCKS_PER_SEC * (clock_t)(secs + (microsecs / 1000000));
-	while (clock() > end);
-}
 CU_API_SOURCE int cu_thread_count(void) { return 1; }
-CU_API_SOURCE u32 cu_thread_pid(void) { return 0; }
-CU_API_SOURCE u32 cu_thread_tid(void) { return 0; }
-#endif
+CU_API_SOURCE void cu_thread_sleep(u64 nsecs)
+{
+	struct timespec ts;
+	ts.tv_nsec = nsecs % CU_TIME_SEC;
+	ts.tv_sec = nsecs / CU_TIME_SEC;
+	while (thrd_sleep(&ts, &ts) == -1);
+}
+CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)0; }
+CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)0; }
 
 #endif
+
+#endif /* CU_SETTING_THREAD_FUNCS */
 
 #endif /* CU_SETTING_FUNCS */

@@ -93,7 +93,6 @@ int main(int argc, char **argv)
 #else
 	printfile = stdout;
 #endif
-
 	CU_UNUSED(argc);
 	cu_timer_fill(&start);
 	cu_time_now(&now);
@@ -317,7 +316,7 @@ skip_parents:
 
 fail_dir:
 	fprintf(printfile, COL_BOLD "\nThread tests:\n" COL_RESET);
-	fprintf(printfile, "Process ID: %u\n", cu_thread_tid());
+	fprintf(printfile, "Process ID: %u\n", cu_thread_pid());
 	fprintf(printfile, COL_BLUE "MUTEX CREATION TEST:" COL_RESET " Expected success (%s)\n", cu_cond(cu_thread_mutex_init(&mutex)));
 	if (!results[2]) goto fail_thread_early;
 	thr = cu_thread_create(cu_test_add, NULL);
@@ -325,7 +324,7 @@ fail_dir:
 	if (!results[2]) goto fail_thread;
 	cu_test_add((void *)(sizeof(void *)));
 	fprintf(printfile, "Sleeping until threaded work completes...");
-	while (!tid && i++ < 520) cu_thread_sleep(0, 16700);
+	while (!tid && i++ < 520) cu_thread_sleep(CU_TIME_USEC * 16700);
 	if (!tid) fprintf(printfile, " (%s)\n" COL_RED "Took too long.\n" COL_RESET, cu_cond(0));
 	else fprintf(printfile, " (%s)\nThread ID: %u\n", cu_cond(1), tid);
 	fprintf(printfile, COL_BLUE "MUTEX LOCKING TEST:" COL_RESET " Expected counter to be %d, got %d (%s)\n", N * 2, thread_counter, cu_cond(thread_counter == N * 2));
