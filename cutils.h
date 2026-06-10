@@ -3120,15 +3120,6 @@ CU_WARNING("Threading functions are unavailable.")
 #  define CU_SETTING_THREAD_FUNCS 0
 #endif
 
-#if CU_SETTING_THREAD_FUNCS && CU_OS_UNIX && !defined(SYS_gettid)
-#  if CU_HAS_INCLUDE(<sys/syscall.h>)
-#    include <sys/syscall.h>
-#  endif
-#  if !defined (SYS_gettid)
-CU_WARNING("cu_thread_gettid will always return 0.")
-#  endif
-#endif
-
 #endif
 
 #if CU_SETTING_FUNCS
@@ -3482,11 +3473,6 @@ typedef struct cu_timer
 	u64 secs; /* Total seconds passed. */
 } cu_timer;
 
-/* Integral amount of milliseconds stored by a cu_timer. */
-#define CU_TIMER_MSECS(tm) (tm.nsecs / 1000000 + secs * 1000)
-/* Integral amount of microseconds stored by a cu_timer. */
-#define CU_TIMER_USECS(tm) (tm.nsecs / 1000 + secs * 1000000)
-
 /* Get current time. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API void cu_time_now(cu_ctime *tm);
@@ -3502,11 +3488,19 @@ static u64 cu_timer_dif(const cu_timer *start, const cu_timer *end)
 }
 
 /* Convert cu_timer_dif's nanoseconds result to different units of time. */
-#define CU_TIMEDIF_CONV(dif, unit) ((real64)(dif) * (real64)(unit))
+#define CU_TIMEDIF_CONV(dif, unit) ((real64)(dif) / (real64)(unit))
 
-#define CU_TIME_USEC 0.001
-#define CU_TIME_MSEC 0.000001
-#define CU_TIME_SEC  0.000000001
+/* Number of nanoseconds in a microsecond. */
+#define CU_TIME_USEC 1000
+/* Number of nanoseconds in a millisecond. */
+#define CU_TIME_MSEC 1000000
+/* Number of nanoseconds in a second. */
+#define CU_TIME_SEC  1000000000
+
+/* Integral amount of milliseconds stored by a cu_timer. */
+#define CU_TIMER_MSECS(tm) ((tm.nsecs / CU_TIME_MSEC) + secs * 1000)
+/* Integral amount of microseconds stored by a cu_timer. */
+#define CU_TIMER_USECS(tm) ((tm.nsecs / CU_TIME_USEC) + secs * 1000000)
 
 #endif
 
@@ -3750,8 +3744,8 @@ CU_API const char *cu_net_lasterr(void);
 /* Returns the number of CPUs available. */
 CU_ATTRIB_NOTHROW
 CU_API int cu_thread_count(void);
-/* Sleeps for the given time frame. This does not affect timers. */
-CU_API void cu_thread_sleep(u64 secs, u64 microsecs);
+/* Sleeps for the given number of nanoseconds. This does not affect timers. */
+CU_API void cu_thread_sleep(u64 nsecs);
 
 /* Get current process ID. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
