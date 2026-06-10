@@ -640,16 +640,12 @@ CU_API_SOURCE int cu_file_delete(const char *path)
 	return remove(path) == 0;
 }
 
-#if CU_OS_APPLE
+#if CU_OS_MAC
 #  include <mach-o/dyld.h>
 #endif
 
 CU_API_SOURCE char *cu_file_exe_path(const char *argv, uptr *allocd)
 {
-#if !CU_OS_APPLE && !CU_OS_WINDOWS
-	char *dup;
-	uptr len;
-#endif
 #if CU_OS_WINDOWS
 	DWORD res;
 	char *buf = malloc(CU_PATH_MAX);
@@ -658,7 +654,7 @@ CU_API_SOURCE char *cu_file_exe_path(const char *argv, uptr *allocd)
 	res = GetModuleFileName(NULL, buf, CU_PATH_MAX);
 	if (allocd) *allocd = CU_PATH_MAX;
 	return buf;
-#elif CU_OS_APPLE
+#elif CU_OS_MAC
 	char *path = malloc(CU_PATH_MAX);
 	uint32_t sz = sizeof path;
 	uptr len;
@@ -680,8 +676,14 @@ success:
 	return path;
 #elif CU_OS_UNIX
 	struct stat s;
-	if (argv[0] == '/') goto skip;
-	else if (lstat(argv, &s) != -1 && S_ISLNK(s.st_mode)) {
+	if (argv[0] == '/') {
+		size_t len = strlen(argv) + 1;
+		char *buf = (char *)malloc(len);
+		if (!buf) return NULL;
+		memcpy(buf, argv, len);
+		if (allocd) *allocd = (uptr)len; 
+		return buf;
+	} else if (lstat(argv, &s) != -1 && S_ISLNK(s.st_mode)) {
 		iptr readlen = 0;
 		uptr buflen = 0;
 		char *buf = NULL;
@@ -716,16 +718,6 @@ success:
 			return NULL;
 		}
 	} else return NULL;
-skip:
-#endif
-#if !CU_OS_APPLE && !CU_OS_WINDOWS
-	if (!argv) return NULL;
-	len = strlen(argv) + 1;
-	dup = (char *)malloc(len);
-	if (!dup) return NULL;
-	memcpy(dup, argv, len);
-	if (allocd) *allocd = len;
-	return dup;
 #endif
 }
 
@@ -739,15 +731,15 @@ skip:
 
 #if CU_SETTING_RAND_FUNCS
 
-#if CU_OS_WINDOWS && CU_HAS_INCLUDE(<bcrypt.h>)
-#  include <bcrypt.h>
+#if CU_OS_WINDOWS
+#  include <ntsecapi.h>
 #elif CU_OS_UNIX
 #  include <stdio.h>
 #endif
 
 CU_API_SOURCE uptr cu_rand_cryptographic(void *data, uptr bytes)
 {
-#if CU_OS_WINDOWS && CU_HAS_INCLUDE(<bcrypt.h>)
+#if CU_OS_WINDOWS
 	return RtlGenRandom(data, (ULONG)bytes) ? bytes : 0;
 #elif CU_OS_UNIX
 	FILE *f;
@@ -1008,14 +1000,14 @@ CU_API_SOURCE uptr cu_res_hostname(char *namebuf)
 {
 	DWORD len = namebuf ? CU_RES_NAME_MAXSIZE : 1;
 	char lbuf;
-	GetComputerNameA(namebuf ? namebuf : &lbuf, &len);
-	return (uptr)len;
+	if (!GetComputerNameEx(ComputerNamePhysicalDnsHostname, namebuf ? namebuf : &lbuf, &len)) return 0;
+	return (uptr)len + 1;
 }
 CU_API_SOURCE uptr cu_res_username(char *namebuf)
 {
 	DWORD len = namebuf ? CU_RES_NAME_MAXSIZE : 1;
 	char lbuf;
-	GetUserNameA(namebuf ? namebuf : &lbuf, &len);
+	if (!GetUserNameA(namebuf ? namebuf : &lbuf, &len)) return 0;
 	return (uptr)len;
 }
 
@@ -1153,47 +1145,143 @@ CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
 
 #include <time.h>
 
-CU_API_SOURCE void cu_time_now(cu_time *tm)
+#if CU_OS_MAC
+#  include <mach/clock.h>
+#  include <mach/mach.h>
+#elif CU_OS_UNIX
+#  include <sys/time.h>
+#elif CU_OS_WINDOWS
+#  include <windows.h>
+#  include <stdlib.h>
+#endif
+
+#if CU_COMP_MSVC
+#  define tzset _tzset
+#endif
+
+CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 {
 	time_t now_val = time(NULL);
-	struct tm now = *localtime(&now_val);
+	struct tm *now;
 
-#if CU_OS_UNIX
-	struct timespec spec;
-	if (clock_gettime(CLOCK_REALTIME, &spec) == -1) spec.tv_nsec = 0;
-	tm->nanosec =  (int)(spec.tv_nsec % 1000);
-	tm->microsec = (int)((spec.tv_nsec / 1000) % 1000);
-	tm->millisec = (int)((spec.tv_nsec / 1000000) % 1000);
+#if CU_OS_MAC
+	mach_timespec_t ts;
+	clock_serv_t cserv;
+#elif CU_OS_UNIX
+	struct timespec ts;
+#elif CU_OS_WINDOWS
+	static char _cu_windows_tzname[32];
+	TIME_ZONE_INFORMATION tzinfo;
+	ULARGE_INTEGER uli;
+	FILETIME ft;
+	u64 cnsec;
+	size_t i;
+#endif
+	
+#if CU_LANG_C >= CU_LANG_C23
+	struct tm now_st;
+	tzset();
+	localtime_r(&now_val, &now_st);
+	now = &now_st;
+#elif CU_COMP_MSVC
+	struct tm now_st;
+	CU_UNUSED(localtime_s(&now_st, &now_val));
+	now = &now_st;
+#elif CU_SETTING_THREAD_FUNCS
+	struct tm now_cp;
+	cu_thread_mutex mut;
+	cu_thread_mutex_init(&mut);
+	cu_thread_mutex_lock(&mut);
+	now_cp = *localtime(&now_val);
+	cu_thread_mutex_unlock(&mut);
+	cu_thread_mutex_destroy(&mut);
+	now = &now_cp;
+#else
+	now = localtime(&now_val);
+#endif
+
+	tm->second = now->tm_sec;
+	tm->minute = now->tm_min;
+	tm->hour = now->tm_hour;
+	tm->month_day = now->tm_mday;
+	tm->month = now->tm_mon;
+	tm->year = now->tm_year + 1900;
+	tm->week_day = now->tm_wday;
+	tm->year_day = now->tm_yday;
+	tm->isdst = now->tm_isdst;
+
+#if CU_OS_UNIX && defined (__USE_MISC)
+	tm->tznm = now->tm_zone;
+	tm->utcdif = (int)now->tm_gmtoff;
+#elif CU_OS_WINDOWS
+	GetTimeZoneInformation(&tzinfo);
+	wcstombs_s(&i, _cu_windows_tzname, sizeof _cu_windows_tzname, tzinfo.StandardName, sizeof _cu_windows_tzname - 1);
+	tm->tznm = _cu_windows_tzname;
+	tm->utcdif = (int)(-tzinfo.Bias * 60);
+#else
+	tm->tznm = NULL;
+	tm->utcdif = 0;
+#endif
+
+#if CU_OS_MAC
+	host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cserv);
+	clock_get_time(cserv, &ts);
+	mach_port_deallocate(mach_task_self(), cserv);
+	tm->nanosec = (int)(ts.tv_nsec % 1000);
+	tm->microsec = (int)((ts.tv_nsec / 1000) % 1000);
+	tm->millisec = (int)((ts.tv_nsec / 1000000) % 1000);
+#elif CU_OS_UNIX
+	if (clock_gettime(CLOCK_REALTIME, &ts) == -1) ts.tv_nsec = 0;
+	tm->nanosec = (int)(ts.tv_nsec % 1000);
+	tm->microsec = (int)((ts.tv_nsec / 1000) % 1000);
+	tm->millisec = (int)((ts.tv_nsec / 1000000) % 1000);
+#elif CU_OS_WINDOWS
+	GetSystemTimePreciseAsFileTime(&ft);
+	uli.LowPart = ft.dwLowDateTime;
+	uli.HighPart = ft.dwHighDateTime;
+	cnsec = (uli.QuadPart * 100) % 1000000000;
+	tm->nanosec = (int)(cnsec % 1000);
+	tm->microsec = (int)((cnsec / 1000) % 1000);
+	tm->millisec = (int)((cnsec / 1000000) % 1000);
 #else
 	tm->nanosec = 0;
 	tm->microsec = 0;
 	tm->millisec = 0;
 #endif
+}
 
-	memcpy(&tm->second, &now.tm_sec, 9 * sizeof(int));
-	tm->year = now.tm_year + 1900;
-
-#if defined(__USE_MISC)
-	tm->tznm = now.tm_zone;
-	tm->utc_dif = now.tm_gmtoff;
-#else
-	tm->tznm = NULL;
-	tm->utc_dif = 0;
+#if CU_OS_WINDOWS
+static LARGE_INTEGER cu_timer_freq;
 #endif
-}
 
-CU_API_SOURCE void cu_timer_begin(cu_timer *tm)
+CU_API_SOURCE void cu_timer_fill(cu_timer *tm)
 {
-	*tm = clock();
-}
-CU_API_SOURCE cu_timer cu_timer_end(const cu_timer *tm)
-{
-	return (cu_timer)((((real64)(clock() - *tm)) / CLOCKS_PER_SEC) * 1000.0 * 1000.0);
-}
-
-CU_API_SOURCE real64 cu_timer_endf(const cu_timer *tm)
-{
-	return ((real64)(clock() - *tm)) / CLOCKS_PER_SEC;
+#if CU_OS_MAC
+	mach_timespec_t ts;
+	clock_serv_t cserv;
+	host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cserv);
+	clock_get_time(cserv, &ts);
+	mach_port_deallocate(mach_task_self(), cserv);
+	tm->nsecs = (u64)ts.tv_nsec;
+	tm->secs = (u64)ts.tv_sec;
+#elif CU_OS_UNIX
+	struct timespec ts;
+	if (clock_gettime(CLOCK_REALTIME, &ts) == -1) ts.tv_nsec = 0;
+	tm->nsecs = (u64)ts.tv_nsec;
+	tm->secs = (u64)ts.tv_sec;
+#elif CU_OS_WINDOWS
+	LARGE_INTEGER usecs;
+	if (!cu_timer_freq.QuadPart) QueryPerformanceFrequency(&cu_timer_freq);
+	if (!QueryPerformanceCounter(&usecs)) usecs.QuadPart = 0;
+	usecs.QuadPart *= 1000000;
+	usecs.QuadPart /= cu_timer_freq.QuadPart;
+	tm->secs = usecs.QuadPart / 1000000;
+	tm->nsecs = usecs.QuadPart * 1000;
+#else
+	tm->nanosec = 0;
+	tm->microsec = 0;
+	tm->millisec = 0;
+#endif
 }
 
 #endif

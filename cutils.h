@@ -670,12 +670,6 @@ extern "C" {
 #  define CU_OS_APOLLO_DOMAIN 0
 #endif
 
-#if defined (__APPLE__)
-#  define CU_OS_APPLE 1
-#else
-#  define CU_OS_APPLE 0
-#endif
-
 #if defined (__BEOS__)
 #  define CU_OS_BE 1
 #else
@@ -2487,7 +2481,7 @@ CU_DIAGNOSTICS_POP
 #  define CU_BREAKPOINT() __trap(42)
 #elif CU_COMP_MSVC || CU_HAS_BUILTIN(__debugbreak) || CU_COMP_INTEL
 #  define CU_BREAKPOINT() __debugbreak()
-#elif CU_HAS_BUILTIN(__builtin_debugtrap) || (CU_ARCH_ARM_AARCH64 && CU_OS_APPLE)
+#elif CU_HAS_BUILTIN(__builtin_debugtrap) || (CU_ARCH_ARM_AARCH64 && CU_OS_MAC)
 #  define CU_BREAKPOINT() __builtin_debugtrap()
 #elif defined (__ARMCC_VERSION)
 #  define CU_BREAKPOINT() __breakpoint(42)
@@ -3462,11 +3456,12 @@ CU_API uptr cu_res_username(char *namebuf);
 #if CU_SETTING_TIME_FUNCS
 
 /* Current date & time data structure. */
-typedef struct cu_tm_time
+typedef struct cu_ctime
 {
-	int nanosec;   /* [0-1K] */
-	int microsec;  /* [0-1K] */
-	int millisec;  /* [0-1K] */
+	int nanosec;   /* [0-1K) */
+	int microsec;  /* [0-1K) */
+	int millisec;  /* [0-1K) */
+
 	int second;    /* [0-60] */
 	int minute;    /* [0-59] */
 	int hour;      /* [0-23] */
@@ -3475,27 +3470,43 @@ typedef struct cu_tm_time
 	int year;      /* [year] */
 	int week_day;  /* [0-6]  */
 	int year_day;  /* [0-365] */
-	int dst_hour;  /* -1/0/1 */
 
+	int isdst;        /* -1 = unknown, 0 = not in effect, 1 = in effect. */
+	int utcdif;     /* Seconds after UTC. */
 	const char *tznm; /* Abbreviated timezone name. */
-	long utc_dif;     /* Seconds after UTC. */
-} cu_time;
+} cu_ctime;
 
-typedef i64 cu_timer;
+typedef struct cu_timer
+{
+	u64 nsecs; /* Current nanosecond loop. [0-1B) */
+	u64 secs; /* Total seconds passed. */
+} cu_timer;
+
+/* Integral amount of milliseconds stored by a cu_timer. */
+#define CU_TIMER_MSECS(tm) (tm.nsecs / 1000000 + secs * 1000)
+/* Integral amount of microseconds stored by a cu_timer. */
+#define CU_TIMER_USECS(tm) (tm.nsecs / 1000 + secs * 1000000)
 
 /* Get current time. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API void cu_time_now(cu_time *tm);
-
-/* Start the given timer. */
+CU_API void cu_time_now(cu_ctime *tm);
+/* Fill the given timer with current time. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API void cu_timer_begin(cu_timer *tm);
-/* Get the microseconds passed between now and the given timer as an integer. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) CU_ATTRIB_PURE CU_ATTRIB_WARN_UNUSED_RESULT
-CU_API cu_timer cu_timer_end(const cu_timer *tm);
-/* Get the microseconds passed between now and the given timer as a floating-point value. */
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) CU_ATTRIB_PURE CU_ATTRIB_WARN_UNUSED_RESULT
-CU_API real64 cu_timer_endf(const cu_timer *tm);
+CU_API void cu_timer_fill(cu_timer *tm);
+
+/* Get the number of nanoseconds passed between two timers. */
+CU_ATTRIB_ALWAYSINLINE CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NONNULL((1, 2))
+static u64 cu_timer_dif(const cu_timer *start, const cu_timer *end)
+{
+	return ((end->secs - start->secs) * CU_U64_C(1000000000)) + (end->nsecs - start->nsecs);
+}
+
+/* Convert cu_timer_dif's nanoseconds result to different units of time. */
+#define CU_TIMEDIF_CONV(dif, unit) ((real64)(dif) * (real64)(unit))
+
+#define CU_TIME_USEC 0.001
+#define CU_TIME_MSEC 0.000001
+#define CU_TIME_SEC  0.000000001
 
 #endif
 
@@ -3506,10 +3517,6 @@ CU_API real64 cu_timer_endf(const cu_timer *tm);
  * ========================================================================== */
 
 #if CU_SETTING_NETWORK_FUNCS
-
-#if CU_OS_APPLE
-#  define _DARWIN_UNLIMITED_SELECT
-#endif
 
 #if !CU_OS_UNIX
 #  include <winsock2.h>

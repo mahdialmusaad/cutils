@@ -65,7 +65,8 @@ static FILE *printfile;
 int main(int argc, char **argv)
 {
 	cu_res_cpu cpu;
-	cu_timer timer;
+	cu_timer start, end;
+	cu_ctime now;
 	cu_res_mem mem;
 	cu_thread thr;
 	u64 rnd = 0;
@@ -94,9 +95,12 @@ int main(int argc, char **argv)
 #endif
 
 	CU_UNUSED(argc);
-	cu_timer_begin(&timer);
-
+	cu_timer_fill(&start);
+	cu_time_now(&now);
+	
 	fprintf(printfile, COL_BOLD "System information:\n" COL_RESET);
+	fprintf(printfile, COL_BLUE "TIME:" COL_RESET " %d:%02d:%02d.%03d %02d/%02d/%d (DST=%d)\n", now.hour, now.minute, now.second, now.millisec, now.month_day, now.month, now.year, now.isdst);
+	fprintf(printfile, COL_BLUE "TIMEZONE:" COL_RESET " %s (UTC + %ds)\n", now.tznm, now.utcdif);
 	sr = cu_res_osname(hwnamebuf);
 	fprintf(printfile, COL_BLUE "OS:" COL_RESET " %s (%d/%d chars) (%s)\n", hwnamebuf, (int)sr, (int)(strlen(hwnamebuf)) + 1, cu_cond(sr == ((uptr)strlen(hwnamebuf) + 1)));
 	sr = cu_res_username(hwnamebuf);
@@ -116,7 +120,7 @@ int main(int argc, char **argv)
 	fprintf(printfile, COL_BLUE "CPU:\n" COL_RESET);
 	fprintf(printfile, COL_BLUE "  Name:" COL_RESET " %s\n", cpu.name);
 	fprintf(printfile, COL_BLUE "  Vendor:" COL_RESET " %s\n", cpu.vendor);
-	fprintf(printfile, COL_BLUE "  Base clock speed (MHz):" COL_RESET "%u\n", (unsigned)(cpu.base_freq_hz / 1000000));
+	fprintf(printfile, COL_BLUE "  Clock speed:" COL_RESET " %uMHz\n", (unsigned)(cpu.base_freq_hz / 1000000));
 	fprintf(printfile, COL_BLUE "  Endianness:" COL_RESET " %s\n", cpu.little_endian ? "Little" : "Big");
 	fprintf(printfile, COL_BLUE "  Stepping:" COL_RESET " %u\n", cpu.stepping_id);
 	fprintf(printfile, COL_BLUE "  Model:" COL_RESET " %u\n", cpu.model_id);
@@ -345,10 +349,9 @@ success_thread:
 	cu_res_meminfo(&mem);
 	fprintf(printfile, "Virtual used by this program: %" CU_UPTR_FMT "B\n", mem.virt_loc_used);
 	fprintf(printfile, "Physical used by this program: %" CU_UPTR_FMT "B\n", mem.phys_loc_used);
+	cu_timer_fill(&end);
+	fprintf(printfile, "Time (excludes sleep time): %fs\n", CU_TIMEDIF_CONV(cu_timer_dif(&start, &end), CU_TIME_SEC));
 
-
-	fprintf(printfile, "Time: %fs (excludes sleep time)\n", cu_timer_endf(&timer));
 	fprintf(printfile, "\n%sPassed %d / %d tests.\n" COL_RESET "\n", results[0] == 0 ? COL_GREEN : COL_RED, results[1], results[0] + results[1]);
-
 	return results[0] != 0;
 }
