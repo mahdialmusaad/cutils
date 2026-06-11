@@ -4,7 +4,8 @@
    The cutils library is licensed under the GPLv2, see aforementioned files for full statement.
 */
 
-#include "cutils.h"
+#include "../cutils.h"
+
 #include <string.h>
 #include <stdio.h>
 
@@ -338,12 +339,9 @@ fail_thread:
 fail_thread_early:
 	fprintf(printfile, COL_RED "Skipping rest of thread tests.\n" COL_RESET);
 
-
 success_thread:
-	fprintf(printfile, COL_BOLD "\nRNG tests:\n" COL_RESET);
 	res = (int)cu_res_crypto(&rnd, sizeof rnd);
 	fprintf(printfile, COL_BLUE "OS RNG:" COL_RESET " %" CU_U64_FMT " (%s)\n", rnd, cu_cond(res == sizeof rnd));
-
 
 	fprintf(printfile, COL_BOLD "\nProgram stats:\n" COL_RESET);
 	cu_res_meminfo(&mem);
