@@ -3619,12 +3619,19 @@ CU_API void cu_server_close(cu_net_server *server);
 
 /* ------------ General functions ------------ */
 
+#if CU_OS_UNIX
+/* Initialize networking libraries. */
+#  define cu_net_init() (1)
+/* Terminate networking libraries. */
+#  define cu_net_terminate() 
+#else
 /* Initialize networking libraries. */
 CU_ATTRIB_NOTHROW
 CU_API int cu_net_init(void);
 /* Terminate networking libraries. */
 CU_ATTRIB_NOTHROW
 CU_API void cu_net_terminate(void);
+#endif
 
 /* Sends n bytes of data to the target remote.
    Returns CUERR_NONE on success and CUERR_GENERIC otherwise. */
@@ -3678,7 +3685,6 @@ static int cu_net_isclosed(const cu_net_remote *remote) { return remote->fd != -
 #  include <pthread.h>
    typedef pthread_t cu_thread;
    typedef pthread_mutex_t cu_thread_mutex;
-   typedef pthread_cond_t cu_thread_conditional;
    typedef void *cu_thread_arg;
    typedef void *cu_thread_return;
    typedef cu_thread_return (*cu_thread_func)(cu_thread_arg);
@@ -3713,7 +3719,7 @@ static int cu_net_isclosed(const cu_net_remote *remote) { return remote->fd != -
 CU_ATTRIB_NOTHROW
 CU_API int cu_thread_count(void);
 /* Sleeps for the given number of nanoseconds. This does not affect timers. */
-CU_API void cu_thread_sleep(u64 nsecs);
+CU_API void cu_thread_sleep(u64 nsecs, u64 secs);
 
 /* Get current process ID. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
@@ -3748,7 +3754,7 @@ CU_API int cu_thread_mutex_lock(cu_thread_mutex *mutex);
 /* Unlocks the given mutex. Returns 0 if failed. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int cu_thread_mutex_unlock(cu_thread_mutex *mutex);
-/* Tries to lock the given mutex. Returns 0 not acquired. */
+/* Tries to lock the given mutex. Returns 0 if not acquired. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int cu_thread_mutex_trylock(cu_thread_mutex *mutex);
 /* Destroys the given mutex. Returns 0 if failed. */
