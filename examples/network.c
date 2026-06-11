@@ -4,7 +4,7 @@
    The cutils library is licensed under the GPLv2, see aforementioned files for full statement.
 */
 
-#include "cutils.h"
+#include "../cutils.h"
 
 #include <stdlib.h>
 #include <string.h>

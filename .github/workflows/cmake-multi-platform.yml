@@ -1,37 +1,37 @@
 name: CMake on multiple platforms
 on:
-  push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
-jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    permissions:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+  permissions:
       contents: read
       pull-requests: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        c_compiler: [gcc, clang, cl]
-        include:
-          - os: windows-latest
-            c_compiler: cl
-          - os: ubuntu-latest
-            c_compiler: gcc
-          - os: ubuntu-latest
-            c_compiler: clang
-        exclude:
-          - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
-          - os: ubuntu-latest
-            c_compiler: cl
+jobs:
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
-    - name: Configure
-      run: cmake -B build -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} -DCMAKE_BUILD_TYPE=Release
-    - name: Build
-      run: cmake --build build --config Release
+    - name: Configure and build
+      run: |
+        cmake -B build
+        cmake --build build
+  macos:
+    name: MacOS
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: Configure and build
+      run: |
+        cmake -B build
+        cmake --build build
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: Configure and build
+      run: |
+        cmake -B build -A x64
+        cmake --build build

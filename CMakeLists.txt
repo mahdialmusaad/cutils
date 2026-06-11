@@ -8,46 +8,57 @@ project(cutils
 
 # ---------------------------- User options ----------------------------
 
-option(CU_SETTING_STRING_FUNCS, "Build the string functions" ON)
-option(CU_SETTING_FILE_FUNCS, "Build the file management functions" ON)
-option(CU_SETTING_RESOURCES_FUNCS, "Build the hardware functions" ON)
-option(CU_SETTING_TIME_FUNCS, "Build the time functions" ON)
-option(CU_SETTING_NETWORK_FUNCS, "Build the networking functions" ON)
-option(CU_SETTING_THREAD_FUNCS, "Build the threading functions" ON)
+option(CU_SETTING_FUNCS "Enable main functions" ON)
 
-option(CU_BUILD_MISC "Build the test and example programs" ON)
+if(CU_SETTING_FUNCS)
+	option(CU_SETTING_STRING_FUNCS "Build the string functions" ON)
+	option(CU_SETTING_FILE_FUNCS "Build the file management functions" ON)
+	option(CU_SETTING_RESOURCES_FUNCS "Build the hardware functions" ON)
+	option(CU_SETTING_TIME_FUNCS "Build the time functions" ON)
+	option(CU_SETTING_NETWORK_FUNCS "Build the networking functions" ON)
+	option(CU_SETTING_THREAD_FUNCS "Build the threading functions" ON)
+
+	option(CU_BUILD_MISC "Build the test and example programs" OFF)
+endif()
+
+option(CU_SETTING_QUIET "Do not warn about unavailable features" OFF)
+option(CU_SETTING_FORCE_DEBUG "Assume compiling in debug mode" OFF)
+
+option(CU_DEFAULT_CFLAGS "Use predefined compiler options" ON)
+
 option(CU_INSTALL "Create installation target" OFF)
 
 # ----------------------------------------------------------------------
 
 add_library(cutils STATIC cutils.c)
 
-if (MSVC)
+if(MSVC AND CU_DEFAULT_CFLAGS)
 	add_compile_options(/W4)
-else()
-	if (CMAKE_C_FLAGS STREQUAL "")
+elseif(CU_DEFAULT_CFLAGS)
+	if(CMAKE_C_FLAGS STREQUAL "")
 		target_compile_options(cutils PUBLIC -Wall -Wextra -pedantic -fno-asynchronous-unwind-tables -fno-ident -ffast-math -fno-stack-protector)
 	else()
 		target_compile_options(cutils PUBLIC ${CMAKE_C_FLAGS})
 	endif()
 
-	if (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+	if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
 		target_compile_options(cutils PUBLIC -Oz)
 	endif()
 endif()
 
-set_target_properties(cutils PROPERTIES C_STANDARD 90)
-set_target_properties(cutils PROPERTIES C_EXTENSIONS OFF)
 target_compile_definitions(cutils PRIVATE
+	${CU_SETTING_FUNCS}
 	${CU_SETTING_STRING_FUNCS}
 	${CU_SETTING_FILE_FUNCS}
 	${CU_SETTING_RESOURCES_FUNCS}
 	${CU_SETTING_TIME_FUNCS}
 	${CU_SETTING_NETWORK_FUNCS}
 	${CU_SETTING_THREAD_FUNCS}
+	${CU_SETTING_QUIET}
+	${CU_SETTING_FORCE_DEBUG}
 )
 
-if (CU_INSTALL)
+if(CU_INSTALL)
 	install(TARGETS cutils ARCHIVE DESTINATION lib)
 	install(FILES cutils.h DESTINATION include)
 
@@ -68,9 +79,19 @@ if (CU_INSTALL)
 	include(CPack)
 endif()
 
-if (CU_BUILD_MISC)
-	add_executable(cutils_test test.c)
-	add_executable(cutils_network_test net_test.c)
-	target_link_libraries(cutils_test PRIVATE cutils)
-	target_link_libraries(cutils_network_test PRIVATE cutils)
+if(CU_BUILD_MISC)
+	get_target_property(CU_COMPILE_OPTIONS cutils COMPILE_OPTIONS)
+
+	add_executable(test tests/main.c)
+	target_link_libraries(test PRIVATE cutils)
+	target_compile_options(test PRIVATE ${CU_COMPILE_OPTIONS})
+
+	file(GLOB CU_EXAMPLES examples/*.c)
+
+	foreach(CU_EXAMPLE_SOURCE ${CU_EXAMPLES})
+		get_filename_component(CU_EXAMPLE_TARGET ${CU_EXAMPLE_SOURCE} NAME_WE)
+		add_executable(${CU_EXAMPLE_TARGET} ${CU_EXAMPLE_SOURCE})
+		target_link_libraries(${CU_EXAMPLE_TARGET} PRIVATE cutils)
+		target_compile_options(${CU_EXAMPLE_TARGET} PRIVATE ${CU_COMPILE_OPTIONS})
+	endforeach()
 endif()
