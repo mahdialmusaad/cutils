@@ -726,12 +726,12 @@ CU_API_SOURCE void cu_res_cpuinfo(cu_res_cpu *info)
 	memcpy(info->vendor + 0, regs + 1, 4);
 	memcpy(info->vendor + 4, regs + 3, 4);
 	memcpy(info->vendor + 8, regs + 2, 4);
-	
+
 	for (i = 0; i < 3; ++i) {
 		cu_res_cpuid(0x80000002 + i, 0, regs);
 		memcpy(info->name + i * 16, regs, 16);
 	}
-	
+
 	cu_res_cpuid(0x1, 0, regs);
 	info->stepping_id = (u32)(CU_BITSOF(regs[0], 0, 3));
 	cpu_family = (u32)(CU_BITSOF(regs[0], 8, 11));
@@ -985,7 +985,7 @@ CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
 		*str++ = '0' + (char)((prev / 100) % 10);
 		*str++ = bytefmt_suffix[suffix];
 	}
-	
+
 	*str++ = 'B';
 	*str++ = '\0';
 	return start;
@@ -1035,7 +1035,7 @@ CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 	u64 cnsec;
 	size_t i;
 #endif
-	
+
 #if CU_LANG_C >= CU_LANG_C23
 	struct tm now_st;
 	tzset();
@@ -1199,8 +1199,6 @@ sigaction(SIGINT, &sact, NULL); \
 typedef ssize_t cu_net_data;
 typedef nfds_t cu_net_pollcnt;
 
-CU_API_SOURCE int cu_net_init(void) { return 1; }
-CU_API_SOURCE void cu_net_terminate(void) {}
 CU_API_SOURCE const char *cu_net_lasterr(void)
 {
 	int gai = cu_net_gai_err;
@@ -1340,7 +1338,7 @@ CU_API_SOURCE void cu_client_listen(cu_net_remote *CU_RESTRICT server_info, cu_c
 	struct pollfd server_pollfd;
 	void *recvd; uptr bytes;
 	enum cu_net_error err;
-	
+
 	CU_NETSIG_SETUP();
 	CU_NETSIG_SETFUNC(cu_net_sigint);
 
@@ -1498,7 +1496,6 @@ CU_API_SOURCE void cu_server_disconnect_client(cu_net_server *CU_RESTRICT server
 	cu_net_closesock(&client->fd);
 	*client = server->remotes[server->clients_count];
 	server->pfds[client - server->remotes] = server->pfds[server->clients_count--];
-
 }
 
 CU_API_SOURCE void cu_server_close(cu_net_server *server)
@@ -1646,13 +1643,13 @@ CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return pthre
 CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return pthread_mutex_destroy(mutex) == 0; }
 
 CU_API_SOURCE int cu_thread_count(void) { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
-CU_API_SOURCE void cu_thread_sleep(u64 nsecs)
+CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	struct timespec abstime;
 	pthread_cond_t fcond = PTHREAD_COND_INITIALIZER;
 	pthread_mutex_t fmut = PTHREAD_MUTEX_INITIALIZER;
-	abstime.tv_nsec = nsecs % CU_TIME_SEC;
-	abstime.tv_sec = nsecs / CU_TIME_SEC;
+	abstime.tv_nsec = nsecs % 1000000000;
+	abstime.tv_sec = (long)(secs + (nsecs / 1000000000));
 	pthread_cond_timedwait(&fcond, &fmut, &abstime);
 }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)getpid(); }
@@ -1678,11 +1675,11 @@ CU_API_SOURCE int cu_thread_count(void)
 	GetSystemInfo(&info);
 	return (int)info.dwNumberOfProcessors;
 }
-CU_API_SOURCE void cu_thread_sleep(u64 nsecs)
+CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	HANDLE timer;
 	LARGE_INTEGER ft;
-	ft.QuadPart = nsecs / -100;
+	ft.QuadPart = (secs * 10000000) + (nsecs / -100);
 
 	timer = CreateWaitableTimer(NULL, TRUE, NULL);
 	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
@@ -1713,11 +1710,11 @@ CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return mtx_t
 CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { mtx_destroy(mutex); return 1; }
 
 CU_API_SOURCE int cu_thread_count(void) { return 1; }
-CU_API_SOURCE void cu_thread_sleep(u64 nsecs)
+CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	struct timespec ts;
-	ts.tv_nsec = nsecs % CU_TIME_SEC;
-	ts.tv_sec = nsecs / CU_TIME_SEC;
+	ts.tv_nsec = nsecs % 1000000000;
+	ts.tv_sec = (long)(secs + (nsecs / 1000000000));
 	while (thrd_sleep(&ts, &ts) == -1);
 }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)0; }

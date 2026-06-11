@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 	CU_UNUSED(argc);
 	cu_timer_fill(&start);
 	cu_time_now(&now);
-	
+
 	fprintf(printfile, COL_BOLD "System information:\n" COL_RESET);
 	fprintf(printfile, COL_BLUE "TIME:" COL_RESET " %d:%02d:%02d.%03d %02d/%02d/%d (DST=%d)\n", now.hour, now.minute, now.second, now.millisec, now.month_day, now.month, now.year, now.isdst);
 	fprintf(printfile, COL_BLUE "TIMEZONE:" COL_RESET " %s (UTC + %ds)\n", now.tznm, now.utcdif);
@@ -327,7 +327,7 @@ fail_dir:
 	if (!results[2]) goto fail_thread;
 	cu_test_add((void *)(sizeof(void *)));
 	fprintf(printfile, "Sleeping until threaded work completes...");
-	while (!tid && i++ < 520) cu_thread_sleep(CU_TIME_USEC * 16700);
+	while (!tid && i++ < 520) cu_thread_sleep(CU_TIME_USEC * 16700, 0);
 	if (!tid) fprintf(printfile, " (%s)\n" COL_RED "Took too long.\n" COL_RESET, cu_cond(0));
 	else fprintf(printfile, " (%s)\nThread ID: %u\n", cu_cond(1), tid);
 	fprintf(printfile, COL_BLUE "MUTEX LOCKING TEST:" COL_RESET " Expected counter to be %d, got %d (%s)\n", N * 2, thread_counter, cu_cond(thread_counter == N * 2));
