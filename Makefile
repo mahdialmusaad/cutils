@@ -18,6 +18,7 @@ EARG=
 
 DEFS:=$(addprefix -D, $(DEFS))
 EXM=$(wildcard examples/*.c)
+CFLAGS+=$(EARG)
 
 static: build/libcutils.a
 tests: build/test
@@ -25,17 +26,19 @@ examples: $(EXM)
 all: static tests examples
 
 $(EXM): build/libcutils.a
-	$(CC) $(CFLAGS) $(DEFS) $(EARG) $@ $< -o build/$(basename $(notdir $@))
+	$(CC) $(CFLAGS) $(DEFS) $@ $< -o build/$(basename $(notdir $@))
+	strip build/$(basename $(notdir $@))
 
 build/test: build/libcutils.a
-	$(CC) $(CFLAGS) $(DEFS) $(EARG) tests/main.c $< -o $@
+	$(CC) $(CFLAGS) $(DEFS) tests/main.c $< -o $@
+	strip $@
 
 build/libcutils.a: build/cutils.o
 	ar rcs $@ $<
 	strip -x $@
 
 build/cutils.o: | build
-	$(CC) $(CFLAGS) $(DEFS) $(EARG) cutils.c -c -o $@
+	$(CC) $(CFLAGS) $(DEFS) cutils.c -c -o $@
 
 build:
 	mkdir build

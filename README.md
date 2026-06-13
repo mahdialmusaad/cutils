@@ -30,7 +30,7 @@ The functions provided are as follows:
 
 Bit operation functions (e.g. popcount, count leading zeros) are also provided directly in the header.
 
-An example of a chat server and client is provided in the following [file](net_test.c).
+An example of a chat server and client is provided in the following [file](examples/network.c).
 
 You can selectively disable certain function groups by defining their specific `CU_SETTING_*_FUNCS` macro to `0`:
 ```c
@@ -52,7 +52,7 @@ Finally, there are some general macros for providing functionality which require
 
 - Keywords (thread_local, restrict)
 - Feature availability (keywords, compiler macros, builtins)
-- Fixed-width integers (i32, u64, etc), with their respective printf formats and maximum values
+- Fixed-width integers (i32, u64, etc), with their respective formats and maximum values
 - C version checking
 - Common mathematical constants
 
@@ -96,7 +96,7 @@ Other macros are from own tests and may have incorrect detection.
 
 ## Changelog
 ### cu2
-- Networking functions added (cu_client_*, cu_server_* and cu_net_*) with chat server example
+- Networking functions added with chat server example
 - custr_findnot, cu_res_osname and cu_thread_self added
 - Reduced code size of string functions and fixed memory leaks for Unix functions
 - Minor formatting changes to sources and debug allocation functions

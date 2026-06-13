@@ -2354,22 +2354,6 @@ extern "C" {
 #  define CU_DEBUG 1
 #endif
 
-#if CU_LANG_C >= CU_LANG_C23
-#  define CU_STATIC_ASSERT(cond, msg) static_assert(cond, msg);
-#elif CU_LANG_C >= CU_LANG_C11 && !CU_COMP_CHIBICC
-#  define CU_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg);
-#elif CU_COMP_MSVC
-#  define CU_STATIC_ASSERT(cond, msg) typedef char CU_CONCAT(cu_static_assert_line, CU_EVAL(CU_LINE))[!!(cond) ? 1 : -1];
-#else
-#  if CU_LINE_AVAILABLE == 1
-#    define CU_STATIC_ASSERT(cond, msg) enum { CU_CONCAT(cu_static_assert_line, CU_EVAL(CU_LINE)) = 1 / (!!(cond)) };
-#  elif CU_COUNTER_AVAILABLE && CU_LANG_C > CU_LANG_C23
-#    define CU_STATIC_ASSERT(cond, msg) enum { CU_CONCAT(cu_static_assert_no_, CU_EVAL(CU_COUNTER)) = 1 / (!!(cond)) };
-#  else
-#    define CU_STATIC_ASSERT(cond, msg);
-#  endif
-#endif
-
 #if defined (__STDC_HOSTED__)
 #  if (__STDC_HOSTED__ - 0) == 1
 #    define CU_FREESTANDING 0
@@ -2547,6 +2531,22 @@ CU_ATTRIB_USED CU_ATTRIB_NORETURN static void __cu_trap(void) { signal(SIGABRT, 
 CU_ATTRIB_USED CU_ATTRIB_NORETURN static void __cu_trap(void) { while (1) *(volatile char *)0 = 0; }
 #  endif
 #  define CU_TRAP() __cu_trap()
+#endif
+
+#if CU_LANG_C >= CU_LANG_C23
+#  define CU_STATIC_ASSERT(cond, msg) \
+CU_DIAGNOSTICS_IGNORE_1(clang, "-Wpre-c11-compat") \
+static_assert(cond, msg); \
+CU_DIAGNOSTICS_IGNORE_END
+#elif CU_LANG_C >= CU_LANG_C11 && !CU_COMP_CHIBICC
+#  define CU_STATIC_ASSERT(cond, msg) \
+CU_DIAGNOSTICS_IGNORE_1(clang, "-Wpre-c11-compat") \
+_Static_assert(cond, msg); \
+CU_DIAGNOSTICS_IGNORE_END
+#elif CU_COMP_MSVC
+#  define CU_STATIC_ASSERT(cond, msg) typedef char CU_CONCAT(cu_static_assert_line, CU_EVAL(CU_LINE))[!!(cond) ? 1 : -1];
+#else
+#  define CU_STATIC_ASSERT(cond, msg) enum { CU_CONCAT(cu_static_assert_line, CU_EVAL(CU_LINE)) = 1 / (!!(cond)) };
 #endif
 
 #if CU_RELEASE
@@ -2795,12 +2795,12 @@ typedef unsigned int uint;
 #  define CU_U64_C(a) a ## ULL
 #  define CU_I64_C(a) a ## LL
 #  define CU_U64_FMT "llu"
-#  define CU_I64_FMT "ll"
+#  define CU_I64_FMT "lld"
 #else
 #  define CU_U64_C(a) a ## UL
 #  define CU_I64_C(a) a ## L
 #  define CU_U64_FMT "lu"
-#  define CU_I64_FMT "l"
+#  define CU_I64_FMT "ld"
 #endif
 
 #if CU_DM_64BIT
@@ -3148,7 +3148,7 @@ CU_API int custr_create(custr *CU_RESTRICT c, const char *CU_RESTRICT str);
 /* Creates a custr using an already allocated string and returns the given custr.
    You can provide the allocated size or 0 to assume it is strlen + 1.
    The given custr pointer should be uninitialized, empty or (if it contains allocated text) cleared with custr_clear.
-   The allocated string pointer should not be used directly. */
+   The given allocated string should not be modified directly afterwards. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 CU_API custr *custr_allocd(custr *CU_RESTRICT c, char *CU_RESTRICT allocdstr, uptr allocd_bytes);
 
@@ -3161,7 +3161,8 @@ CU_API int custr_reserve(custr *c, uptr bytes);
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 CU_API int custr_copy(const custr *CU_RESTRICT copy, custr *CU_RESTRICT paste);
 
-/* Sets custr length and moves terminator. Fails if given length is not smaller than current length. */
+/* Sets custr length and moves terminator.
+   No effect if given length is is larger than or equal to the string length. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_shrinkto(custr *c, uptr shrinked_len);
 /* Deallocates a custr's data and returns it. */
@@ -3171,36 +3172,41 @@ CU_API custr *custr_clear(custr *c);
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_optimize(custr *c);
 
-/* Inserts 'to_insert' into 'c' at their respective offsets. */
+/* Inserts 'to_insert' into 'c' at their respective offsets.
+   Fails if c_offset is larger than c's length or on allocation failure.
+   Does nothing successfully if to_insert is empty (i.e. only a terminator). */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 3))
-CU_API int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT to_insert, uptr to_insert_offset);
+CU_API int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT to_insert);
 /* Same as custr_insert but 'c_offset' is the length of 'c'. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2)) CU_ATTRIB_USED
-static int custr_append(custr *CU_RESTRICT c, const char *CU_RESTRICT to_append, uptr to_append_offset)
-{
-	return custr_insert(c, c->len, to_append, to_append_offset);
-}
+CU_API int custr_append(custr *CU_RESTRICT c, const char *CU_RESTRICT to_append);
 
 /* Gets a substring of a given custr (inclusive indices). The ending index is clamped to the last character.
    The substring should not be allocated beforehand. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 CU_API int custr_sub(const custr *CU_RESTRICT c, custr *CU_RESTRICT subresult, uptr start_ind, uptr end_ind);
-/* Sets the given custr to a substring of itself. The ending index is clamped to the last character. */
+/* Sets the given custr to a substring of itself.
+   Both indices are inclusive.
+   The ending index is clamped to the last character.
+   Fails if start_ind is larget than end_ind or if start_ind is larger than or equal to the string length. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_tosub(custr *c, uptr start_ind, uptr end_ind);
-/* Removes a specified section of the given custr. count is clamped if it would go past the end.
+/* Removes a specified section of the given custr.
+   count is clamped if it would go past the end.
    No effect if starting index is past the end of the string. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API void custr_cut(custr *c, uptr start_ind, uptr count);
 
-/* Returns the number of occurrences of a character in a custr. */
+/* Returns the number of occurrences of a character in a custr.
+   The null terminator at the end of the string is excluded from counting. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int custr_count(const custr *c, char target);
-/* Returns the number of occurrences of a substring in a custr. */
+/* Returns the number of occurrences of a substring in a custr.
+   The null terminator at the end of the string is excluded from counting. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 CU_API int custr_countsub(const custr *CU_RESTRICT c, const char *CU_RESTRICT target);
 
-/* Sets the given custr to describe a variadically formated string.
+/* Sets the given custr to describe a variadically formatted string.
    The given custr pointer should be uninitialized, empty or (if it contains allocated text) cleared with custr_clear.
    Support for va_copy and snprintf is required. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
@@ -3218,7 +3224,8 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API void custr_simplify(custr *c);
 
 /* Returns the index of the nth occurrence of a character in a custr, or CU_UPTRMAX if not found.
-   The offset determines where to start the search. If c_offset >= length, CU_UPTRMAX is returned.
+   The null terminator at the end of the string is not included in the search.
+   The offset determines where to start the search. If it is larger than or equal to the string length, CU_UPTRMAX is returned.
    n =  0,  1 returns the first and second occurrence respectively.
    n = -1, -2 returns the last and second last occurrence respectively.
    If searching backwards (negative n), the offset will also apply backwards. */
@@ -3228,11 +3235,7 @@ CU_API uptr custr_find(const custr *c, uptr c_offset, char target, int n);
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API uptr custr_findnot(const custr *c, uptr c_offset, char target, int n);
 
-/* Returns the index of the first character of the nth occurrence of a substring in a custr, or CU_UPTRMAX if not found.
-   The offset determines where to start the search. If c_offset >= length, CU_UPTRMAX is returned.
-   n =  0,  1 returns the first and second occurrence respectively.
-   n = -1, -2 returns the last and second last occurrence respectively.
-   If searching backwards (negative n), the offset will also apply backwards. */
+/* Same as custr_find, but for substrings instead of single characters. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 3))
 CU_API uptr custr_findsub(const custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT target_substr, int n);
 
@@ -3284,7 +3287,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API void *cu_file_read(const char *CU_RESTRICT path, void *CU_RESTRICT result, int binary_file, uptr *CU_RESTRICT bytes);
 
 /* Write or append a number of bytes of 'content' into a file.
-   Mode values can be found in the macros CU_FILE_(WRITE/APPEND)(TXT/BIN). */
+   Valid mode values are defined by the macros CU_FILE_WRITETXT, CU_FILE_WRITEBIN, CU_FILE_APPENDTXT and CU_FILE_APPENDBIN. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 CU_API int cu_file_write(const char *CU_RESTRICT path, const void *CU_RESTRICT content, unsigned int mode, uptr bytes);
 
@@ -3374,13 +3377,14 @@ CU_API uptr cu_res_crypto(void *data, uptr bytes);
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
 CU_API int cu_res_meminfo(cu_res_mem *info);
 
-/* Get CPU usage percentage by this current process. */
+/* Get CPU usage percentage by this current process.
+   Requires consistent calling to provide an accurate percentage. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
 CU_API real64 cu_res_cpuusage(void);
 
 /* Get general CPU information. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-CU_API void cu_res_cpuinfo(cu_res_cpu *info);
+CU_API int cu_res_cpuinfo(cu_res_cpu *info);
 
 /* Maximum size (including terminator) of string needed for OS, computer or user name. */
 #define CU_RES_NAME_MAXSIZE 257
@@ -3447,10 +3451,7 @@ CU_API void cu_timer_fill(cu_timer *tm);
 
 /* Get the number of nanoseconds passed between two timers. */
 CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NONNULL((1, 2)) CU_ATTRIB_USED
-static u64 cu_timer_dif(const cu_timer *CU_RESTRICT start, const cu_timer *CU_RESTRICT end)
-{
-	return ((end->secs - start->secs) * CU_U64_C(1000000000)) + (end->nsecs - start->nsecs);
-}
+CU_API u64 cu_timer_dif(const cu_timer *CU_RESTRICT start, const cu_timer *CU_RESTRICT end);
 
 /* Convert cu_timer_dif's nanoseconds result to different units of time. */
 #define CU_TIMEDIF_CONV(dif, unit) ((real64)(dif) / (real64)(unit))
@@ -3560,8 +3561,6 @@ typedef struct cu_net_server
 	int clients_count;
 	/* Maximum number of clients allowed at once as determined by user. Can be modified at any time. */
 	int max_clients;
-	/* Given server event handler. */
-	cu_server_event event_handler;
 
 	int remotes_capacity;
 #if CU_DM_64BIT
@@ -3607,9 +3606,10 @@ CU_API void cu_server_listen(cu_net_server *CU_RESTRICT server, cu_server_event 
 /* Broadcast data to all connected clients except for the ones in the given array.
    Returns CUERR_NONE on success and CUERR_GENERIC otherwise. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
-CU_API enum cu_net_error cu_server_broadcast(const cu_net_server *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote **CU_RESTRICT except, int except_length);
+CU_API enum cu_net_error cu_server_broadcast(const cu_net_server *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote *CU_RESTRICT *CU_RESTRICT except, int except_length);
 
-/* Disconnect the given client and runs the CUEVT_DISCONNECT event. */
+/* Disconnect the given client.
+   The CUEVT_DISCONNECT event will occur afterwards. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
 CU_API void cu_server_disconnect_client(cu_net_server *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client);
 
@@ -3619,19 +3619,12 @@ CU_API void cu_server_close(cu_net_server *server);
 
 /* ------------ General functions ------------ */
 
-#if CU_OS_UNIX
-/* Initialize networking libraries. */
-#  define cu_net_init() (1)
-/* Terminate networking libraries. */
-#  define cu_net_terminate() 
-#else
 /* Initialize networking libraries. */
 CU_ATTRIB_NOTHROW
 CU_API int cu_net_init(void);
 /* Terminate networking libraries. */
 CU_ATTRIB_NOTHROW
 CU_API void cu_net_terminate(void);
-#endif
 
 /* Sends n bytes of data to the target remote.
    Returns CUERR_NONE on success and CUERR_GENERIC otherwise. */
@@ -3640,7 +3633,7 @@ CU_API enum cu_net_error cu_net_sendmsg(const cu_net_remote *CU_RESTRICT target,
 
 /* Waits until data is recieved from the target remote.
    On a memory error (CUERR_MEM), 'bytes' is set to the number of bytes it attempted to allocate.
-   Returns CUERR_NONE on success and CUERR_MEM, CUERR_CONNECT (target remote sdisconnected) or CUERR_GENERIC otherwise. */
+   Returns CUERR_NONE on success and CUERR_MEM, CUERR_CONNECT (target remote disconnected) or CUERR_GENERIC otherwise. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2, 3))
 CU_API enum cu_net_error cu_net_recvmsg(const cu_net_remote *CU_RESTRICT target, void **CU_RESTRICT data, uptr *CU_RESTRICT bytes);
 
@@ -3658,11 +3651,7 @@ CU_API const char *cu_net_lasterr(void);
 
 /* Determine whether a given remote has been closed. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) CU_ATTRIB_USED
-#if !CU_OS_UNIX
-static int cu_net_isclosed(const cu_net_remote *remote) { return remote->fd != (cu_socket)(~0); }
-#else
-static int cu_net_isclosed(const cu_net_remote *remote) { return remote->fd != -1; }
-#endif
+CU_API int cu_net_isclosed(const cu_net_remote *remote);
 
 #define CU_NET_INTERFACE_ANY 0
 #define CU_NET_INTERFACE_IPV4 1
@@ -3721,10 +3710,10 @@ CU_API int cu_thread_count(void);
 /* Sleeps for the given number of nanoseconds. This does not affect timers. */
 CU_API void cu_thread_sleep(u64 nsecs, u64 secs);
 
-/* Get current process ID. */
+/* Returns the current process ID. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
 CU_API u32 cu_thread_pid(void);
-/* Get current thread ID. */
+/* Returns the current thread ID. */
 CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
 #if CU_THREAD_POSIX_USED
 CU_ATTRIB_CONST

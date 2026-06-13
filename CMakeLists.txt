@@ -81,6 +81,9 @@ endif()
 
 if(CU_BUILD_MISC)
 	get_target_property(CU_COMPILE_OPTIONS cutils COMPILE_OPTIONS)
+	if (CU_COMPILE_OPTIONS STREQUAL CU_COMPILE_OPTIONS-NOTFOUND)
+		set(CU_COMPILE_OPTIONS "")	
+	endif()
 
 	add_executable(test tests/main.c)
 	target_link_libraries(test PRIVATE cutils)

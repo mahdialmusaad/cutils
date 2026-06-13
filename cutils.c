@@ -143,21 +143,25 @@ CU_API_SOURCE int custr_optimize(custr *c)
 	return custr_reserve(c, c->len);
 }
 
-CU_API_SOURCE int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT to_insert, uptr to_insert_offset)
+CU_API_SOURCE int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT to_insert)
 {
 	uptr needed, inslen = strlen(to_insert);
 
-	if (CU_UNLIKELY(c_offset > c->len || to_insert_offset >= inslen)) return 0;
-	inslen -= to_insert_offset;
+	if (CU_UNLIKELY(c_offset > c->len)) return 0;
+	if (CU_UNLIKELY(!inslen)) return 1;
 
 	needed = c->len + inslen + 1;
 	if (CU_UNLIKELY(!custr_reserve(c, needed))) return 0;
 
 	memmove(c->str + c_offset + inslen, c->str + c_offset, (size_t)((c->len + (c_offset != c->len)) - c_offset));
-	memmove(c->str + c_offset, to_insert + to_insert_offset, (size_t)(inslen + (c_offset == c->len)));
+	memmove(c->str + c_offset, to_insert, (size_t)(inslen + (c_offset == c->len)));
 
 	c->len = needed - 1;
 	return 1;
+}
+CU_API_SOURCE int custr_append(custr *CU_RESTRICT c, const char *CU_RESTRICT to_append)
+{
+	return custr_insert(c, c->len, to_append);
 }
 
 CU_API_SOURCE int custr_sub(const custr *CU_RESTRICT c, custr *CU_RESTRICT subresult, uptr start_ind, uptr end_ind)
@@ -179,17 +183,16 @@ CU_API_SOURCE int custr_sub(const custr *CU_RESTRICT c, custr *CU_RESTRICT subre
 CU_API_SOURCE int custr_tosub(custr *c, uptr start_ind, uptr end_ind)
 {
 	if (CU_UNLIKELY(start_ind > end_ind || start_ind > c->len)) return 0;
-	if (CU_UNLIKELY(end_ind > c->len)) end_ind = c->len;
+	if (CU_LIKELY(end_ind < c->len)) custr_shrinkto(c, end_ind + 1);
 
-	custr_shrinkto(c, end_ind);
-	if (start_ind) memmove(c->str, c->str + start_ind, (size_t)(c->len - start_ind));
+	if (start_ind) memmove(c->str, c->str + start_ind, (size_t)((c->len + 1) - start_ind));
 	return 1;
 }
 
 CU_API_SOURCE void custr_cut(custr *c, uptr start_ind, uptr count)
 {
 	if (CU_UNLIKELY(start_ind >= c->len)) return;
-	if (CU_UNLIKELY(start_ind + count >= c->len)) count = c->len - start_ind - 1;
+	if (CU_UNLIKELY(start_ind + count > c->len)) count = c->len - start_ind;
 	memmove(c->str + start_ind, c->str + start_ind + count, (size_t)((c->len + 1) - start_ind - count));
 	c->len -= count;
 }
@@ -219,6 +222,8 @@ CU_API_SOURCE int custr_fmt(custr *CU_RESTRICT c, char *CU_RESTRICT fmt, ...)
 #if defined (CUSTR_FMT)
 	va_list va, copy;
 	int nchars, ret = 0;
+
+	memset(c, 0, sizeof *c);
 
 	va_start(va, fmt);
 
@@ -258,11 +263,11 @@ CU_API_SOURCE int custr_cd(custr *CU_RESTRICT c, const char *CU_RESTRICT name)
 		return 1;
 	}
 
-	if (c->str[c->len - 1] != CU_FILE_SEPARATOR && CU_UNLIKELY(!custr_append(c, "/", 0))) return 0;
+	if (c->str[c->len - 1] != CU_FILE_SEPARATOR && CU_UNLIKELY(!custr_append(c, CU_FILE_SEPARATOR_DQ))) return 0;
 
 	if (!custr_create(&tmp, name)) goto fail;
 	custr_simplify(&tmp);
-	ret = custr_append(c, tmp.str, tmp.str[0] == CU_FILE_SEPARATOR);
+	ret = custr_append(c, tmp.str + (tmp.str[0] == CU_FILE_SEPARATOR));
 	custr_clear(&tmp);
 
 fail:
@@ -272,26 +277,32 @@ fail:
 CU_API_SOURCE void custr_simplify(custr *c)
 {
 	uptr ind = 0, prev;
+	int dw = 1;
 
-	for (;; ++ind) {
+	for (;; ++ind, dw = 1) {
 		if ((ind = custr_find(c, (prev = ind), CU_FILE_SEPARATOR, 0)) == CU_UPTRMAX) return;
 
-		if (c->str[ind + 1] == CU_FILE_SEPARATOR) {
-			uptr isep = custr_findnot(c, ind + 2, CU_FILE_SEPARATOR, 0);
-			if (isep == CU_UPTRMAX) isep = c->len - 1;
-			memmove(c->str + ind + 1, c->str + isep, (size_t)(c->len - isep + 1));
-			c->len -= (isep - ind) - 1;
-		}
+		while (dw) {
+			dw = 0;
 
-		if (!strncmp(c->str + ind + 1, ".." CU_FILE_SEPARATOR_DQ, 3)) {
-			memmove(c->str + prev, c->str + ind + 4, (size_t)(c->len - ind - 3));
-			c->len -= (ind - prev) + 4;
-			ind = prev - 1;
-		}
-
-		if (!strncmp(c->str + ind + 1, "." CU_FILE_SEPARATOR_DQ, 2)) {
-			memmove(c->str + ind + 1, c->str + ind + 3, (size_t)(c->len - ind - 2));
-			c->len -= 2;
+			if (c->str[ind + 1] == CU_FILE_SEPARATOR) {
+				uptr isep = custr_findnot(c, ind + 2, CU_FILE_SEPARATOR, 0);
+				if (isep == CU_UPTRMAX) isep = c->len;
+				memmove(c->str + ind + 1, c->str + isep, (size_t)(c->len - isep + 1));
+				c->len -= (isep - ind) - 1;
+				dw = 1;
+			}
+			if (!strncmp(c->str + ind, CU_FILE_SEPARATOR_DQ ".." , 3)) {
+				memmove(c->str + prev, c->str + ind + 3, (size_t)(c->len - ind - 2));
+				c->len -= (ind - prev) + 3;
+				ind = prev - 1;
+				dw = 1;
+			}
+			if (!strncmp(c->str + ind, CU_FILE_SEPARATOR_DQ "." , 2)) {
+				memmove(c->str + ind + 1, c->str + ind + 3, (size_t)(c->len - ind - 2));
+				c->len -= 2;
+				dw = 1;
+			}
 		}
 	}
 }
@@ -346,7 +357,7 @@ CU_API_SOURCE void custr_replace(custr *c, uptr c_offset, char target, char repl
 CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT target, const char *CU_RESTRICT replacement)
 {
 	enum { nulrep = 0x0, smallrep = 0x1, eqrep = 0x2, largerep = 0x3 } reptype;
-	size_t rlen = strlen(replacement), tlen = strlen(target);
+	size_t rlen = replacement ? strlen(replacement) : 0, tlen = strlen(target);
 
 	if (CU_UNLIKELY(!tlen)) return 1;
 
@@ -359,7 +370,7 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 		if ((c_offset = custr_findsub(c, c_offset, target, 0)) == CU_UPTRMAX) break;
 
 		if (reptype == largerep && !custr_reserve(c, c->len + 1 + (rlen - tlen))) return 0;
-		memmove(c->str + c_offset + (rlen * (reptype & 0x1)), c->str + c_offset + tlen, (size_t)((c->len + 1) - c_offset - tlen));
+		if (reptype != eqrep) memmove(c->str + c_offset + (rlen * (reptype & 0x1)), c->str + c_offset + tlen, (size_t)((c->len + 1) - c_offset - tlen));
 		if (reptype) memcpy(c->str + c_offset, replacement, (size_t)(rlen));
 
 		c->len -= tlen - rlen;
@@ -573,7 +584,7 @@ CU_API_SOURCE int cu_file_write(const char *CU_RESTRICT path, const void *CU_RES
 CU_API_SOURCE int cu_file_getinfo(const char *CU_RESTRICT path, cu_file_info *CU_RESTRICT f_info)
 {
 	struct stat dir_stat;
-	if (!stat(path, &dir_stat)) return 0;
+	if (stat(path, &dir_stat) == -1) return 0;
 	f_info->fsize_bytes = dir_stat.st_size;
 	f_info->access_time = dir_stat.st_atime;
 	f_info->mod_time = dir_stat.st_mtime;
@@ -714,13 +725,13 @@ static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
 #  include <time.h>
 #endif
 
-CU_API_SOURCE void cu_res_cpuinfo(cu_res_cpu *info)
+CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
 {
 	u32 regs[4] = { 0, 0, 0, 0 }, cpu_family, level, i = 1;
 	struct cu_res_cpu_cache *target;
 
 	memset(info, 0, sizeof *info);
-	info->little_endian = (*(char *)&i) == 1;
+	info->little_endian = (*(u8 *)&i) == 1;
 
 	info->cpuid_level = cu_res_cpuid(0x0, 0, regs);
 	memcpy(info->vendor + 0, regs + 1, 4);
@@ -772,6 +783,8 @@ CU_API_SOURCE void cu_res_cpuinfo(cu_res_cpu *info)
 		}
 	#endif
 	}
+
+	return info->name[0] && info->vendor[0] && i >= 4 &&  info->base_freq_hz;
 }
 
 #if CU_OS_WINDOWS
@@ -907,12 +920,12 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 CU_API_SOURCE real64 cu_res_cpuusage(void)
 {
 	static int proc_count = 0;
-	static clock_t ltm_cpu = 0, ltm_scpu = 0, ltm_ucpu = 0;
-	struct tms tms_buf;
-	clock_t ctm_cpu;
+	static clock_t prev_rtime = 0, prev_stime = 0, prev_utime = 0;
+	struct tms tbuf;
+	clock_t rtime;
 	real64 res;
 
-	if ((ctm_cpu = times(&tms_buf)) == -1) return 0.0;
+	if ((rtime = times(&tbuf)) == -1) return -1.0;
 
 #if CU_SETTING_THREAD_FUNCS
 	if (!proc_count) proc_count = cu_thread_count();
@@ -920,11 +933,11 @@ CU_API_SOURCE real64 cu_res_cpuusage(void)
 	proc_count = 1;
 #endif
 
-	res = (double)((tms_buf.tms_stime - ltm_scpu) + (tms_buf.tms_utime + ltm_ucpu)) / (0.01 * (double)(ctm_cpu - ltm_cpu) * proc_count);
+	res = (double)((tbuf.tms_stime - prev_stime) + (tbuf.tms_utime - prev_utime)) / (0.01 * (double)(rtime - prev_rtime) * proc_count);
 
-	ltm_cpu = ctm_cpu;
-	ltm_scpu = tms_buf.tms_stime;
-	ltm_ucpu = tms_buf.tms_utime;
+	prev_rtime = rtime;
+	prev_stime = tbuf.tms_stime;
+	prev_utime = tbuf.tms_utime;
 
 	return res;
 }
@@ -1146,6 +1159,11 @@ CU_API_SOURCE void cu_timer_fill(cu_timer *tm)
 #endif
 }
 
+CU_API_SOURCE u64 cu_timer_dif(const cu_timer *CU_RESTRICT start, const cu_timer *CU_RESTRICT end)
+{
+	return ((end->secs - start->secs) * CU_U64_C(1000000000)) + (end->nsecs - start->nsecs);
+}
+
 #endif
 
 /* ==========================================================================
@@ -1210,6 +1228,9 @@ CU_ATTRIB_NOTHROW static int cu_net_setsockopt(cu_socket sock, int opt, int val,
 {
 	return setsockopt(sock, SOL_SOCKET, opt, &val, (socklen_t)len) != CU_SOCKET_ERROR;
 }
+
+CU_API int cu_net_init(void) { return 1; }
+CU_API void cu_net_terminate(void) {}
 
 #else
 #  if CU_COMP_MSVC
@@ -1454,7 +1475,6 @@ CU_API_SOURCE void cu_server_listen(cu_net_server *CU_RESTRICT server, cu_server
 {
 	CU_NETSIG_SETUP();
 	CU_NETSIG_SETFUNC(cu_net_sigint);
-	server->event_handler = event_handler;
 
 	while (!cu_net_isclosed(server->remotes)) {
 		int i, pollres = poll(server->pfds, (cu_net_pollcnt)(server->clients_count + 1), heartbeat_delay_msec);
@@ -1464,14 +1484,25 @@ CU_API_SOURCE void cu_server_listen(cu_net_server *CU_RESTRICT server, cu_server
 		} else for (i = 0; i <= server->clients_count; ++i) {
 			if (!(server->pfds[i].revents & (POLLIN | POLLHUP))) continue;
 			if (!i) cu_server_process_connection(server, event_handler);
-			else cu_server_process_message(server, event_handler, server->remotes + i);
+			else {
+				cu_server_process_message(server, event_handler, server->remotes + i);
+				if (cu_net_isclosed(server->remotes + i)) {
+					event_handler(server, server->remotes + i, CUEVT_DISCONNECT, NULL, (uptr)(server->clients_count - 1));
+					server->remotes[i] = server->remotes[server->clients_count];
+					server->pfds[i--] = server->pfds[server->clients_count--];
+				}
+			}
 		}
 	}
+
+	free(server->pfds);
+	free(server->remotes);
+	memset(server, 0, sizeof *server);
 
 	CU_NETSIG_SETFUNC(SIG_DFL);
 }
 
-CU_API_SOURCE enum cu_net_error cu_server_broadcast(const cu_net_server *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote **CU_RESTRICT except, int except_length)
+CU_API_SOURCE enum cu_net_error cu_server_broadcast(const cu_net_server *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote *CU_RESTRICT *CU_RESTRICT except, int except_length)
 {
 	int goterr = 0;
 	int i, j;
@@ -1492,18 +1523,15 @@ CU_API_SOURCE enum cu_net_error cu_server_broadcast(const cu_net_server *CU_REST
 
 CU_API_SOURCE void cu_server_disconnect_client(cu_net_server *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client)
 {
-	server->event_handler(server, client, CUEVT_DISCONNECT, NULL, (uptr)(server->clients_count - 1));
+	CU_UNUSED(server);
 	cu_net_closesock(&client->fd);
-	*client = server->remotes[server->clients_count];
-	server->pfds[client - server->remotes] = server->pfds[server->clients_count--];
 }
 
 CU_API_SOURCE void cu_server_close(cu_net_server *server)
 {
 	int i;
+	if (!server->remotes) return;
 	for (i = 0; i <= server->clients_count; ++i) cu_net_closesock(&server->remotes[i].fd);
-	free(server->pfds);
-	free(server->remotes);
 }
 
 
@@ -1610,6 +1638,8 @@ end:
 	return cur_it ? ipbuf : NULL;
 #endif
 }
+
+CU_API_SOURCE int cu_net_isclosed(const cu_net_remote *remote) { return remote->fd == CU_INVALID_SOCKET; }
 
 #endif
 
