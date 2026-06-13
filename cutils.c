@@ -34,6 +34,10 @@ CU_DIAGNOSTICS_IGNORE_END
 #  define s_strchr(S, C) strchr(S, C)
 #endif
 
+#define CU_API_SOURCE CU_API
+
+#define CU_BITSOF(x, start, end) (CU_DWSHIFT(x, start) & (CU_UPSHIFT(1, (1 + (end - start))) - 1))
+
 #if CU_SETTING_FUNCS
 
 /* ==========================================================================
@@ -44,7 +48,7 @@ CU_DIAGNOSTICS_IGNORE_END
 
 #if CU_SETTING_STRING_FUNCS
 
-#if !defined (_ISOC99_SOURCE)
+#ifndef _ISOC99_SOURCE
 #  define _ISOC99_SOURCE
 #endif
 
@@ -52,7 +56,7 @@ CU_DIAGNOSTICS_IGNORE_END
 #include <string.h>
 
 #if CU_LANG_C >= CU_LANG_C99 || CU_HAS_INCLUDE(<stdarg.h>) || \
-    ((defined (__va_copy) || defined (va_copy)) && (CU_OS_UNIX || CU_COMPVER(MSVC, 19, 0)))
+    ((defined(__va_copy) || defined(va_copy)) && (CU_OS_UNIX || CU_COMPVER(MSVC, 19, 0)))
 #  define CUSTR_FMT
 #  include <stdio.h>
 #  include <stdarg.h>
@@ -219,7 +223,7 @@ CU_API_SOURCE int custr_countsub(const custr *CU_RESTRICT c, const char *CU_REST
 
 CU_API_SOURCE int custr_fmt(custr *CU_RESTRICT c, char *CU_RESTRICT fmt, ...)
 {
-#if defined (CUSTR_FMT)
+#ifdef CUSTR_FMT
 	va_list va, copy;
 	int nchars, ret = 0;
 
@@ -227,7 +231,7 @@ CU_API_SOURCE int custr_fmt(custr *CU_RESTRICT c, char *CU_RESTRICT fmt, ...)
 
 	va_start(va, fmt);
 
-#if defined (__va_copy)
+#ifdef __va_copy
 	__va_copy(copy, va);
 #else
 	va_copy(copy, va);
@@ -690,7 +694,7 @@ success:
 #include <string.h>
 
 #if !CU_ARCH_X86
-#  define cu_res_cpuid(id, regs) 0
+#  define cu_res_cpuid(id, count, regs) 0
 #else
 #  if CU_COMP_MSVC
 #    include <intrin.h>
@@ -731,7 +735,6 @@ CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
 	struct cu_res_cpu_cache *target;
 
 	memset(info, 0, sizeof *info);
-	info->little_endian = (*(u8 *)&i) == 1;
 
 	info->cpuid_level = cu_res_cpuid(0x0, 0, regs);
 	memcpy(info->vendor + 0, regs + 1, 4);
@@ -968,12 +971,12 @@ CU_API_SOURCE uptr cu_res_username(char *namebuf)
 
 #else
 
-CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes) { return 0; }
-CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info) { return 0; }
+CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes) { CU_UNUSED(data); CU_UNUSED(bytes); return 0; }
+CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info) { CU_UNUSED(info); return 0; }
 CU_API_SOURCE real64 cu_res_cpuusage(void) { return 0.0; }
-CU_API_SOURCE uptr cu_res_osname(char *namebuf) { return 0; }
-CU_API_SOURCE uptr cu_res_hostname(char *namebuf) { return 0; }
-CU_API_SOURCE uptr cu_res_username(char *namebuf) { return 0; }
+CU_API_SOURCE uptr cu_res_osname(char *namebuf) { CU_UNUSED(namebuf); return 0; }
+CU_API_SOURCE uptr cu_res_hostname(char *namebuf) { CU_UNUSED(namebuf); return 0; }
+CU_API_SOURCE uptr cu_res_username(char *namebuf) { CU_UNUSED(namebuf); return 0; }
 
 #endif
 
@@ -1058,7 +1061,7 @@ CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 	struct tm now_st;
 	CU_UNUSED(localtime_s(&now_st, &now_val));
 	now = &now_st;
-#elif CU_LANG_C11 && defined (__STDC_LIB_EXT1__)
+#elif CU_LANG_C11 && defined(__STDC_LIB_EXT1__)
 	struct tm now_st;
 	now = localtime_s(&now_val, &now_st);
 	now = &now_st;
@@ -1085,7 +1088,7 @@ CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 	tm->year_day = now->tm_yday;
 	tm->isdst = now->tm_isdst;
 
-#if CU_OS_UNIX && defined (__USE_MISC)
+#if CU_OS_UNIX && defined(__USE_MISC)
 	tm->tznm = now->tm_zone;
 	tm->utcdif = (int)now->tm_gmtoff;
 #elif CU_OS_WINDOWS
@@ -1153,9 +1156,8 @@ CU_API_SOURCE void cu_timer_fill(cu_timer *tm)
 	tm->secs = usecs.QuadPart / 1000000;
 	tm->nsecs = usecs.QuadPart * 1000;
 #else
-	tm->nanosec = 0;
-	tm->microsec = 0;
-	tm->millisec = 0;
+	tm->nsecs = 0;
+	tm->secs = 0;
 #endif
 }
 

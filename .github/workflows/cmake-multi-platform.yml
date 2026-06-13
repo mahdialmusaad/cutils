@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@v5
     - name: Configure and build
       run: |
-        cmake -B build
+        cmake -B build -DCU_SETTING_QUIET=1
         cmake --build build
   macos:
     name: MacOS
@@ -24,7 +24,7 @@ jobs:
     - uses: actions/checkout@v5
     - name: Configure and build
       run: |
-        cmake -B build
+        cmake -B build -DCU_SETTING_QUIET=1
         cmake --build build
   windows:
     name: Windows
@@ -33,5 +33,5 @@ jobs:
     - uses: actions/checkout@v5
     - name: Configure and build
       run: |
-        cmake -B build -A x64
+        cmake -B build -A x64 -DCU_SETTING_QUIET=1
         cmake --build build
