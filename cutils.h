@@ -3684,7 +3684,7 @@ CU_API int cu_net_isclosed(const cu_net_remote *remote);
 #  define CU_THREAD_C_USED 0
 #  include <windows.h>
    typedef HANDLE cu_thread;
-   typedef HANDLE cu_thread_mutex;
+   typedef CRITICAL_SECTION cu_thread_mutex;
    typedef LPVOID cu_thread_arg;
    typedef DWORD cu_thread_return;
    typedef cu_thread_return (WINAPI *cu_thread_func)(cu_thread_arg);

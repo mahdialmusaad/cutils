@@ -1693,11 +1693,11 @@ CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
 CU_API_SOURCE int cu_thread_join(cu_thread thread) { return WaitForSingleObject(thread, INFINITE) == WAIT_OBJECT_0; }
 CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return CloseHandle(thread) != 0; }
 
-CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return (*mutex = CreateMutex(NULL, FALSE, NULL)) != NULL; }
-CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return WaitForSingleObject(*mutex, INFINITE) == WAIT_OBJECT_0; }
-CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return ReleaseMutex(*mutex) != 0; }
-CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return WaitForSingleObject(*mutex, 0u) == WAIT_OBJECT_0; }
-CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return CloseHandle(*mutex) != 0; }
+CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { InitializeCriticalSection(mutex); return 1; }
+CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { EnterCriticalSection(mutex); return 1; }
+CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { LeaveCriticalSection(mutex); return 1; }
+CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return TryEnterCriticalSection(mutex) != 0; }
+CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { DeleteCriticalSection(mutex); return 1; }
 
 CU_API_SOURCE int cu_thread_count(void)
 {
