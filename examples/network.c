@@ -18,7 +18,7 @@
 #  define FDFMT "u"
 #endif
 
-static int client_event(cu_net_remote *server, enum cu_net_event event_type, void *data, uptr n)
+static int client_event(cu_net_remote *CU_RESTRICT server, enum cu_net_event event_type, void *CU_RESTRICT data, uptr n)
 {
 	CU_UNUSED(server);
 	if (event_type == CUEVT_MESSAGE) {
@@ -73,7 +73,7 @@ fail:
 
 static int named_clients;
 
-static int server_event(cu_net_server *server, cu_net_remote *remote, enum cu_net_event event_type, void *data, uptr n)
+static int server_event(cu_net_server *CU_RESTRICT server, cu_net_remote *CU_RESTRICT remote, enum cu_net_event event_type, void *CU_RESTRICT data, uptr n)
 {
 	if (event_type == CUEVT_MESSAGE) {
 		uptr u, displayable = 0;
@@ -114,7 +114,7 @@ static int server_event(cu_net_server *server, cu_net_remote *remote, enum cu_ne
 					custr addfmt = CUSTR_EMPTY;
 					if (server->remotes + i == remote || !server->remotes[i].ext) continue;
 					custr_fmt(&addfmt, " '%s'", (char *)server->remotes[i].ext);
-					custr_append(&notify, addfmt.str, 0);
+					custr_append(&notify, addfmt.str);
 					custr_clear(&addfmt);
 				}
 			}
