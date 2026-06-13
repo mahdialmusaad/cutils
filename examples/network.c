@@ -12,10 +12,8 @@
 
 #if CU_OS_UNIX
 #  define FDFMT "d"
-#elif defined (_WIN64)
-#  define FDFMT CU_U64_FMT
 #else
-#  define FDFMT "u"
+#  define FDFMT CU_UPTR_FMT
 #endif
 
 static int client_event(cu_net_remote *CU_RESTRICT server, enum cu_net_event event_type, void *CU_RESTRICT data, uptr n)
