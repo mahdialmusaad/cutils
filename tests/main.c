@@ -1,4 +1,4 @@
-#include "../cutils.h"
+#include "tests.h"
 
 #if !CU_OS_WINDOWS
 #  define GR "\033[0;32m"
@@ -10,18 +10,21 @@
 #  define RS ""
 #endif
 
-#define TEST(base) do { \
-	memset(buf, '\255', sizeof buf); \
-	tested = failed = fline = 0; \
-	f_expr_got = f_expr_exp = 0; \
-	f_expr = NULL; \
-	printf(#base ".c \t"); \
-	fflush(stdout); \
-	base(); \
-	printf("%s[%d/%d]%s", !failed ? GR : RD, tested-failed, tested, RS); \
-	if (fline) printf(" L%d: \"%s\": got %" CU_UPTR_FMT ", expected %" CU_UPTR_FMT "\n", fline, f_expr, f_expr_got, f_expr_exp); \
-	else printf("\n"); \
-} while (0)
+static void cu_test_given(void (*base)(void), const char *basename)
+{
+	memset(buf, '\255', sizeof buf);
+	tested = failed = fline = 0;
+	f_expr_got = f_expr_exp = 0;
+	f_expr = NULL;
+	printf("%s.c \t", basename);
+	fflush(stdout);
+	base();
+	printf("%s[%d/%d]%s", !failed ? GR : RD, tested-failed, tested, RS);
+	if (fline) printf(" L%d: \"%s\": got %" CU_UPTR_FMT ", expected %d\n", fline, f_expr, f_expr_got, f_expr_exp);
+	else printf("\n");
+}
+
+#define TEST(base) cu_test_given(base, CU_STRINGIFY(base))
 
 #include "cu_thread1.c"
 #include "cu_macro1.c"
