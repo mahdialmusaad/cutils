@@ -73,30 +73,6 @@ extern "C" {
 #define CU_COMPILER_MINOR(compiler) (((CU_COMP_ ## compiler) / 1000) % 1000)
 #define CU_COMPILER_PATCH(compiler) ((CU_COMP_ ## compiler) % 1000)
 
-#ifdef _ACC_
-#  define CU_COMP_ACC 1
-#else
-#  define CU_COMP_ACC 0
-#endif
-
-#ifdef __CMB__
-#  define CU_COMP_ALTIUM_MBC CU_COMPVER_MAKE(__VERSION__ / 1000, __REVISION__, 0)
-#else
-#  define CU_COMP_ALTIUM_MBC 0
-#endif
-
-#ifdef __CHC__
-#  define CU_COMP_ALTIUM_CTH CU_COMPVER_MAKE(__VERSION__ / 1000, __REVISION__, 0)
-#else
-#  define CU_COMP_ALTIUM_CTH 0
-#endif
-
-#ifdef __ACK__
-#  define CU_COMP_AMSTERDAM 1
-#else
-#  define CU_COMP_AMSTERDAM 0
-#endif
-
 #ifdef __CC_ARM
 #  define CU_COMP_ARM CU_COMPVER_MAKE(__ARMCOMPILER_VERSION / 1000000, (__ARMCOMPILER_VERSION % 1000000) / 10000, (__ARMCOMPILER_VERSION % 10000) / 100)
 #elif defined(__CC_ARM) && defined(__ARMCC_VERSION)
@@ -105,28 +81,10 @@ extern "C" {
 #  define CU_COMP_ARM 0
 #endif
 
-#if defined(AZTEC_C) || defined(__AZTEC_C__)
-#  define CU_COMP_AZTEC CU_COMPVER_MAKE(__VERSION / 100, __VERSION % 100, 0)
-#else
-#  define CU_COMP_AZTEC 0
-#endif
-
 #if defined(__BORLANDC__) || defined(__CODEGEARC__)
 #  define CU_COMP_BORLAND CU_COMPVER_MAKE(__BORLANDC__ / 0x100, __BORLANDC__ % 0x100, 0)
 #else
 #  define CU_COMP_BORLAND 0
-#endif
-
-#ifdef __CC65__
-#  define CU_COMP_CC65 CU_COMPVER_MAKE(__CC65__ / 0x100, __CC65__ % 0x100, 0)
-#else
-#  define CU_COMP_CC65 0
-#endif
-
-#ifdef __chibicc__
-#  define CU_COMP_CHIBICC 1
-#else
-#  define CU_COMP_CHIBICC 0
 #endif
 
 #ifdef __clang__
@@ -135,137 +93,12 @@ extern "C" {
 #  define CU_COMP_CLANG 0
 #endif
 
-#ifdef __COMO__
-#  define CU_COMP_COMEAU __COMO_VERSION__
-#else
-#  define CU_COMP_COMEAU 0
-#endif
-
-#if defined(__DECC) && defined(__DECC_VER)
-#  define CU_COMP_COMPAQ CU_COMPVER_MAKE(__DECC_VER / 10000000, (__DECC_VER / 100000) % 100, __DECC_VER % 10000)
-#elif defined(__DECC)
-#  define CU_COMP_COMPAQ 1
-#else
-#  define CU_COMP_COMPAQ 0
-#endif
-
-#ifdef __convexc__
-#  define CU_COMP_CONVEX 1
-#else
-#  define CU_COMP_CONVEX 0
-#endif
-
-#ifdef __COMPCERT__
-#  define CU_COMP_COMPCERT 1
-#else
-#  define CU_COMP_COMPCERT 0
-#endif
-
-#ifdef __COVERITY__
-#  define CU_COMP_COVERITY 1
-#else
-#  define CU_COMP_COVERITY 0
-#endif
-
-#ifdef _CRAYC
-#  ifndef _RELEASE_PATCHLEVEL
-#    define _RELEASE_PATCHLEVEL 0
-#  endif
-#  define CU_COMP_CRAY CU_COMPVER_MAKE(_RELEASE_MAJOR, _RELEASE_MINOR, _RELEASE_PATCHLEVEL)
-#else
-#  define CU_COMP_CRAY 0
-#endif
-
-#ifdef __DCC__
-#  define CU_COMP_DIAB CU_COMPVER_MAKE(__VERSION_NUMBER__ / 1000, (__VERSION_NUMBER__ / 100) % 10, __VERSION_NUMBER__ % 100)
-#else
-#  define CU_COMP_DIAB 0
-#endif
-
-#ifdef _DICE
-#  define CU_COMP_DICE 1
-#else
-#  define CU_COMP_DICE 0
-#endif
-
-#ifdef __DMC__
-#  define CU_COMP_DMC CU_COMPVER_MAKE(__DMC__ >> 8, (__DMC__ >> 4) & 0xf, __DMC__ & 0xf)
-#else
-#  define CU_COMP_DMC 0
-#endif
-
-#ifdef __SYSC__
-#  define CU_COMP_DIGNUS CU_COMPVER_MAKE(__SYSC_VER__ / 10000, (__SYSC_VER__ / 100) % 100, __SYSC_VER__ % 100)
-#else
-#  define CU_COMP_DIGNUS 0
-#endif
-
-#if defined(__DJGPP__) || defined(__GO32__)
-#  define CU_COMP_DJGPP CU_COMPVER_MAKE(__DJGPP__, __DJGPP_MINOR__, 0)
-#else
-#  define CU_COMP_DJGPP 0
-#endif
-
-#ifdef __EDG__
-#  define CU_COMP_EDG CU_COMPVER_MAKE(__EDG_VERSION__ / 100, __EDG_VERSION__ % 100, 0)
-#else
-#  define CU_COMP_EDG 0
-#endif
-
-#ifdef __PATHCC__
-#  define CU_COMP_EKOPATH CU_COMPVER_MAKE(__PATHCC__, __PATHCC_MINOR__, __PATHCC_PATCHLEVEL__)
-#else
-#  define CU_COMP_EKOPATH 0
-#endif
-
-#ifdef __EMSCRIPTEN__
-#  define CU_COMP_EMSCRIPTEN CU_COMPVER_MAKE(__EMSCRIPTEN_major__, __EMSCRIPTEN_minor__, __EMSCRIPTEN_tiny__)
-#else
-#  define CU_COMP_EMSCRIPTEN 0
-#endif
-
-#ifdef __FCC_VERSION
-#  define CU_COMP_FUJITSU 1
-#else
-#  define CU_COMP_FUJITSU 0
-#endif
-
 #if defined(__GNUC__) && defined(__GNUC_PATCHLEVEL__)
 #  define CU_COMP_GNU CU_COMPVER_MAKE(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
 #elif defined(__GNUC__)
 #  define CU_COMP_GNU CU_COMPVER_MAKE(__GNUC__, __GNUC_MINOR__, 0)
 #else
 #  define CU_COMP_GNU 0
-#endif
-
-#if (defined(__ghs) || defined(__ghs__)) && defined(__GHS_VERSION_NUMBER__)
-#  define CU_COMP_GHS __GHS_VERSION_NUMBER__
-#elif defined(__ghs) || defined(__ghs__)
-#  define CU_COMP_GHS __ghs
-#else
-#  define CU_COMP_GHS 0
-#endif
-
-#ifdef __HP_cc
-#  define CU_COMP_HPANSI 1
-#else
-#  define CU_COMP_HPANSI 0
-#endif
-
-#ifdef __HP_aCC
-#  define CU_COMP_HPACC CU_COMPVER_MAKE(__HP_aCC / 10000, (__HP_aCC / 100) % 100, __HP_aCC % 100)
-#else
-#  define CU_COMP_HPACC 0
-#endif
-
-#ifdef __IAR_SYSTEMS_ICC__
-#  if __VER__ > 1000
-#    define CU_COMP_IAR CU_COMPVER_MAKE((__VER__ / 1000000), ((__VER__ / 1000) % 1000), (__VER__ % 1000))
-#  else
-#    define CU_COMP_IAR CU_COMPVER_MAKE(__VER__ / 100, __VER__ % 100, 0)
-#  endif
-#else
-#  define CU_COMP_IAR 0
 #endif
 
 #ifdef __ibmxl__
@@ -279,12 +112,6 @@ extern "C" {
 #  define CU_COMP_IBM 0
 #endif
 
-#ifdef __IMAGECRAFT__
-#  define CU_COMP_IMAGECRAFT 1
-#else
-#  define CU_COMP_IMAGECRAFT 0
-#endif
-
 #if defined(__INTEL_COMPILER) && !defined(__ICL)
 #  ifndef __INTEL_COMPILER_UPDATE
 #    define __INTEL_COMPILER_UPDATE 0
@@ -292,62 +119,6 @@ extern "C" {
 #  define CU_COMP_INTEL CU_COMPVER_MAKE(__INTEL_COMPILER / 100, __INTEL_COMPILER % 100, __INTEL_COMPILER_UPDATE)
 #else
 #  define CU_COMP_INTEL 0
-#endif
-
-#ifdef __KCC
-#  define CU_COMP_KAI CU_COMPVER_MAKE(__KCC_VERSION / 0x1000, (__KCC_VERSION / 0x100) % 0x10, __KCC_VERSION % 0x100)
-#else
-#  define CU_COMP_KAI 0
-#endif
-
-#if defined(__CA__) || defined(__KEIL__)
-#  define CU_COMP_KEILCARM CU_COMPVER_MAKE(__CA__ / 100, __CA__ % 100, 0)
-#else
-#  define CU_COMP_KEILCARM 0
-#endif
-
-#ifdef __C166__
-#  define CU_COMP_KEILC166 CU_COMPVER_MAKE(__C166__ / 100, __C166__ % 100, 0)
-#else
-#  define CU_COMP_KEILC166 0
-#endif
-
-#ifdef __C51__
-#  define CU_COMP_KEILC51 CU_COMPVER_MAKE(__C51__ / 100, __C51__ % 100, 0)
-#else
-#  define CU_COMP_KEILC51 0
-#endif
-
-#ifdef __LCC__
-#  define CU_COMP_LCC 1
-#else
-#  define CU_COMP_LCC 0
-#endif
-
-#ifdef __llvm__
-#  define CU_COMP_LLVM 1
-#else
-#  define CU_COMP_LLVM 0
-#endif
-
-#if defined(__LCC__) && defined(__LCC_MINOR__)
-#  define CU_COMP_MCST CU_COMPVER_MAKE(__LCC__ / 100, __LCC__ % 100, __LCC_MINOR__)
-#else
-#  define CU_COMP_MCST 0
-#endif
-
-#ifdef __HIGHC__
-#  define CU_COMP_METAWARE 1
-#else
-#  define CU_COMP_METAWARE 0
-#endif
-
-#if defined(__MWERKS__) && defined(__CWCC__)
-#  define CU_COMP_METROWERKS CU_COMPVER_MAKE(__CWCC__ / 0x1000, (__CWCC__ / 0x100) % 0x10, __CWCC__ % 0x100)
-#elif defined(__MWERKS__)
-#  define CU_COMP_METROWERKS CU_COMPVER_MAKE(__MWERKS__ / 0x1000, (__MWERKS__ / 0x100) % 0x10, __MWERKS__ % 0x100)
-#else
-#  define CU_COMP_METROWERKS 0
 #endif
 
 #if defined(_MSC_FULL_VER) && (_MSC_FULL_VER >= 140000000) && !defined(__ICL)
@@ -360,162 +131,10 @@ extern "C" {
 #  define CU_COMP_MSVC 0
 #endif
 
-#ifdef _MRI
-#  define CU_COMP_MICROTEC 1
-#else
-#  define CU_COMP_MICROTEC 0
-#endif
-
-#if defined(__NDPC__) || defined(__NDPX__)
-#  define CU_COMP_MICROWAY 1
-#else
-#  define CU_COMP_MICROWAY 0
-#endif
-
-#if defined(__MINGW32__) || defined(__MINGW64__)
-#  define CU_COMP_MINGW 1
-#  ifdef __MINGW64__
-#    define CU_COMP_MINGW64 CU_COMPVER_MAKE(__MINGW64_MAJOR_VERSION, __MINGW64_MINOR_VERSION, 0)
-#    define CU_COMP_MINGW32 0
-#  else
-#    define CU_COMP_MINGW64 1
-#    define CU_COMP_MINGW32 CU_COMPVER_MAKE(__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION, 0)
-#  endif
-#else
-#  define CU_COMP_MINGW 0
-#  define CU_COMP_MINGW64 0
-#  define CU_COMP_MINGW32 0
-#endif
-
-#if defined(__sgi) || defined(sgi) && defined(_SGI_COMPILER_VERSION)
-#  ifdef _SGI_COMPILER_VERSION
-#    define _SGIVER _SGI_COMPILER_VERSION
-#  elif defined(_COMPILER_VERSION)
-#    define _SGIVER _COMPILER_VERSION
-#  else
-#    define _SGIVER 0
-#  endif
-#  define CU_COMP_MIPSPRO CU_COMPVER_MAKE(_SGI_COMPILER_VERSION / 100, (_SGI_COMPILER_VERSION / 10) % 10, _SGI_COMPILER_VERSION % 10)
-#else
-#  define CU_COMP_MIPSPRO 0
-#endif
-
-#ifdef MIRACLE
-#  define CU_COMP_MIRACLE 1
-#else
-#  define CU_COMP_MIRACLE 0
-#endif
-
-#if defined(__MRC__) || defined(MPW_C)
-#  define CU_COMP_MPW CU_COMPVER_MAKE(__MRC__ / 0x100, __MRC__ % 0x100, 0)
-#else
-#  define CU_COMP_MPW 0
-#endif
-
-#ifdef __MRISC32__
-#  define CU_COMP_MRISC 1
-#else
-#  define CU_COMP_MRISC 0
-#endif
-
-#ifdef __CC_NORCROFT
-#  define CU_COMP_NORCROFT __ARMCC_VERSION
-#else
-#  define CU_COMP_NORCROFT 0
-#endif
-
 #ifdef __NVCC__
 #  define CU_COMP_NVCC CU_COMPVER_MAKE(__CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__, __CUDACC_VER_BUILD__)
 #else
 #  define CU_COMP_NVCC 0
-#endif
-
-#ifdef __NWCC__
-#  define CU_COMP_NWCC 1
-#else
-#  define CU_COMP_NWCC 0
-#endif
-
-#ifdef __NVCOMPILER
-#  define CU_COMP_NVHPC 1
-#else
-#  define CU_COMP_NVHPC 0
-#endif
-
-#if defined(__OPEN64__) || defined(__OPENCC__)
-#  define CU_COMP_OPEN64 CU_COMPVER_MAKE(__OPENCC__, __OPENCC_MINOR__, 0)
-#else
-#  define CU_COMP_OPEN64 0
-#endif
-
-#ifdef ORA_PROC
-#  define CU_COMP_ORACLE_PRECOMP 1
-#else
-#  define CU_COMP_ORACLE_PRECOMP 0
-#endif
-
-#ifdef __ORANGEC__
-#  define CU_COMP_ORANGE CU_COMPVER_MAKE(__ORANGEC_MAJOR__, __ORANGEC_MINOR__, __ORANGEC_PATCHLEVEL__)
-#else
-#  define CU_COMP_ORANGE 0
-#endif
-
-#ifdef __PACIFIC__
-#  define CU_COMP_PACIFIC 1
-#else
-#  define CU_COMP_PACIFIC 0
-#endif
-
-#ifdef _PACC_VER
-#  define CU_COMP_PALM CU_COMPVER_MAKE(_PACC_VER / 0x100000, (_PACC_VER / 0x1000) % 0x100, _PACC_VER % 0x100)
-#else
-#  define CU_COMP_PALM 0
-#endif
-
-#ifdef __POCC__
-#  define CU_COMP_PELLES CU_COMPVER_MAKE(__POCC__ / 100, __POCC__ % 100, 0)
-#else
-#  define CU_COMP_PELLES 0
-#endif
-
-#ifdef __PGI
-#  define CU_COMP_PGI CU_COMPVER_MAKE(__PGIC__, __PGIC_MINOR__, __PGIC_PATCHLEVEL__)
-#else
-#  define CU_COMP_PGI 0
-#endif
-
-#if (defined(__RENESAS__) || defined(__HITACHI__)) && defined(__HITACHI_VERSION__)
-#  define CU_COMP_RENESAS CU_COMPVER_MAKE(__HITACHI_VERSION__ / 0x100, __HITACHI_VERSION__ % 0x100, 0)
-#elif defined(__RENESAS__) || defined(__HITACHI__)
-#  define CU_COMP_RENESAS CU_COMPVER_MAKE(__RENESAS_VERSION__ / 0x1000000, (__RENESAS_VERSION__ / 0x10000) % 0x100, __RENESAS_VERSION__ / 0x100)
-#else
-#  define CU_COMP_RENESAS 0
-#endif
-
-#if (defined(SASC) || defined(__SASC)) && defined(__SASC__)
-#  define CU_COMP_SASC CU_COMPVER_MAKE(__SASC__ / 100, __SASC__ % 100, 0)
-#elif defined(SASC) || defined(__SASC)
-#  define CU_COMP_SASC CU_COMPVER_MAKE(__VERSION__, __REVISION__, 0)
-#else
-#  define CU_COMP_SASC 0
-#endif
-
-#ifdef _SCO_DS
-#  define CU_COMP_SCO 1
-#else
-#  define CU_COMP_SCO 0
-#endif
-
-#if defined(SDCC) || defined(__SDCC)
-#  define CU_COMP_SDCC CU_COMPVER_MAKE(__SDCC_VERSION_MAJOR, __SDCC_VERSION_MINOR, __SDCC_VERSION_PATCH)
-#else
-#  define CU_COMP_SDCC 0
-#endif
-
-#ifdef __SNC__
-#  define CU_COMP_SNC 1
-#else
-#  define CU_COMP_SNC 0
 #endif
 
 #if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
@@ -531,93 +150,6 @@ extern "C" {
 #  endif
 #else
 #  define CU_COMP_SUNPRO 0
-#endif
-
-#ifdef __SC__
-#  define CU_COMP_SYMTEC CU_COMPVER_MAKE(__SC__ / 0x100, __SC__ % 0x100, 0)
-#else
-#  define CU_COMP_SYMTEC 0
-#endif
-
-#ifdef __TenDRA__
-#  define CU_COMP_TENDRA 1
-#else
-#  define CU_COMP_TENDRA 0
-#endif
-
-#if defined(__TI_COMPILER_VERSION__) && (defined(__TMS470__) || defined(__TI_ARM__) || defined(__MSP430__) || defined(__TMS320C2000__))
-#  define __TIVER __TI_COMPILER_VERSION__
-#  if (__TIVER >= 16000000)
-#    define CU_COMP_TI CU_COMPVER_MAKE(__TIVER / 1000000, (__TIVER % 1000000) / 1000, (__TIVER % 1000))
-#  else
-#    define CU_COMP_TI 1
-#  endif
-#else
-#  define CU_COMP_TI 0
-#endif
-
-#if defined(THINKC3) || defined(THINKC4)
-#  if defined(THINKC4)
-#    define CU_COMP_THINKC 4
-#  else
-#    define CU_COMP_THINKC 3
-#  endif
-#else
-#  define CU_COMP_THINKC 0
-#endif
-
-#ifdef __TINYC__
-#  define CU_COMP_TINYC CU_COMPVER_MAKE(__TINYC__ / 1000, (__TINYC__ / 100) % 10, __TINYC__ % 100)
-#else
-#  define CU_COMP_TINYC 0
-#endif
-
-#ifdef __TURBOC__
-#  define CU_COMP_TURBO CU_COMPVER_MAKE(__TURBOC__ / 0x100, __TURBOC__ % 0x100, 0)
-#else
-#  define CU_COMP_TURBO 0
-#endif
-
-#ifdef _UCC
-#  define CU_COMP_UCC CU_COMPVER_MAKE(_MAJOR_REV, _MINOR_REV, 0)
-#else
-#  define CU_COMP_UCC 0
-#endif
-
-#ifdef __USLC__
-#  define CU_COMP_USLC CU_COMPVER_MAKE(__SCO_VERSION__ / 100000000, (__SCO_VERSION__ / 0x1000000) % 100, 0)
-#else
-#  define CU_COMP_USLC 0
-#endif
-
-#ifdef __VBCC__
-#  define CU_COMP_VBCC 1
-#else
-#  define CU_COMP_VBCC 0
-#endif
-
-#ifdef __VOSC__
-#  define CU_COMP_VOS (__VOSC__ + 1)
-#else
-#  define CU_COMP_VOS 0
-#endif
-
-#ifdef __WATCOMC__
-#  define CU_COMP_WATCOM CU_COMPVER_MAKE(__WATCOMC__ / 100, __WATCOMC__ % 100, 0)
-#else
-#  define CU_COMP_WATCOM 0
-#endif
-
-#ifdef __ZTC__
-#  define CU_COMP_ZORTECH 1
-#else
-#  define CU_COMP_ZORTECH 0
-#endif
-
-#if defined(__SCCZ80) || defined(SCCZ80)
-#  define CU_COMP_Z88DK 1
-#else
-#  define CU_COMP_Z88DK 0
 #endif
 
 #define CU_COMP_GCC CU_COMP_GNU
@@ -636,40 +168,10 @@ extern "C" {
 #  define CU_OS_AIX 0
 #endif
 
-#ifdef aegis
-#  define CU_OS_APOLLO_AEGIS 1
-#else
-#  define CU_OS_APOLLO_AEGIS 0
-#endif
-
 #if defined(AMIGA) || defined(__amigaos__)
 #  define CU_OS_AMIGA 1
 #else
 #  define CU_OS_AMIGA 0
-#endif
-
-#ifdef apollo
-#  define CU_OS_APOLLO_DOMAIN 1
-#else
-#  define CU_OS_APOLLO_DOMAIN 0
-#endif
-
-#ifdef __BEOS__
-#  define CU_OS_BE 1
-#else
-#  define CU_OS_BE 0
-#endif
-
-#if defined(__bg__) || defined(__bgq__) || defined(__THW_BLUEGENE__)
-#  ifdef __bgq__
-#    define CU_OS_BLUEGENE __bgq__
-#  elif defined(__TOS_BGQ__)
-#    define CU_OS_BLUEGENE __TOS_BGQ__
-#  else
-#    define CU_OS_BLUEGENE 1
-#  endif
-#else
-#  define CU_OS_BLUEGENE 0
 #endif
 
 #if defined(BSD) || defined(_SYSTYPE_BSD)
@@ -786,46 +288,10 @@ extern "C" {
 #  define CU_OS_BSD_OPEN 0
 #endif
 
-#ifdef __convex__
-#  define CU_OS_CONVEX 1
-#else
-#  define CU_OS_CONVEX 0
-#endif
-
 #ifdef __CYGWIN__
 #  define CU_OS_CYGWIN 1
 #else
 #  define CU_OS_CYGWIN 0
-#endif
-
-#if defined(__DGUX) || defined(__DGUX__) || defined(__dgux__)
-#  define CU_OS_DGUX 1
-#else
-#  define CU_OS_DGUX 0
-#endif
-
-#if defined(_SEQUENT_) || defined(sequent)
-#  define CU_OS_DYNIX_PTX 1
-#else
-#  define CU_OS_DYNIX_PTX 0
-#endif
-
-#ifdef __ECOS
-#  define CU_OS_ECOS 1
-#else
-#  define CU_OS_ECOS 0
-#endif
-
-#ifdef __EMX__
-#  define CU_OS_EMX 1
-#else
-#  define CU_OS_EMX 0
-#endif
-
-#if defined(__GNU__) || defined(__gnu_hurd__)
-#  define CU_OS_GNU 1
-#else
-#  define CU_OS_GNU 0
 #endif
 
 #ifdef __HAIKU__
@@ -834,52 +300,22 @@ extern "C" {
 #  define CU_OS_HAIKU 0
 #endif
 
-#ifdef __hiuxmpp
-#  define CU_OS_HIUXMPP 1
-#else
-#  define CU_OS_HIUXMPP 0
-#endif
-
 #if defined(_hpux) || defined(hpux) || defined(__hpux)
 #  define CU_OS_HPUX 1
 #else
 #  define CU_OS_HPUX 0
 #endif
 
-#if defined(__OS400__) || defined(__OS400_TGTVRM__)
-#  define CU_OS_IBM400 __OS400_TGTVRM__
+#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) && (defined(__APPLE__) || defined(__MACH__))
+#  define CU_OS_IOS __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ * 1000
 #else
-#  define CU_OS_IBM400 0
-#endif
-
-#ifdef __INTEGRITY
-#  define CU_OS_INTEGRITY 1
-#else
-#  define CU_OS_INTEGRITY 0
-#endif
-
-#ifdef __INTERIX
-#  define CU_OS_INTERIX 1
-#else
-#  define CU_OS_INTERIX 0
-#endif
-
-#if defined(sgi) || defined(__sgi)
-#  define CU_OS_IRIX 1
-#else
-#  define CU_OS_IRIX 0
+#  define CU_OS_IOS 0
 #endif
 
 #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__gnu_linux__)
 #  define CU_OS_LINUX 1
 #else
 #  define CU_OS_LINUX 0
-#endif
-
-#ifdef __Lynx__
-#  define CU_OS_LYNX 1
-#else
-#  define CU_OS_LYNX 0
 #endif
 
 #if defined(macintosh) || defined(Macintosh) || defined(__APPLE__) || defined(__MACH__)
@@ -892,76 +328,10 @@ extern "C" {
 #  define CU_OS_MAC 0
 #endif
 
-#if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) && (defined(__APPLE__) || defined(__MACH__))
-#  define CU_OS_IOS __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ * 1000
+#if defined(__OS400__) || defined(__OS400_TGTVRM__)
+#  define CU_OS_IBM400 1
 #else
-#  define CU_OS_IOS 0
-#endif
-
-#if defined(__OS9000) || defined(_OSK)
-#  define CU_OS_MICROWARE9 1
-#else
-#  define CU_OS_MICROWARE9 0
-#endif
-
-#ifdef __minix
-#  define CU_OS_MINIX 1
-#else
-#  define CU_OS_MINIX 0
-#endif
-
-#ifdef __MORPHOS__
-#  define CU_OS_MORPH 1
-#else
-#  define CU_OS_MORPH 0
-#endif
-
-#if defined(mpeix) || defined(__mpexl)
-#  define CU_OS_MPEIX 1
-#else
-#  define CU_OS_MPEIX 0
-#endif
-
-#if defined(MSDOS) || defined(__MSDOS__) || defined(_MSDOS) || defined(__DOS__)
-#  define CU_OS_MSDOS 1
-#else
-#  define CU_OS_MSDOS 0
-#endif
-
-#ifdef __TANDEM
-#  define CU_OS_NONSTOP 1
-#else
-#  define CU_OS_NONSTOP 0
-#endif
-
-#ifdef __nucleus__
-#  define CU_OS_NUCLEUS 1
-#else
-#  define CU_OS_NUCLEUS 0
-#endif
-
-#if defined(OS2) || defined(_OS2) || defined(__OS2__) || defined(__TOS_OS2__)
-#  define CU_OS_OS2 1
-#else
-#  define CU_OS_OS2 0
-#endif
-
-#if defined(__palmos__)
-#  define CU_OS_PALM 1
-#else
-#  define CU_OS_PALM 0
-#endif
-
-#if defined(EPLAN9)
-#  define CU_OS_PLAN9 1
-#else
-#  define CU_OS_PLAN9 0
-#endif
-
-#if defined(pyr)
-#  define CU_OS_PYRAMIDDC 1
-#else
-#  define CU_OS_PYRAMIDDC 0
+#  define CU_OS_IBM400 0
 #endif
 
 #if defined(__QNX__) || defined(__QNXNTO__) || defined(_NTO_VERSION)
@@ -969,24 +339,6 @@ extern "C" {
 #  define CU_OS_QNX _NTO_VERSION
 #else
 #  define CU_OS_QNX 0
-#endif
-
-#if defined(sinux)
-#  define CU_OS_SINUX 1
-#else
-#  define CU_OS_SINUX 0
-#endif
-
-#if defined(M_I386) || defined(M_XENIX) || defined(_SCO_DS)
-#  define CU_OS_OPENSERVER 1
-#else
-#  define CU_OS_OPENSERVER 0
-#endif
-
-#if defined(__SVR4) || defined(__svr4__) || defined(__sysv__) || defined(_SYSTYPE_SVR4)
-#  define CU_OS_SVR4 1
-#else
-#  define CU_OS_SVR4 0
 #endif
 
 #if defined(sun) || defined(__sun)
@@ -1000,60 +352,6 @@ extern "C" {
 #  define CU_OS_SUN 1
 #endif
 
-#ifdef UTS
-#  define CU_OS_UTS 1
-#else
-#  define CU_OS_UTS 0
-#endif
-
-#ifdef __VOS__
-#  define CU_OS_VOS __VOS__ 1
-#else
-#  define CU_OS_VOS __VOS__ 0
-#endif
-
-#ifdef __CUOS__
-#  define CU_OS_CUOS 1
-#endif
-
-#ifdef __SYLLABLE__
-#  define CU_OS_SYLLABLE 1
-#else
-#  define CU_OS_SYLLABLE 0
-#endif
-
-#ifdef __SYMBIAN32__
-#  define CU_OS_SYMBIAN 1
-#  define CU_OS_32BIT 1
-#else
-#  define CU_OS_SYMBIAN 0
-#endif
-
-#if defined(__osf__) || defined(__osf)
-#  define CU_OS_OSF 1
-#  define CU_OS_64BIT 1
-#else
-#  define CU_OS_OSF 0
-#endif
-
-#if defined(ultrix) || defined(__ultrix) || defined(__ultrix__) || (defined(unix) && defined(vax))
-#  define CU_OS_ULTRIX 1
-#else
-#  define CU_OS_ULTRIX 0
-#endif
-
-#if defined(_CRAY) || defined(__crayx1)
-#  define CU_OS_UNICOSMP 1
-#else
-#  define CU_OS_UNICOSMP 0
-#endif
-
-#if defined(_UNICOS) || CU_OS_UNICOSMP
-#  define CU_OS_UNICOS _UNICOS
-#else
-#  define CU_OS_UNICOS 0
-#endif
-
 #if defined(__unix__) || defined(__unix) || defined(unix) || \
     defined(_POSIX_SOURCE) || defined(_XOPEN_SOURCE) || CU_OS_MAC
 #  define CU_OS_UNIX 1
@@ -1064,41 +362,10 @@ extern "C" {
 #  define CU_OS_UNIX 0
 #endif
 
-#if defined(sco) || defined(_UNIXWARE7)
-#  define CU_OS_UNIXWARE 1
-#else
-#  define CU_OS_UNIXWARE 0
-#endif
-
-#if defined(_UWIN)
-#  define CU_OS_UWIN 1
-#else
-#  define CU_OS_UWIN 0
-#endif
-
 #if defined(VMS) || defined(__VMS) || defined(__VMS_VER)
 #  define CU_OS_VMS __VMS_VER
 #else
 #  define CU_OS_VMS 0
-#endif
-
-#if defined(__VXWORKS__) || defined(__vxworks) || defined(_WRS_VXWORKS_MAJOR)
-#  include <version.h>
-#  define CU_OS_VXWORKS ((_WRS_VXWORKS_MAJOR - 0) * 100) + ((_WRS_VXWORKS_MINOR - 0) * 10) + (_WRS_VXWORKS_MAINT - 0)
-#  ifdef __RTP__
-#    define CU_OS_VXWORKS_REALTIME 1
-#  else
-#    define CU_OS_VXWORKS_REALTIME 0
-#  endif
-#  ifdef _WRS_KERNEL
-#    define CU_OS_VXWORKS_KERNEL 1
-#  else
-#    define CU_OS_VXWORKS_KERNEL 0
-#  endif
-#else
-#  define CU_OS_VXWORKS 0
-#  define CU_OS_VXWORKS_REALTIME 0
-#  define CU_OS_VXWORKS_KERNEL 0
 #endif
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(__TOS_WIN__) || \
@@ -1118,25 +385,6 @@ extern "C" {
 #  define CU_OS_WINDOWS 0
 #  define CU_OS_WIN64 0
 #  define CU_OS_WIN32 0
-#endif
-
-#if defined(_WIN32_WCE) || defined(__SCITECH_SNAP__)
-#  define CU_OS_WINCE 1
-#  define CU_OS_32BIT 1
-#else
-#  define CU_OS_WINCE 0
-#endif
-
-#ifdef _WINDU_SOURCE
-#  define CU_OS_WINDU _WINDU_SOURCE
-#else
-#  define CU_OS_WINDU 0
-#endif
-
-#if defined(__MVS__) || defined(__HOS_MVS__) || defined(__TOS_MVS__)
-#  define CU_OS_ZOS 1
-#else
-#  define CU_OS_ZOS 0
 #endif
 
 #ifndef CU_OS_64BIT
@@ -1160,12 +408,6 @@ extern "C" {
 #  endif
 #else
 #  define CU_ARCH_ALPHA 0
-#endif
-
-#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) \
-    || defined(__x86_64) || defined(_M_X64) || defined(_M_AMD64)
-#  define CU_ARCH_AMD 1
-#  define CU_ARCH_64BIT 1
 #endif
 
 #if defined(__ARM_ARCH) || defined(__TARGET_ARCH_ARM) || defined(__TARGET_ARCH_THUMB) || \
@@ -1213,30 +455,6 @@ extern "C" {
 #  define CU_ARCH_ARM_AARCH64 0
 #endif
 
-#if defined(__bfin__) || defined(__BFIN__) || defined(bfin) || defined(BFIN) || defined(__ADSPBLACKFIN__) || defined(__bfin)
-#  define CU_ARCH_BLACKFIN 1
-#else
-#  define CU_ARCH_BLACKFIN 0
-#endif
-
-#ifdef __convex__
-#  ifdef __convex_c1__
-#    define CU_ARCH_CONVEX 100
-#  elif defined(__convex_c2_)
-#    define CU_ARCH_CONVEX 200
-#  elif defined(__convex_c32_)
-#    define CU_ARCH_CONVEX 320
-#  elif defined(__convex_c34_)
-#    define CU_ARCH_CONVEX 340
-#  elif defined(__convex_c38_)
-#    define CU_ARCH_CONVEX 380
-#  else
-#    define CU_ARCH_CONVEX 1
-#  endif
-#else
-#  define CU_ARCH_CONVEX 0
-#endif
-
 #if defined(__e2k__) || defined(__iset__)
 #  ifdef __elbrus_16c__
 #    define CU_ARCH_E2K 1600
@@ -1253,26 +471,6 @@ extern "C" {
 #  define CU_ARCH_E2K 0
 #endif
 
-#ifdef __epiphany__
-#  define CU_ARCH_EPIP 1
-#else
-#  define CU_ARCH_EPIP 0
-#endif
-
-#if defined(__hppa__) || defined(__hppa) || defined(__HPPA__)
-#  if defined(__PA8000__) || defined(__HPPA20__) || defined(__RISC2_0__) || defined(_PA_RISC2_0)
-#    define CU_ARCH_HPPA_RISC 200
-#  elif defined(__PA7100__) || defined(__HPPA11__) || defined(_PA_RISC1_1)
-#    define CU_ARCH_HPPA_RISC 110
-#  elif defined(_PA_RISC1_0)
-#    define CU_ARCH_HPPA_RISC 100
-#  else
-#    define CU_ARCH_HPPA_RISC 1
-#  endif
-#else
-#  define CU_ARCH_HPPA_RISC 0
-#endif
-
 #if defined(__ia64__) || defined(_IA64) || defined(__IA64__) || defined(__ia64) || defined(_M_IA64) || defined(__itanium__)
 #  define CU_ARCH_IA64 1
 #  ifndef CU_ARCH_64BIT
@@ -1280,47 +478,6 @@ extern "C" {
 #  endif
 #else
 #  define CU_ARCH_IA64 0
-#endif
-
-#if defined(__8080__) || defined(__8085__) || defined(__Z80) || defined(__Z180)
-#  ifdef __Z180
-#    define CU_ARCH_X80 1180
-#  elif defined(__Z80)
-#    define CU_ARCH_X80 180
-#  elif defined(__8085__) && defined(__8080__)
-#    define CU_ARCH_X80 85
-#  else
-#    define CU_ARCH_X80 80
-#  endif
-#else
-#  define CU_ARCH_X80 0
-#endif
-
-#if defined(__x86_64) || defined(__x86_64__) || defined(_M_X64)
-#  define CU_ARCH_X86 700
-#  ifndef CU_ARCH_64BIT
-#    define CU_ARCH_64BIT 1
-#  endif
-#elif defined(i386) || defined(__i386__) || defined(__i386) || \
-    defined(__i486__) || defined(__i586__) || defined(__i686__) || \
-    defined(_M_IX86) || defined(_X86_) || defined(__THW_INTEL__) || \
-    defined(__I86__) || defined(__INTEL__)
-#  ifdef _M_IX86
-#    define CU_ARCH_X86 _M_IX86
-#  elif defined(__i686__) || defined(__I86__)
-#    define CU_ARCH_X86 600
-#  elif defined(__i586__)
-#    define CU_ARCH_X86 500
-#  elif defined(__i486__)
-#    define CU_ARCH_X86 400
-#  elif defined(__i386__)
-#    define CU_ARCH_X86 300
-#  else
-#    define CU_ARCH_X86 1
-#  endif
-#  define CU_ARCH_32BIT 1
-#else
-#  define CU_ARCH_X86 0
 #endif
 
 #if defined(__loongarch__) || defined(__loongarch_arch) || defined(__loongarch_tune)
@@ -1333,29 +490,6 @@ extern "C" {
 #  endif
 #else
 #  define CU_ARCH_LOONGARCH 0
-#endif
-
-#if defined(__m68k__) || defined(M68000) || defined(__MC68K__)
-#  if defined(__mc68060__) || defined(__mc68060) || defined(mc68060)
-#    define CU_ARCH_M68K 68060
-#  elif defined(__mc68040__) || defined(__mc68040) || defined(mc68040)
-#    define CU_ARCH_M68K 68040
-#  elif defined(__mc68030__) || defined(__mc68030) || defined(mc68030)
-#    define CU_ARCH_M68K 68030
-#  elif defined(__mc68020__) || defined(__mc68020) || defined(mc68020)
-#    define CU_ARCH_M68K 68020
-#  elif defined(__mc68010__) || defined(__mc68010) || defined(mc68010)
-#    define CU_ARCH_M68K 68010
-#  elif defined(__mc68000__) || defined(__mc68000) || defined(mc68000)
-#    define CU_ARCH_M68K 68000
-#  else
-#    define CU_ARCH_M68K 1
-#  endif
-#  ifndef CU_ARCH_32BIT
-#    define CU_ARCH_32BIT 1
-#  endif
-#else
-#  define CU_ARCH_M68K 0
 #endif
 
 #if defined(__mips__) || defined(__mips) || defined(__MIPS__)
@@ -1372,18 +506,6 @@ extern "C" {
 #  endif
 #else
 #  define CU_ARCH_MIPS 0
-#endif
-
-#if defined(__ve__) || defined(__ve) || defined(__NEC__)
-#  define CU_ARCH_NECSX 1
-#else
-#  define CU_ARCH_NECSX 0
-#endif
-
-#ifdef __pnacl__
-#  define CU_ARCH_PNACL 1
-#else
-#  define CU_ARCH_PNACL 0
 #endif
 
 #if defined(__powerpc) || defined(__powerpc__) || defined(__powerpc64__) || \
@@ -1417,12 +539,6 @@ extern "C" {
 #  define CU_ARCH_PTX 0
 #endif
 
-#ifdef pyr
-#  define CU_ARCH_PYRAMID 1
-#else
-#  define CU_ARCH_PYRAMID 0
-#endif
-
 #if defined(__riscv) || defined(__riscv_32) || defined(__riscv_64)
 #  if defined(__riscv_64) && !defined(CU_ARCH_64BIT)
 #    define CU_ARCH_64BIT 1
@@ -1432,13 +548,6 @@ extern "C" {
 #  define CU_ARCH_RISCV 1
 #else
 #  define CU_ARCH_RISCV 0
-#endif
-
-#if defined(__THW_RS6000) || defined(_IBMR2) || defined(_POWER) || \
-    defined(_ARCH_PWR) || defined(_ARCH_PWR2) || defined(_ARCH_PWR3) || defined(_ARCH_PWR4)
-#  define CU_ARCH_RS6000 1
-#else
-#  define CU_ARCH_RS6000 0
 #endif
 
 #if defined(__sparc__) || defined(__sparc)
@@ -1471,22 +580,37 @@ extern "C" {
 #  define CU_ARCH_SH 0
 #endif
 
-#if defined(_TMS320C2XX) || defined(__TMS320C2000__) || \
-    defined(_TMS320C5X) || defined(__TMS320C55X__) || \
-    defined(_TMS320C6X) || defined(__TMS320C6X__)
-#  define CU_ARCH_TMS320 1
+#if defined(__x86_64) || defined(__x86_64__) || defined(_M_X64)
+#  define CU_ARCH_X86 700
+#  ifndef CU_ARCH_64BIT
+#    define CU_ARCH_64BIT 1
+#  endif
+#elif defined(i386) || defined(__i386__) || defined(__i386) || \
+    defined(__i486__) || defined(__i586__) || defined(__i686__) || \
+    defined(_M_IX86) || defined(_X86_) || defined(__THW_INTEL__) || \
+    defined(__I86__) || defined(__INTEL__)
+#  ifdef _M_IX86
+#    define CU_ARCH_X86 _M_IX86
+#  elif defined(__i686__) || defined(__I86__)
+#    define CU_ARCH_X86 600
+#  elif defined(__i586__)
+#    define CU_ARCH_X86 500
+#  elif defined(__i486__)
+#    define CU_ARCH_X86 400
+#  elif defined(__i386__)
+#    define CU_ARCH_X86 300
+#  else
+#    define CU_ARCH_X86 1
+#  endif
+#  define CU_ARCH_32BIT 1
 #else
-#  define CU_ARCH_TMS320 0
+#  define CU_ARCH_X86 0
 #endif
 
-#if defined(__370__) || defined(__THW_370__) || defined(__s390__)
-#  ifdef __s390__
-#    define CU_ARCH_SYSZ 390
-#  else
-#    define CU_ARCH_SYSZ 370
-#  endif
+#ifdef __SYSC_ZARCH__
+#  define CU_ARCH_Z 1
 #else
-#  define CU_ARCH_SYSZ 0
+#  define CU_ARCH_Z 0
 #endif
 
 #ifndef CU_ARCH_64BIT
@@ -1516,6 +640,21 @@ extern "C" {
 #  define CU_PLAT_IOS 1
 #else
 #  define CU_PLAT_IOS 0
+#endif
+
+#if defined (__MINGW32__) || defined (__MINGW64__)
+#  define CU_PLAT_MINGW 1
+#  ifdef __MINGW64__
+#    define CU_PLAT_MINGW64 CU_COMPVER_MAKE(__MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, 0)
+#    define CU_PLAT_MINGW32 0
+#  else
+#    define CU_PLAT_MINGW64 0
+#    define CU_PLAT_MINGW32 CU_COMPVER_MAKE(__MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, 0)
+#  endif
+#else
+#  define CU_PLAT_MINGW 0
+#  define CU_PLAT_MINGW32 0
+#  define CU_PLAT_MINGW64 0
 #endif
 
 #ifdef WINAPI_FAMILY
@@ -1603,12 +742,10 @@ extern "C" {
 #  define CU_TYPEOF_AVAILABLE 0
 #endif
 
-#if CU_COMP_MSVC || (CU_COMP_DMC && CU_ARCH_X86)
+#if CU_COMP_MSVC
 #  define CU_ASM __asm
-#elif CU_COMP_GNU && !CU_COMP_CHIBICC
-#  define CU_ASM __asm__
 #else
-#  define CU_ASM asm
+#  define CU_ASM __asm__
 #endif
 
 #ifdef __STDC_THREADS__
@@ -1654,7 +791,7 @@ extern "C" {
 #  define CU_HAS_INCLUDE_NEXT_AVAILABLE 0
 #endif
 
-#if defined(__has_attribute) && !CU_COMPVERP(IAR, 8, 5, 9)
+#if defined(__has_attribute)
 #  define CU_HAS_ATTRIBUTE(attrib) __has_attribute(attrib)
 #  define CU_HAS_ATTRIBUTE_AVAILABLE 1
 #else
@@ -1752,12 +889,7 @@ extern "C" {
 #  define CU_PRAGMA_AVAILABLE 1
 #elif CU_COMPVER(GNU, 3, 0) || \
       CU_COMPVER(INTEL, 13, 0) || \
-      CU_COMPVER(IAR, 8, 0) || \
-      CU_COMPVER(PGI, 18, 4) || \
       CU_COMPVER(ARM, 4, 1) || \
-      CU_COMPVER(TI, 15, 12) || \
-      CU_COMPVER(CRAY, 5, 0) || \
-      CU_COMPVERP(TINYC, 0, 9, 17) || \
       CU_COMPVER(SUNPRO, 8, 0) || \
       (CU_COMPVER(IBM, 10, 1) && defined(__C99_PRAGMA_OPERATOR))
 #  define CU_PRAGMA(arg) _Pragma(#arg)
@@ -1771,7 +903,7 @@ extern "C" {
 
 #if CU_HAS_INCLUDE(<endian.h>)
 #  include <endian.h>
-#elif CU_HAS_INCLUDE(<sys/param.h>) && !CU_ARCH_M68K
+#elif CU_HAS_INCLUDE(<sys/param.h>)
 #  include <sys/param.h>
 #endif
 
@@ -1828,9 +960,7 @@ extern "C" {
 #elif CU_COMP_GNU || CU_COMPVER(ARM, 6, 2)
 #  define CU_INLINE __inline__
 #  define CU_INLINE_AVAILABLE 1
-#elif CU_COMPVER(MSVC, 12, 0) || \
-      CU_COMPVER(ARM, 4, 1) || \
-      CU_COMPVERP(MCST, 1, 25, 10)
+#elif CU_COMPVER(MSVC, 12, 0) || CU_COMPVER(ARM, 4, 1)
 #  define CU_INLINE __inline
 #  define CU_INLINE_AVAILABLE 1
 #else
@@ -1846,9 +976,6 @@ extern "C" {
       CU_COMPVER(INTEL, 13, 0) || \
       CU_COMPVER(ARM, 4, 1) || \
       CU_COMPVER(IBM, 10, 1) || \
-      CU_COMPVER(PGI, 17, 10) || \
-      CU_COMPVER(IAR, 8, 0) || \
-      CU_COMPVERP(MCST, 1, 25, 10) || \
       defined(__clang__)
 #  define CU_RESTRICT __restrict
 #  define CU_RESTRICT_AVAILABLE 1
@@ -1927,7 +1054,7 @@ extern "C" {
 
 /* ========================= Attributes ======================== */
 
-#if CU_COMPVER(GNU, 2, 5) || defined(__TI_GNU_ATTRIBUTE_SUPPORT__)
+#if CU_COMPVER(GNU, 2, 5)
 #  define CU_EXT_ATTRIBS 1
 #  if CU_COMPVER(GNU, 11, 1)
 #    define CU_ATTRIB_MALLOC_FULL(dealloc_func, dealloc_ind) __attribute__ ((__malloc__(dealloc_func, dealloc_ind)))
@@ -1954,11 +1081,7 @@ extern "C" {
 #  define CU_ATTRIB_FORMAT(fmt) __attribute__ ((__format__ fmt))
 #  define CU_ATTRIB_MALLOC __attribute__ ((__malloc__))
 #  define CU_ATTRIB_NOREORDER __attribute__ ((__noreorder__))
-#  if !CU_COMP_TI
-#    define CU_ATTRIB_NONNULL(inds) __attribute__ ((__nonnull__ inds))
-#  else
-#    define CU_ATTRIB_NONNULL(inds)
-#  endif
+#  define CU_ATTRIB_NONNULL(inds) __attribute__ ((__nonnull__ inds))
 #  define CU_ATTRIB_UNUSED __attribute__ ((__unused__))
 #  define CU_ATTRIB_USED __attribute__ ((__used__))
 #else
@@ -1982,28 +1105,17 @@ extern "C" {
 #if CU_COMPVER(MSVC, 14, 0)
 #  define CU_DEPRECATED(msg) __declspec(deprecated(msg))
 #  define CU_DEPRECATED_AVAILABLE 1
-#elif CU_COMPVER(MSVC, 13, 10) || CU_COMPVER(PELLES, 6, 50)
+#elif CU_COMPVER(MSVC, 13, 10)
 #  define CU_DEPRECATED(msg) __declspec(deprecated)
 #  define CU_DEPRECATED_AVAILABLE 1
-#elif (CU_HAS_EXTENSION(attribute_deprecated_with_message) && !CU_COMP_IAR) || \
+#elif CU_HAS_EXTENSION(attribute_deprecated_with_message) || \
        CU_COMPVER(GNU, 4, 5) || \
        CU_COMPVER(INTEL, 13, 0) || \
        CU_COMPVER(ARM, 5, 6) || \
-       CU_COMPVER(SUNPRO, 5, 13) || \
-       CU_COMPVER(PGI, 17, 10) || \
-       CU_COMPVER(TI, 18, 1) || \
-       CU_COMPVERP(MCST, 1, 25, 10)
+       CU_COMPVER(SUNPRO, 5, 13)
 #  define CU_DEPRECATED(msg) __attribute__((__deprecated__(msg)))
 #  define CU_DEPRECATED_AVAILABLE 1
-#elif CU_COMPVER(IAR, 8, 0)
-#  define CU_DEPRECATED(msg) _Pragma("deprecated")
-#  define CU_DEPRECATED_AVAILABLE 1
-#elif CU_HAS_ATTRIBUTE(deprecated) || \
-      CU_COMPVER(GNU, 3, 1) || \
-      CU_COMPVER(ARM, 4, 1) || \
-      CU_COMPVER(TI, 15, 12) || \
-      CU_COMPVERP(MCST, 1, 25, 10) || \
-      CU_COMPVER(IAR, 8, 10)
+#elif CU_HAS_ATTRIBUTE(deprecated) || CU_COMPVER(GNU, 3, 1) || CU_COMPVER(ARM, 4, 1)
 #  define CU_DEPRECATED(msg) __attribute__((__deprecated__))
 #  define CU_DEPRECATED_AVAILABLE 1
 #else
@@ -2011,12 +1123,7 @@ extern "C" {
 #  define CU_DEPRECATED_AVAILABLE 0
 #endif
 
-#if CU_HAS_ATTRIBUTE(warn_unused_result) || \
-    CU_COMPVER(GNU, 3, 4) || \
-    CU_COMPVER(INTEL, 13, 0) || \
-    CU_COMPVER(TI, 15, 12) || \
-    CU_COMPVER(PGI, 17, 10) || \
-    CU_COMPVERP(MCST, 1, 25, 10)
+#if CU_HAS_ATTRIBUTE(warn_unused_result) || CU_COMPVER(GNU, 3, 4) ||  CU_COMPVER(INTEL, 13, 0) 
 #  define CU_ATTRIB_WARN_UNUSED_RESULT __attribute__((__warn_unused_result__))
 #elif defined(_Check_return_)
 #  define CU_ATTRIB_WARN_UNUSED_RESULT _Check_return_
@@ -2024,26 +1131,19 @@ extern "C" {
 #  define CU_ATTRIB_WARN_UNUSED_RESULT
 #endif
 
-#if CU_COMPVER(IAR, 8, 0)
-#  define CU_ATTRIB_NORETURN __noreturn
-#elif CU_COMPVER(INTEL, 13, 0) || CU_COMPVERP(MCST, 1, 25, 10)
-#  define CU_ATTRIB_NORETURN __attribute__((__noreturn__))
-#elif CU_LANG_C >= CU_LANG_C11
+#if CU_LANG_C >= CU_LANG_C11
 #  define CU_ATTRIB_NORETURN _Noreturn
 #elif CU_HAS_ATTRIBUTE(noreturn) || \
       CU_COMPVER(GNU, 3, 2) || \
       CU_COMPVER(SUNPRO, 5, 11) || \
+      CU_COMPVER(INTEL, 13, 0) || \
       CU_COMPVER(ARM, 4, 1) || \
-      CU_COMPVER(IBM, 10, 1) || \
-      CU_COMPVER(TI, 15, 12) || \
-      CU_COMPVER(IAR, 8, 10)
+      CU_COMPVER(IBM, 10, 1)
 #  define CU_ATTRIB_NORETURN __attribute__((__noreturn__))
 #elif CU_COMPVER(SUNPRO, 5, 10)
 #  define CU_ATTRIB_NORETURN _Pragma("does_not_return")
-#elif CU_COMPVER(MSVC, 13, 10) || CU_COMPVER(PELLES, 9, 0)
+#elif CU_COMPVER(MSVC, 13, 10)
 #  define CU_ATTRIB_NORETURN __declspec(noreturn)
-#elif CU_COMPVER(COMPCERT, 3, 2)
-#  define CU_ATTRIB_NORETURN __attribute((noreturn))
 #else
 #  define CU_ATTRIB_NORETURN
 #endif
@@ -2053,10 +1153,7 @@ extern "C" {
     CU_COMPVER(INTEL, 13, 0) || \
     CU_COMPVER(SUNPRO, 5, 11) || \
     CU_COMPVER(ARM, 4, 1) || \
-    CU_COMPVER(IBM, 10, 1) || \
-    CU_COMPVER(TI, 15, 12) || \
-    CU_COMPVER(PGI, 17, 10) || \
-    CU_COMPVERP(MCST, 1, 25, 10)
+    CU_COMPVER(IBM, 10, 1)
 #  define CU_ATTRIB_PURE __attribute__((__pure__))
 #elif CU_COMPVER(SUNPRO, 5, 10)
 #  define CU_ATTRIB_PURE _Pragma("does_not_write_global_data")
@@ -2069,10 +1166,7 @@ extern "C" {
     CU_COMPVER(INTEL, 13, 0) || \
     CU_COMPVER(SUNPRO, 5, 11) || \
     CU_COMPVER(ARM, 4, 1) || \
-    CU_COMPVER(IBM, 10, 1) || \
-    CU_COMPVER(TI, 15, 12) || \
-    CU_COMPVER(PGI, 17, 10) || \
-    CU_COMPVERP(MCST, 1, 25, 10)
+    CU_COMPVER(IBM, 10, 1)
 #  define CU_ATTRIB_CONST __attribute__((__const__))
 #elif CU_COMPVER(SUNPRO, 5, 10)
 #  define CU_ATTRIB_CONST _Pragma("no_side_effect")
@@ -2085,15 +1179,10 @@ extern "C" {
     CU_COMPVER(INTEL, 13, 0) || \
     CU_COMPVER(SUNPRO, 5, 11) || \
     CU_COMPVER(ARM, 4, 1) || \
-    CU_COMPVER(IBM, 10, 1) || \
-    CU_COMPVER(TI, 15, 12) || \
-    CU_COMPVERP(MCST, 1, 25, 10) || \
-    CU_COMPVER(IAR, 8, 10)
+    CU_COMPVER(IBM, 10, 1)
 #  define CU_ATTRIB_ALWAYSINLINE __attribute__((__always_inline__)) CU_INLINE
 #elif CU_COMPVER(MSVC, 12, 0)
 #  define CU_ATTRIB_ALWAYSINLINE __forceinline
-#elif CU_COMPVER(IAR, 8, 0)
-#  define CU_ATTRIB_ALWAYSINLINE _Pragma("inline=forced")
 #else
 #  define CU_ATTRIB_ALWAYSINLINE CU_INLINE
 #endif
@@ -2103,22 +1192,15 @@ extern "C" {
     CU_COMPVER(INTEL, 13, 0) || \
     CU_COMPVER(SUNPRO, 5, 11) || \
     CU_COMPVER(ARM, 4, 1) || \
-    CU_COMPVER(IBM, 10, 1) || \
-    CU_COMPVER(TI, 15, 12) || \
-    CU_COMPVERP(MCST, 1, 25, 10) || \
-    CU_COMPVER(IAR, 8, 10)
+    CU_COMPVER(IBM, 10, 1)
 #  define CU_ATTRIB_NEVERINLINE __attribute__((__noinline__))
-#elif CU_COMPVER(MSVC, 13, 0) || CU_COMPVER(PELLES, 9, 0)
+#elif CU_COMPVER(MSVC, 13, 0)
 #  define CU_ATTRIB_NEVERINLINE __declspec(noinline)
-#elif CU_COMPVER(PGI, 10, 2)
-#  define CU_ATTRIB_NEVERINLINE _Pragma("noinline")
-#elif CU_COMPVER(COMPCERT, 3, 2)
-#  define CU_ATTRIB_NEVERINLINE __attribute((noinline))
 #else
 #  define CU_ATTRIB_NEVERINLINE
 #endif
 
-#if CU_HAS_ATTRIBUTE(nothrow) || CU_COMPVER(GNU, 3, 3) || CU_COMPVER(INTEL, 13, 0) || CU_COMPVERP(MCST, 1, 25, 10)
+#if CU_HAS_ATTRIBUTE(nothrow) || CU_COMPVER(GNU, 3, 3) || CU_COMPVER(INTEL, 13, 0)
 #  define CU_ATTRIB_NOTHROW __attribute__((__nothrow__))
 #elif CU_COMPVER(MSVC, 13, 1) || CU_COMPVER(ARM, 4, 1)
 #  define CU_ATTRIB_NOTHROW /* __declspec(nothrow) */
@@ -2126,7 +1208,7 @@ extern "C" {
 #  define CU_ATTRIB_NOTHROW
 #endif
 
-#if CU_HAS_ATTRIBUTE(returns_nonnull) || CU_COMPVER(GNU, 4, 9) || CU_COMPVERP(MCST, 1, 25, 10)
+#if CU_HAS_ATTRIBUTE(returns_nonnull) || CU_COMPVER(GNU, 4, 9)
 #  define CU_ATTRIB_RETURNS_NONNULL __attribute__((__returns_nonnull__))
 #elif defined(_Ret_notnull_)
 #  define CU_ATTRIB_RETURNS_NONNULL _Ret_notnull_
@@ -2143,8 +1225,7 @@ extern "C" {
       CU_COMPVER(SUNPRO, 5, 11) || \
       CU_COMPVER(INTEL, 13, 0) || \
       CU_COMPVER(ARM, 4, 1) || \
-      CU_COMPVER(IBM, 13, 1) || \
-      CU_COMPVERP(MCST, 1, 25, 10)
+      CU_COMPVER(IBM, 13, 1)
 #  define CU_VISIBILITY_PRIVATE __attribute__((__visibility__("hidden")))
 #  define CU_VISIBILITY_PUBLIC __attribute__((__visibility__("default")))
 #  define CU_VISIBILITY_IMPORT extern
@@ -2156,7 +1237,7 @@ extern "C" {
 
 #define CU_API
 
-#if CU_COMPVER(CLANG, 12, 0) || CU_COMPVER(GNU, 7, 0) || (CU_HAS_ATTRIBUTE(__fallthrough__) && !CU_COMP_CLANG) || CU_COMPVERP(MCST, 1, 25, 10)
+#if CU_COMPVER(CLANG, 12, 0) || CU_COMPVER(GNU, 7, 0) || (CU_HAS_ATTRIBUTE(__fallthrough__) && !CU_COMP_CLANG)
 #  define CU_FALLTHROUGH  ((void)(0)); __attribute__ ((__fallthrough__));
 #  define CU_FALLTHROUGH_AVAILABLE 1
 #elif defined(__fallthrough)
@@ -2194,18 +1275,10 @@ extern "C" {
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("clang diagnostic ignored \"-Wunknown-pragmas\"")
 #elif CU_COMPVER(INTEL, 13, 0)
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("warning(disable:161)")
-#elif CU_COMPVER(PGI, 17, 10)
-#  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("diag_suppress 1675")
 #elif CU_COMPVER(GNU, 4, 3)
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("GCC diagnostic ignored \"-Wunknown-pragmas\"")
 #elif CU_COMPVER(MSVC, 15, 0)
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS __pragma(warning(disable:4068))
-#elif CU_COMPVER(TI, 16, 9)
-#  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("diag_suppress 163")
-#elif CU_COMPVER(IAR, 8, 0)
-#  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("diag_suppress=Pe161")
-#elif CU_COMPVERP(MCST, 1, 25, 10)
-#  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("diag_suppress 161")
 #else
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
 #endif
@@ -2230,14 +1303,6 @@ extern "C" {
 #  define CU_DIAGNOSTICS_PUSH _Pragma("push")
 #  define CU_DIAGNOSTICS_POP _Pragma("pop")
 #  define CU_DIAGNOSTICS_AVAILABLE 1
-#elif CU_COMPVER(TI, 15, 12)
-#  define CU_DIAGNOSTICS_PUSH _Pragma("diag_push")
-#  define CU_DIAGNOSTICS_POP _Pragma("diag_pop")
-#  define CU_DIAGNOSTICS_AVAILABLE 1
-#elif CU_COMPVER(PELLES, 2, 90)
-#  define CU_DIAGNOSTICS_PUSH _Pragma("warning(push)")
-#  define CU_DIAGNOSTICS_POP _Pragma("warning(pop)")
-#  define CU_DIAGNOSTICS_AVAILABLE 1
 #else
 #  define CU_DIAGNOSTICS_PUSH
 #  define CU_DIAGNOSTICS_POP
@@ -2252,10 +1317,6 @@ CU_PRAGMA(message msg) \
 CU_DIAGNOSTICS_POP
 #elif CU_COMPVER(GNU, 4, 4) || CU_COMPVER(INTEL, 13, 0)
 #  define CU_MESSAGE(msg) CU_PRAGMA(message msg)
-#elif CU_COMPVER(CRAY, 5, 0)
-#  define CU_MESSAGE(msg) CU_PRAGMA(_CRI message msg)
-#elif CU_COMPVER(IAR, 8, 0) || CU_COMPVER(PELLES, 2, 0)
-#  define CU_MESSAGE(msg) CU_PRAGMA(message(msg))
 #else
 #  define CU_MESSAGE(msg)
 #endif
@@ -2266,7 +1327,7 @@ CU_DIAGNOSTICS_PUSH \
 CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
 CU_PRAGMA(GCC warning msg) \
 CU_DIAGNOSTICS_POP
-#elif CU_COMPVER(GNU, 4, 8) || CU_COMPVER(PGI, 18, 4) || CU_COMPVER(INTEL, 13, 0)
+#elif CU_COMPVER(GNU, 4, 8) || CU_COMPVER(INTEL, 13, 0)
 #  define CU_WARNING(msg) CU_PRAGMA(GCC warning msg)
 #elif CU_COMPVER(MSVC, 15, 0)
 #  define CU_WARNING(msg) CU_PRAGMA(message(msg))
@@ -2364,7 +1425,7 @@ CU_ATTRIB_USED CU_ATTRIB_NORETURN static void __cu_trap(void) { while (1) *(vola
 CU_DIAGNOSTICS_IGNORE_1(clang, "-Wpre-c11-compat") \
 static_assert(cond, msg); \
 CU_DIAGNOSTICS_IGNORE_END
-#elif CU_LANG_C >= CU_LANG_C11 && !CU_COMP_CHIBICC
+#elif CU_LANG_C >= CU_LANG_C11
 #  define CU_STATIC_ASSERT(cond, msg) \
 CU_DIAGNOSTICS_IGNORE_1(clang, "-Wpre-c11-compat") \
 _Static_assert(cond, msg); \
@@ -2431,7 +1492,7 @@ static void __cu_assert_fail(int line, const char *func, const char *file, const
 #  define CU_DM_32BIT 1
 #endif
 
-#if CU_DM_LLP64 || CU_COMP_MSVC || CU_COMP_MINGW || CU_ARCH_M68K || CU_ARCH_MIPS
+#if CU_DM_LLP64 || CU_COMP_MSVC || CU_PLAT_MINGW || CU_ARCH_MIPS
 #  define CU_DM_LONGSUF ll
 #  define CU_DM_LL 1
 #else
@@ -2483,11 +1544,6 @@ typedef unsigned short u16;
    typedef __int64 i64;
    typedef unsigned __int32 u32;
    typedef unsigned __int64 u64;
-#elif CU_COMP_CC65
-   typedef signed long int i32;
-   typedef signed long int i64;
-   typedef unsigned long int u32;
-   typedef unsigned long int u64;
 #elif CU_DM_LLP64
    typedef signed int i32;
    typedef signed long long int i64;
@@ -2513,7 +1569,7 @@ typedef unsigned short u16;
 typedef i64 imax;
 typedef u64 umax;
 
-#if CU_DM_LL || defined(CU_LLONG_64BIT)
+#if CU_DM_LL
 #  define CU_U64_C(a) a ## ULL
 #  define CU_I64_C(a) a ## LL
 #  define CU_U64_FMT "llu"
@@ -2579,26 +1635,16 @@ typedef u64 umax;
 #  define CU_INT128_AVAILABLE 0
 #endif
 
-#if CU_LANG_C >= CU_LANG_C23 && !CU_COMP_MRISC && defined(__STDC_IEC_60559_DFP__)
+#if CU_LANG_C >= CU_LANG_C23 && defined(__STDC_IEC_60559_DFP__)
    typedef _Decimal32 real32;
    typedef _Decimal64 real64;
    typedef _Decimal128 real128;
 #  define CU_DECIMAL128_AVAILABLE 1
-#elif CU_COMP_SDCC
-   typedef float real32;
-   typedef float real64;
-   typedef float real128;
-#  define CU_DECIMAL128_AVAILABLE 0
-#elif CU_COMP_CC65
-   typedef float real32;
-   typedef double real64;
-   typedef double real128;
-#  define CU_DECIMAL128_AVAILABLE 0
 #else
    typedef float real32;
    typedef double real64;
    typedef long double real128;
-#  if CU_DM_64BIT && (CU_OS_HPUX || CU_ARCH_SPARC || CU_ARCH_MIPS || CU_ARCH_ARM || CU_OS_ZOS)
+#  if CU_DM_64BIT && (CU_OS_HPUX || CU_ARCH_SPARC || CU_ARCH_MIPS || CU_ARCH_ARM)
 #    define CU_DECIMAL128_AVAILABLE 1
 #  else
 #    define CU_DECIMAL128_AVAILABLE 0
@@ -2606,9 +1652,7 @@ typedef u64 umax;
 #endif
 
 CU_STATIC_ASSERT(sizeof(i32) == 4, "Invalid type size (i32)")
-#if !CU_COMP_CC65
 CU_STATIC_ASSERT(sizeof(i64) == 8, "Invalid type size (i64)")
-#endif
 CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
 
 /* ========================= Optimization ======================== */
@@ -2627,11 +1671,8 @@ CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
 
 #if (CU_HAS_BUILTIN(__builtin_unreachable) && !CU_COMP_ARM) || \
      CU_COMPVER(GNU, 4, 5) || \
-     CU_COMPVER(PGI, 18, 10) || \
      CU_COMPVER(INTEL, 13, 0) || \
-     CU_COMPVERP(IBM, 13, 1, 5) || \
-     CU_COMPVER(CRAY, 10, 0) || \
-     CU_COMPVERP(MCST, 1, 25, 10)
+     CU_COMPVERP(IBM, 13, 1, 5)
 #  define CU_UNREACHABLE() __builtin_unreachable()
 #elif defined(CU_ASSUME)
 #  define CU_UNREACHABLE() CU_ASSUME(0)
@@ -2642,8 +1683,7 @@ CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
 #  define CU_ASSUME(expr) ((void)((expr) ? 1 : (CU_UNREACHABLE(), 1)))
 #endif
 
-#if (CU_HAS_BUILTIN(__builtin_expect_with_probability) && !CU_COMP_PGI) || \
-     CU_COMPVER(GNU, 9, 0) || CU_COMPVERP(MCST, 1, 25, 10)
+#if (CU_HAS_BUILTIN(__builtin_expect_with_probability)) || CU_COMPVER(GNU, 9, 0)
 #  define CU_PREDICT(expr, result, probability) __builtin_expect_with_probability((expr), (result), (probability))
 #  define CU_LIKELY(expr) __builtin_expect(!!(expr), 1)
 #  define CU_UNLIKELY(expr) __builtin_expect(!!(expr), 0)
@@ -2651,11 +1691,7 @@ CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
       CU_COMPVER(GNU, 3, 0) || \
       CU_COMPVER(INTEL, 13, 0) || \
       CU_COMPVER(ARM, 4, 1) || \
-      CU_COMPVER(IBM, 10, 1) || \
-      CU_COMPVER(TI, 15, 12) || \
-      CU_COMPVERP(TINYC, 0, 9, 27) || \
-      CU_COMPVER(CRAY, 8, 1) || \
-      CU_COMPVERP(MCST, 1, 25, 10)
+      CU_COMPVER(IBM, 10, 1)
 #  define CU_PREDICT(expr, result, probability) (((probability > 0.5) ? __builtin_expect((expr), (result)) : ((void)((result)), (expr))))
 #  define CU_LIKELY(expr) __builtin_expect(!!(expr), 1)
 #  define CU_UNLIKELY(expr) __builtin_expect(!!(expr), 0)
