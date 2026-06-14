@@ -26,7 +26,7 @@ The functions provided are as follows:
 - Hardware information functions
 - Time-related functions
 - Networking functions (TCP, client and server)
-- Threading and mutex functions
+- Threading and synchronization primitives functions
 
 Bit operation functions (e.g. popcount, count leading zeros) are also provided directly in the header.
 
@@ -48,13 +48,12 @@ Macros are also available for simplifying optimizing and debugging your code:
 - Explicit breakpoints and traps
 
 ### QOL macros
-Finally, there are some general macros for providing functionality which requires checking the compiler, headers and other things:
+Finally, there are some general macros for providing functionality which usually requires checking the compiler, available headers, etc:
 
 - Keywords (thread_local, restrict)
 - Feature availability (keywords, compiler macros, builtins)
 - Fixed-width integers (i32, u64, etc), with their respective formats and maximum values
 - C version checking
-- Common mathematical constants
 
 The macros are also written in such a way to simplify checks (no need to check if defined), and helper macros are also provided to do so as well.
 

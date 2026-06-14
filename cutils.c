@@ -25,7 +25,7 @@ CU_DIAGNOSTICS_IGNORE_2(clang, "-Wreserved-macro-identifier", "-Wunused-macros")
 CU_DIAGNOSTICS_IGNORE_END
 #endif
 
-#if CU_COMPVER(CLANG, 3, 5)
+#if CU_COMPVER(CLANG, 19, 0)
 #  define cu_strchr(S, C) \
 CU_DIAGNOSTICS_IGNORE_3(clang, "-Wc11-extensions", "-Wpre-c11-compat", "-Wdisabled-macro-expansion") \
 strchr(S, C) \
@@ -40,11 +40,7 @@ CU_DIAGNOSTICS_IGNORE_END
 
 #if CU_SETTING_FUNCS
 
-/* ==========================================================================
- *
- * ---------------------------- String functions ----------------------------
- *
- * ========================================================================== */
+/* ========================= String ======================== */
 
 #if CU_SETTING_STRING_FUNCS
 
@@ -386,11 +382,7 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 
 #endif
 
-/* ==========================================================================
- *
- * -------------------------- Filesystem functions --------------------------
- *
- * ========================================================================== */
+/* ========================= Filesystem ======================== */
 
 #if CU_SETTING_FILE_FUNCS
 
@@ -407,13 +399,9 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 #  include <direct.h>
 #  include <windows.h>
 #  define mkdir(path, mode) _mkdir(path)
-#  define access _access
 #  define F_OK 0
 #else
 #  include <unistd.h>
-#endif
-
-#if CU_HAS_INCLUDE(<dirent.h>)
 #  include <dirent.h>
 #endif
 
@@ -425,7 +413,8 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 
 CU_API_SOURCE int cu_file_exists(const char *path)
 {
-	return access(path, F_OK) == 0;
+	struct stat dir_stat;
+	return stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFREG) == S_IFREG);
 }
 CU_API_SOURCE int cu_dir_exists(const char *path)
 {
@@ -540,9 +529,12 @@ CU_API_SOURCE char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_REST
 	if (allocd) *allocd = (uptr)len;
 	return buf;
 #else
-	CU_UNUSED(argv);
-	CU_UNUSED(argc);
-	return NULL;
+	size_t len = strlen(argv) + 1;
+	char *buf = (char *)malloc(len);
+	if (!buf) return NULL;
+	memcpy(buf, argv, len);
+	if (allocd) *allocd = (uptr)len;
+	return buf;
 #endif
 }
 
@@ -553,46 +545,7 @@ CU_API_SOURCE int cu_file_delete(const char *path)
 
 CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
 {
-#if CU_HAS_INCLUDE(<dirent.h>)
-	struct dirent *entry;
-	uptr plen, dlen, entrylen;
-	char *dbuf;
-	int ret = 0;
-	DIR *dir;
-
-	if (!recursive) return rmdir(path) == 0;
-
-	plen = strlen(path);
-	dlen = 0xFF;
-
-	if (!(dbuf = (char *)malloc(plen + dlen + (path[plen - 1] != '/') + 1))) return 0;
-	if (!(dir = opendir(path))) goto fail;
-
-	memcpy(dbuf, path, plen);
-	if (path[plen - 1] != '/') dbuf[plen++] = '/';
-
-	while ((entry = readdir(dir))) {
-		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-		entrylen = strlen(entry->d_name) + 1;
-
-		if (entrylen > dlen) {
-			void *rel = realloc(dbuf, plen + entrylen);
-			if (!rel) goto fail_dir;
-			dbuf = (char *)rel;
-		}
-
-		memcpy(dbuf + plen, entry->d_name, entrylen);
-		if (cu_dir_exists(dbuf)) { if (!cu_dir_delete(dbuf, 1)) goto fail_dir; }
-		else if (!cu_file_delete(dbuf)) goto fail_dir;
-	}
-
-	ret = rmdir(path) == 0;
-fail_dir:
-	ret &= closedir(dir) == 0;
-fail:
-	free(dbuf);
-	return ret;
-#elif CU_OS_WINDOWS
+#if CU_OS_WINDOWS
 	WIN32_FIND_DATA fd;
 	size_t full_len, dir_bytes;
 	HANDLE dirhandle;
@@ -640,18 +593,50 @@ fail:
 	free(dir_path);
 	return res;
 #else
+	struct dirent *entry;
+	uptr plen, dlen, entrylen;
+	char *dbuf;
+	int ret = 0;
+	DIR *dir;
+
 	if (!recursive) return rmdir(path) == 0;
-	else return 0;
+
+	plen = strlen(path);
+	dlen = 0xFF;
+
+	if (!(dbuf = (char *)malloc(plen + dlen + (path[plen - 1] != '/') + 1))) return 0;
+	if (!(dir = opendir(path))) goto fail;
+
+	memcpy(dbuf, path, plen);
+	if (path[plen - 1] != '/') dbuf[plen++] = '/';
+
+	while ((entry = readdir(dir))) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+		entrylen = strlen(entry->d_name) + 1;
+
+		if (entrylen > dlen) {
+			void *rel = realloc(dbuf, plen + entrylen);
+			if (!rel) goto fail_dir;
+			dbuf = (char *)rel;
+		}
+
+		memcpy(dbuf + plen, entry->d_name, entrylen);
+		if (cu_dir_exists(dbuf)) { if (!cu_dir_delete(dbuf, 1)) goto fail_dir; }
+		else if (!cu_file_delete(dbuf)) goto fail_dir;
+	}
+
+	ret = rmdir(path) == 0;
+fail_dir:
+	ret &= closedir(dir) == 0;
+fail:
+	free(dbuf);
+	return ret;
 #endif
 }
 
 #endif
 
-/* ==========================================================================
- *
- * --------------------------- Resources functions --------------------------
- *
- * ========================================================================== */
+/* ========================= Resources ======================== */
 
 #if CU_SETTING_RESOURCES_FUNCS
 
@@ -801,6 +786,7 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 
 	return 1;
 #else
+	CU_UNUSED(info);
 	return 0;
 #endif
 }
@@ -934,6 +920,7 @@ CU_API_SOURCE uptr cu_res_osname(char *namebuf)
 	res = RegGetValue(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion", "DisplayVersion", RRF_RT_REG_SZ, NULL, namebuf ? namebuf + off : NULL, &dsize);
 	return res != ERROR_SUCCESS ? 0 : off + dsize;
 #else
+	CU_UNUSED(namebuf);
 	return 0;
 #endif
 }
@@ -951,6 +938,7 @@ CU_API_SOURCE uptr cu_res_hostname(char *namebuf)
 	if (!GetComputerNameEx(ComputerNamePhysicalDnsHostname, namebuf ? namebuf : &lbuf, &len)) return 0;
 	return (uptr)len + 1;
 #else
+	CU_UNUSED(namebuf);
 	return 0;
 #endif
 }
@@ -971,17 +959,14 @@ CU_API_SOURCE uptr cu_res_username(char *namebuf)
 	if (!GetUserNameA(namebuf ? namebuf : &lbuf, &len)) return 0;
 	return (uptr)len;
 #else
+	CU_UNUSED(namebuf);
 	return 0;
 #endif
 }
 
 #endif
 
-/* ==========================================================================
- *
- * ----------------------------- Time functions -----------------------------
- *
- * ========================================================================== */
+/* ========================= Time ======================== */
 
 #if CU_SETTING_TIME_FUNCS
 
@@ -1137,11 +1122,7 @@ CU_API_SOURCE u64 cu_timer_dif(const cu_timer *CU_RESTRICT start, const cu_timer
 
 #endif
 
-/* ==========================================================================
- *
- * -------------------------- Networking functions --------------------------
- *
- * ========================================================================== */
+/* ========================= Networking ======================== */
 
 #if CU_SETTING_NETWORK_FUNCS
 
@@ -1591,7 +1572,7 @@ CU_API_SOURCE char *cu_net_interfaces(char *ipbuf, int if_fmt, int id)
 
 	if (GetAdaptersAddresses(
 		if_fmt == CU_NET_INTERFACE_IPV6 ? AF_INET6 : (if_fmt == CU_NET_INTERFACE_IPV4 ? AF_INET : AF_UNSPEC),
-		GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_FRIENDLY_NAME | GAA_FLAG_SKIP_DNS_INFO | GAA_FLAG_SKIP_DNS_SERVER,
+		GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME,
 		NULL, paddr, &buflen
 	) != NO_ERROR) goto end;
 
@@ -1627,11 +1608,7 @@ CU_API_SOURCE int cu_net_isclosed(const cu_net_remote *remote) { return remote->
 
 #endif
 
-/* ==========================================================================
- *
- * --------------------------- Threading functions --------------------------
- *
- * ========================================================================== */
+/* ========================= Threading ======================== */
 
 #if CU_SETTING_THREAD_FUNCS
 
@@ -1664,6 +1641,12 @@ CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return pthread_
 CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return pthread_mutex_unlock(mutex) == 0; }
 CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return pthread_mutex_trylock(mutex) == 0; }
 CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return pthread_mutex_destroy(mutex) == 0; }
+
+CU_API_SOURCE int cu_thread_cond_init(cu_thread_cond *cond) { return pthread_cond_init(cond, NULL) == 0; }
+CU_API_SOURCE int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return pthread_cond_wait(cond, mutex) == 0; }
+CU_API_SOURCE int cu_thread_cond_signal(cu_thread_cond *cond) { return pthread_cond_signal(cond) == 0; }
+CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { return pthread_cond_broadcast(cond) == 0; }
+CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return pthread_cond_destroy(cond) == 0; }
 
 CU_API_SOURCE cu_thread cu_thread_self(void) { return pthread_self(); }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)getpid(); }
@@ -1700,6 +1683,12 @@ CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { LeaveCritical
 CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return TryEnterCriticalSection(mutex) != 0; }
 CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { DeleteCriticalSection(mutex); return 1; }
 
+CU_API_SOURCE int cu_thread_cond_init(cu_thread_cond *cond) { InitializeConditionVariable(cond); return 1; }
+CU_API_SOURCE int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return SleepConditionVariableCS(cond, mutex, INFINITE) != 0; }
+CU_API_SOURCE int cu_thread_cond_signal(cu_thread_cond *cond) { WakeConditionVariable(cond); return 1; }
+CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { WakeAllConditionVariable(cond); return 1; }
+CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return 1; }
+
 CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)GetCurrentProcessId(); }
 CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)GetCurrentThreadId(); }
@@ -1731,6 +1720,12 @@ CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return mtx_lock
 CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return mtx_unlock(mutex) == thrd_success; }
 CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return mtx_trylock(mutex) == thrd_success; }
 CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { mtx_destroy(mutex); return 1; }
+
+CU_API_SOURCE int cu_thread_cond_init(cu_thread_cond *cond) { return cnd_init(cond) == thrd_success; }
+CU_API_SOURCE int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return cnd_wait(cond, mutex) == thrd_success; }
+CU_API_SOURCE int cu_thread_cond_signal(cu_thread_cond *cond) { return cnd_signal(cond) == thrd_success; }
+CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { return cnd_broadcast(cond) == thrd_success; }
+CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return cnd_destroy(cond) == thrd_success; }
 
 CU_API_SOURCE cu_thread cu_thread_self(void) { return thrd_current(); }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)0; }

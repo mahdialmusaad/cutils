@@ -1,5 +1,7 @@
 #include "tests.h"
 
+#if CU_SETTING_STRING_FUNCS
+
 TFUNC(custr3)
 {
 	custr cs = CUSTR_EMPTY, *c = &cs;
@@ -30,3 +32,7 @@ TFUNC(custr3)
 	EXPECT0(strcmp(c->str, "DU4D1ING230"));
 	custr_clear(c);
 }
+
+#else
+TFUNC(custr3) { }
+#endif

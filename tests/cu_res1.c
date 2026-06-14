@@ -1,5 +1,7 @@
 #include "tests.h"
 
+#if CU_SETTING_RESOURCES_FUNCS
+
 TFUNC(cu_res1)
 {
 	cu_res_cpu cpu;
@@ -33,3 +35,7 @@ TFUNC(cu_res1)
 	EXPECT0(((cu_res_bytefmt(buf, CU_U64_C(1234567891011121))), (strcmp(buf, "1.2PB"))));
 	EXPECT0(((cu_res_bytefmt(buf, CU_U64_C(1234567891011121314))), (strcmp(buf, "1.2EB"))));
 }
+
+#else
+TFUNC(cu_res1) { }
+#endif

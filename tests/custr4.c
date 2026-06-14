@@ -1,5 +1,7 @@
 #include "tests.h"
 
+#if CU_SETTING_STRING_FUNCS
+
 #if CU_OS_WINDOWS
 #  define FS(s) "C:" s
 #else
@@ -40,3 +42,7 @@ TFUNC(custr4)
 	EXPECT(c->cap == 32);
 	custr_clear(c);
 }
+
+#else
+TFUNC(custr4) { }
+#endif

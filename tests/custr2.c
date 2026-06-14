@@ -1,5 +1,7 @@
 #include "tests.h"
 
+#if CU_SETTING_STRING_FUNCS
+
 TFUNC(custr2)
 {
 	custr cs, *c = &cs, ss = CUSTR_EMPTY;
@@ -34,3 +36,7 @@ TFUNC(custr2)
 	EXPECT0(strcmp(c->str, "I"));
 	custr_clear(c);
 }
+
+#else
+TFUNC(custr2) { }
+#endif
