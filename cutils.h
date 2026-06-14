@@ -1692,14 +1692,6 @@ extern "C" {
 #  define CU_HAS_EXTENSION_AVAILABLE 0
 #endif
 
-#ifdef __has_declspec_attribute
-#  define CU_HAS_DECLSPEC_ATTRIB(declattrib) __has_declspec_attribute(declattrib)
-#  define CU_HAS_DECLSPEC_ATTRIB_AVAILABLE 1
-#else
-#  define CU_HAS_DECLSPEC_ATTRIB(declattrib) 0
-#  define CU_HAS_DECLSPEC_ATTRIB_AVAILABLE 0
-#endif
-
 #ifdef __has_warning
 #  define CU_HAS_WARNING(warning) __has_warning(warning)
 #  define CU_HAS_WARNING_AVAILABLE 1
@@ -3274,25 +3266,18 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
 
 #define CU_THREAD_RETURN_VAL ((cu_thread_return)0)
 
-/* Returns the number of CPUs available. */
-A_NTHRW int cu_thread_count(void);
-/* Sleeps for the given number of nanoseconds. This does not affect timers. */
-A_NTHRW void cu_thread_sleep(u64 nsecs, u64 secs);
-
-/* Returns the current process ID. */
-A_NTHRW A_WUR u32 cu_thread_pid(void);
-/* Returns the current thread ID. */
-A_NTHRW A_WUR u32 cu_thread_tid(void);
-
 /* Creates a thread. Returns 0 if failed. */
 A_NTL((1)) cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg);
-/* Returns the current thread. */
-CU_ATTRIB_NOTHROW cu_thread cu_thread_self(void);
-
 /* Waits for the given thread to finish. Returns 0 if failed. */
 A_NTHRW int cu_thread_join(cu_thread thread);
 /* Detaches the given thread. Returns 0 if failed. */
 A_NTHRW int cu_thread_detach(cu_thread thread);
+
+/* Sleeps for the given number of nanoseconds.
+   This does not affect timers. */
+A_NTHRW void cu_thread_sleep(u64 nsecs, u64 secs);
+/* Returns the number of CPUs available. */
+A_NTHRW int cu_thread_count(void);
 
 /* Initializes the given mutex. Returns 0 if failed. */
 A_NTL((1)) int cu_thread_mutex_init(cu_thread_mutex *mutex);
@@ -3304,6 +3289,13 @@ A_NTL((1)) int cu_thread_mutex_unlock(cu_thread_mutex *mutex);
 A_NTL((1)) int cu_thread_mutex_trylock(cu_thread_mutex *mutex);
 /* Destroys the given mutex. Returns 0 if failed. */
 A_NTL((1)) int cu_thread_mutex_destroy(cu_thread_mutex *mutex);
+
+/* Returns the current thread. */
+A_NTHRW cu_thread cu_thread_self(void);
+/* Returns the current process ID. */
+A_NTHRW A_WUR u32 cu_thread_pid(void);
+/* Returns the current thread ID. */
+A_NTHRW A_WUR u32 cu_thread_tid(void);
 
 #endif /* CU_SETTING_THREAD_FUNCS */
 
