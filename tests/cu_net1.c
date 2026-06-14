@@ -2,7 +2,7 @@
 
 static int client_i, server_i;
 
-int client_event(cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
+static int client_event(cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {
 	static int hb;
 	CU_UNUSED(remote);
@@ -29,7 +29,7 @@ int client_event(cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *
 	++client_i;
 	return 1;
 }
-int server_event(struct cu_net_server *CU_RESTRICT server, cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
+static int server_event(struct cu_net_server *CU_RESTRICT server, cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {
 	CU_UNUSED(server);
 	CU_UNUSED(remote);

@@ -26,12 +26,12 @@ CU_DIAGNOSTICS_IGNORE_END
 #endif
 
 #if CU_COMPVER(CLANG, 3, 5)
-#  define s_strchr(S, C) \
+#  define cu_strchr(S, C) \
 CU_DIAGNOSTICS_IGNORE_3(clang, "-Wc11-extensions", "-Wpre-c11-compat", "-Wdisabled-macro-expansion") \
 strchr(S, C) \
 CU_DIAGNOSTICS_IGNORE_END
 #else
-#  define s_strchr(S, C) strchr(S, C)
+#  define cu_strchr(S, C) strchr(S, C)
 #endif
 
 #define CU_API_SOURCE CU_API
@@ -395,18 +395,26 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 #if CU_SETTING_FILE_FUNCS
 
 #if CU_COMP_MSVC
-#  undef __STDC_WANT_LIB_EXT1__
-#  define __STDC_WANT_LIB_EXT1__ 1
+#  define cu_fileno(f) _fileno(f)
+#  define cu_fopen(file, path, mode) (fopen_s(&file, path, mode) != 0)
+#else
+#  define cu_fileno(f) fileno(f)
+#  define cu_fopen(file, path, mode) (!(file = fopen(path, mode)))
 #endif
 
 #if CU_OS_WINDOWS
 #  include <io.h>
 #  include <direct.h>
+#  include <windows.h>
 #  define mkdir(path, mode) _mkdir(path)
 #  define access _access
 #  define F_OK 0
 #else
 #  include <unistd.h>
+#endif
+
+#if CU_HAS_INCLUDE(<dirent.h>)
+#  include <dirent.h>
 #endif
 
 #include <stdio.h>
@@ -415,11 +423,176 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 #include <string.h>
 #include <stdlib.h>
 
+CU_API_SOURCE int cu_file_exists(const char *path)
+{
+	return access(path, F_OK) == 0;
+}
+CU_API_SOURCE int cu_dir_exists(const char *path)
+{
+	struct stat dir_stat;
+	return stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFDIR) == S_IFDIR);
+}
+
+CU_API_SOURCE int cu_dir_create(const char *path)
+{
+	if (cu_dir_exists(path)) return 1;
+	return mkdir(path, 0777) == 0;
+}
+
+CU_API_SOURCE void *cu_file_read(const char *CU_RESTRICT path, void *CU_RESTRICT result, int binary_file, uptr *CU_RESTRICT bytes)
+{
+	uptr to_read, filesize;
+	struct stat file_stat;
+	FILE *file;
+	int res = 0;
+
+	if (CU_UNLIKELY(cu_fopen(file, path, binary_file ? "rb" : "r") != 0)) return 0;
+	if (CU_UNLIKELY(fstat(cu_fileno(file), &file_stat) == -1)) goto fail;
+
+	filesize = (uptr)file_stat.st_size;
+	to_read = (bytes && *bytes != 0) ? (*bytes > filesize ? filesize : *bytes) : filesize;
+
+	if (!result && !(result = malloc((size_t)filesize))) goto fail;
+	res = fread(result, 1, (size_t)to_read, file) == (size_t)to_read;
+
+	if (bytes) *bytes = filesize;
+fail:
+	fclose(file);
+	return res ? result : NULL;
+}
+
+CU_API_SOURCE int cu_file_write(const char *CU_RESTRICT path, const void *CU_RESTRICT content, unsigned int mode, uptr bytes)
+{
+	static const char *mode_strs[] = { "w", "wb", "a", "ab" };
+	FILE *file; int res;
+
+	if (CU_UNLIKELY(mode > 3)) return 0;
+	if (CU_UNLIKELY(cu_fopen(file, path, mode_strs[mode]))) return 0;
+
+	res = fwrite(content, (size_t)bytes, 1, file) == 1;
+	fclose(file);
+
+	return res;
+}
+
+CU_API_SOURCE int cu_file_getinfo(const char *CU_RESTRICT path, cu_file_info *CU_RESTRICT f_info)
+{
+	struct stat dir_stat;
+	if (stat(path, &dir_stat) == -1) return 0;
+	f_info->fsize_bytes = dir_stat.st_size;
+	f_info->access_time = dir_stat.st_atime;
+	f_info->mod_time = dir_stat.st_mtime;
+	return 1;
+}
+
+CU_API_SOURCE char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_RESTRICT allocd)
+{
 #if CU_OS_WINDOWS
-#include <windows.h>
+	DWORD res;
+	char *buf = (char *)malloc(CU_PATH_MAX);
+	CU_UNUSED(argv);
+	if (!buf) return NULL;
+	res = GetModuleFileName(NULL, buf, CU_PATH_MAX);
+	if (allocd) *allocd = CU_PATH_MAX;
+	return buf;
+#elif CU_OS_UNIX
+	struct stat s;
+	char *buf;
+	size_t len;
+
+	if (argv[0] == '/') {
+		len = strlen(argv) + 1;
+		buf = (char *)malloc(len);
+		if (!buf) return NULL;
+		memcpy(buf, argv, len);
+	} else if (lstat(argv, &s) != -1 && S_ISLNK(s.st_mode)) {
+		size_t buflen = 0;
+		buf = NULL;
+
+		do {
+			void *res = realloc(buf, buflen += CU_PATH_MAX);
+			if (!res) goto fail_readlink;
+			buf = (char *)res;
+
+			len = (size_t)readlink(argv, buf, buflen);
+			if (len == CU_UPTRMAX) goto fail_readlink;
+			if ((size_t)len < buflen) break;
+		} while (1);
+
+		buf[len++] = '\0';
+	fail_readlink:
+		free(buf);
+		buf = NULL;
+		len = 0;
+	} else if (cu_strchr(argv, '/')) {
+		uptr cwdlen = 0, argvlenterm = strlen(argv) + 1;
+		len = CU_PATH_MAX * 2;
+		buf = (char *)malloc(len);
+
+		if (buf && getcwd(buf, len) && (cwdlen = strlen(buf)) < (len - argvlenterm)) {
+			memcpy(buf + cwdlen, argv + (argv[0] == '.' && argv[1] == '/'), argvlenterm);
+		} else {
+			free(buf);
+			buf = NULL;
+		}
+	} else return NULL;
+
+	if (allocd) *allocd = (uptr)len;
+	return buf;
+#else
+	CU_UNUSED(argv);
+	CU_UNUSED(argc);
+	return NULL;
+#endif
+}
+
+CU_API_SOURCE int cu_file_delete(const char *path)
+{
+	return remove(path) == 0;
+}
 
 CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
 {
+#if CU_HAS_INCLUDE(<dirent.h>)
+	struct dirent *entry;
+	uptr plen, dlen, entrylen;
+	char *dbuf;
+	int ret = 0;
+	DIR *dir;
+
+	if (!recursive) return rmdir(path) == 0;
+
+	plen = strlen(path);
+	dlen = 0xFF;
+
+	if (!(dbuf = (char *)malloc(plen + dlen + (path[plen - 1] != '/') + 1))) return 0;
+	if (!(dir = opendir(path))) goto fail;
+
+	memcpy(dbuf, path, plen);
+	if (path[plen - 1] != '/') dbuf[plen++] = '/';
+
+	while ((entry = readdir(dir))) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+		entrylen = strlen(entry->d_name) + 1;
+
+		if (entrylen > dlen) {
+			void *rel = realloc(dbuf, plen + entrylen);
+			if (!rel) goto fail_dir;
+			dbuf = (char *)rel;
+		}
+
+		memcpy(dbuf + plen, entry->d_name, entrylen);
+		if (cu_dir_exists(dbuf)) { if (!cu_dir_delete(dbuf, 1)) goto fail_dir; }
+		else if (!cu_file_delete(dbuf)) goto fail_dir;
+	}
+
+	ret = rmdir(path) == 0;
+fail_dir:
+	ret &= closedir(dir) == 0;
+fail:
+	free(dbuf);
+	return ret;
+#elif CU_OS_WINDOWS
 	WIN32_FIND_DATA fd;
 	size_t full_len, dir_bytes;
 	HANDLE dirhandle;
@@ -466,218 +639,9 @@ CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
 fail:
 	free(dir_path);
 	return res;
-}
-
-#elif CU_HAS_INCLUDE(<dirent.h>)
-#include <dirent.h>
-
-CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
-{
-	struct dirent *entry;
-	uptr plen, dlen, entrylen;
-	char *dbuf;
-	int ret = 0;
-	DIR *dir;
-
-	if (!recursive) return rmdir(path) == 0;
-
-	plen = strlen(path);
-	dlen = 0xFF;
-
-	if (!(dbuf = (char *)malloc(plen + dlen + (path[plen - 1] != '/') + 1))) return 0;
-	if (!(dir = opendir(path))) goto fail;
-
-	memcpy(dbuf, path, plen);
-	if (path[plen - 1] != '/') dbuf[plen++] = '/';
-
-	while ((entry = readdir(dir))) {
-		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-		entrylen = strlen(entry->d_name) + 1;
-
-		if (entrylen > dlen) {
-			void *rel = realloc(dbuf, plen + entrylen);
-			if (!rel) goto fail_dir;
-			dbuf = (char *)rel;
-		}
-
-		memcpy(dbuf + plen, entry->d_name, entrylen);
-		if (cu_dir_exists(dbuf)) { if (!cu_dir_delete(dbuf, 1)) goto fail_dir; }
-		else if (!cu_file_delete(dbuf)) goto fail_dir;
-	}
-
-	ret = rmdir(path) == 0;
-fail_dir:
-	ret &= closedir(dir) == 0;
-fail:
-	free(dbuf);
-	return ret;
-}
-
 #else
-#include <unistd.h>
-CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
-{
 	if (!recursive) return rmdir(path) == 0;
 	else return 0;
-}
-
-#endif
-
-CU_API_SOURCE int cu_file_exists(const char *path)
-{
-	return access(path, F_OK) == 0;
-}
-CU_API_SOURCE int cu_dir_exists(const char *path)
-{
-	struct stat dir_stat;
-	return stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFDIR) == S_IFDIR);
-}
-
-CU_API_SOURCE int cu_dir_create(const char *path)
-{
-	if (cu_dir_exists(path)) return 1;
-	return mkdir(path, 0777) == 0;
-}
-
-CU_API_SOURCE void *cu_file_read(const char *CU_RESTRICT path, void *CU_RESTRICT result, int binary_file, uptr *CU_RESTRICT bytes)
-{
-	uptr to_read, filesize;
-	struct stat file_stat;
-	FILE *file;
-	int res = 0;
-
-#if CU_COMP_MSVC
-	if (CU_UNLIKELY(fopen_s(&file, path, binary_file ? "rb" : "r") != 0)) return 0;
-	if (CU_UNLIKELY(fstat(_fileno(file), &file_stat) == -1)) goto fail;
-#else
-	if (CU_UNLIKELY(!(file = fopen(path, binary_file ? "rb" : "r")))) return 0;
-	if (CU_UNLIKELY(fstat(fileno(file), &file_stat) == -1)) goto fail;
-#endif
-
-	filesize = (uptr)file_stat.st_size;
-	to_read = (bytes && *bytes != 0) ? (*bytes > filesize ? filesize : *bytes) : filesize;
-
-	if (!result && !(result = malloc((size_t)filesize))) goto fail;
-	res = fread(result, 1, (size_t)to_read, file) == (size_t)to_read;
-
-	if (bytes) *bytes = filesize;
-fail:
-	fclose(file);
-	return res ? result : NULL;
-}
-
-CU_API_SOURCE int cu_file_write(const char *CU_RESTRICT path, const void *CU_RESTRICT content, unsigned int mode, uptr bytes)
-{
-	static const char *mode_strs[] = { "w", "wb", "a", "ab" };
-	FILE *file; int res;
-
-#if CU_COMP_MSVC
-	if (CU_UNLIKELY(mode > 3)) return 0;
-	if (CU_UNLIKELY(fopen_s(&file, path, mode_strs[mode]) != 0)) return 0;
-#else
-	if (CU_UNLIKELY(mode > 3)) return 0;
-	if (CU_UNLIKELY(!(file = fopen(path, mode_strs[mode])))) return 0;
-#endif
-
-	res = fwrite(content, (size_t)bytes, 1, file) == 1;
-	fclose(file);
-
-	return res;
-}
-
-CU_API_SOURCE int cu_file_getinfo(const char *CU_RESTRICT path, cu_file_info *CU_RESTRICT f_info)
-{
-	struct stat dir_stat;
-	if (stat(path, &dir_stat) == -1) return 0;
-	f_info->fsize_bytes = dir_stat.st_size;
-	f_info->access_time = dir_stat.st_atime;
-	f_info->mod_time = dir_stat.st_mtime;
-	return 1;
-}
-
-CU_API_SOURCE int cu_file_delete(const char *path)
-{
-	return remove(path) == 0;
-}
-
-#if CU_OS_MAC
-#  include <mach-o/dyld.h>
-#endif
-
-CU_API_SOURCE char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_RESTRICT allocd)
-{
-#if CU_OS_WINDOWS
-	DWORD res;
-	char *buf = (char *)malloc(CU_PATH_MAX);
-	CU_UNUSED(argv);
-	if (!buf) return NULL;
-	res = GetModuleFileName(NULL, buf, CU_PATH_MAX);
-	if (allocd) *allocd = CU_PATH_MAX;
-	return buf;
-#elif CU_OS_MAC
-	char *path = (char *)malloc(CU_PATH_MAX);
-	uint32_t sz = sizeof path;
-	uptr len;
-
-	if (!path) return NULL;
-	if (_NSGetExecutablePath(path, &sz) == 0) goto success;
-
-	void *r_res = realloc(path, (uptr)sz);
-	if (!r_res) {
-		free(path);
-		return NULL;
-	}
-	path = r_res;
-
-	_NSGetExecutablePath(path, &sz);
-success:
-	if (allocd) *allocd = strlen(path) + 1u;
-	free(path);
-	return path;
-#elif CU_OS_UNIX
-	struct stat s;
-	char *buf;
-	size_t len;
-
-	if (argv[0] == '/') {
-		len = strlen(argv) + 1;
-		buf = (char *)malloc(len);
-		if (!buf) return NULL;
-		memcpy(buf, argv, len);
-	} else if (lstat(argv, &s) != -1 && S_ISLNK(s.st_mode)) {
-		size_t buflen = 0;
-		buf = NULL;
-
-		do {
-			void *res = realloc(buf, buflen += CU_PATH_MAX);
-			if (!res) goto fail_readlink;
-			buf = (char *)res;
-
-			len = (size_t)readlink(argv, buf, buflen);
-			if (len == CU_UPTRMAX) goto fail_readlink;
-			if ((size_t)len < buflen) break;
-		} while (1);
-
-		buf[len++] = '\0';
-	fail_readlink:
-		free(buf);
-		buf = NULL;
-		len = 0;
-	} else if (s_strchr(argv, '/')) {
-		uptr cwdlen = 0, argvlenterm = strlen(argv) + 1;
-		len = CU_PATH_MAX * 2;
-		buf = (char *)malloc(len);
-
-		if (buf && getcwd(buf, len) && (cwdlen = strlen(buf)) < (len - argvlenterm)) {
-			memcpy(buf + cwdlen, argv + (argv[0] == '.' && argv[1] == '/'), argvlenterm);
-		} else {
-			free(buf);
-			buf = NULL;
-		}
-	} else return NULL;
-
-	if (allocd) *allocd = (uptr)len;
-	return buf;
 #endif
 }
 
@@ -693,28 +657,50 @@ success:
 
 #include <string.h>
 
-#if !CU_ARCH_X86
-#  define cu_res_cpuid(id, count, regs) 0
-#else
+#if CU_ARCH_X86
+#  include <time.h>
+#endif
+
+#if CU_OS_UNIX
+#  include <sys/sysinfo.h>
+#  include <sys/utsname.h>
+#  include <sys/times.h>
+#  include <string.h>
+#  include <unistd.h>
+#  include <stdio.h>
+#  include <pwd.h>
+#elif CU_OS_WINDOWS
+#  include <psapi.h>
+#  include <stdio.h>
+#  include <ntsecapi.h>
 #  if CU_COMP_MSVC
 #    include <intrin.h>
-#    define cu_res_rdtsc() __rdtsc()
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2))
-static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
+#    pragma comment(lib, "Advapi32.lib")
+#  endif
+#endif
+
+#if CU_COMP_MSVC
+#  define cu_res_rdtsc() __rdtsc()
+#  define cu_sscanf(str, fmt, a1) sscanf_s(str, fmt, a1)
+#else
+#  define cu_sscanf(str, fmt, a1) sscanf(str, fmt, a1)
+#endif
+
+#if CU_COMP_MSVC
+#  define cu_res_rdtsc() __rdtsc()
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2)) static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
 {
 	__cpuidex((int *)regs, id, count);
 	return *regs;
 }
-#  else
-CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NOTHROW
-static u64 cu_res_rdtsc(void)
+#elif CU_ARCH_X86
+CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NOTHROW static u64 cu_res_rdtsc(void)
 {
 	u32 low, high;
 	CU_ASM volatile ("rdtsc" : "=a" (low), "=d" (high));
 	return CU_UPSHIFT((u64)high, 32) | low;
 }
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3))
-static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3)) static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
 {
 	CU_ASM(
 		"  xchg{q|} {%%|}rbx,%q1\n"
@@ -725,9 +711,154 @@ static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
 	);
 	return *regs;
 }
-#  endif
-#  include <time.h>
+#else
+#  define cu_res_rdtsc() 0
+#  define cu_res_cpuid(id, count, regs) 0
 #endif
+
+CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
+{
+	static const char bytefmt_suffix[6] = { 'K', 'M', 'G', 'T', 'P', 'E' };
+	int small = bytes < 1000, suffix = -1, prev = 0;
+	char *start = str;
+
+	while (bytes >= 1000) {
+		++suffix;
+		prev = (int)(bytes % 1000);
+		bytes /= 1000;
+	}
+
+	if (bytes >= 100) *str++ = '0' + (char)((bytes / 100) % 10);
+	if (bytes >= 10) *str++ = '0' + (char)((bytes / 10) % 10);
+	*str++ = '0' + (char)(bytes % 10);
+
+	if (!small) {
+		*str++ = '.';
+		*str++ = '0' + (char)((prev / 100) % 10);
+		*str++ = bytefmt_suffix[suffix];
+	}
+
+	*str++ = 'B';
+	*str++ = '\0';
+	return start;
+}
+
+CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes)
+{
+#if CU_OS_UNIX
+	FILE *f;
+	size_t n;
+	if (CU_UNLIKELY(!(f = fopen("/dev/urandom", "r")))) return 0;
+	n = fread(data, 1, bytes, f);
+	fclose(f);
+	return n;
+#elif CU_OS_WINDOWS
+	return RtlGenRandom(data, (ULONG)bytes) ? bytes : 0;
+#else
+	CU_UNUSED(data); CU_UNUSED(bytes);
+	return 0;
+#endif
+}
+
+CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
+{
+#if CU_OS_UNIX
+	struct sysinfo si;
+	int sres;
+	FILE *f;
+
+	memset(info, 0, sizeof *info);
+	sysinfo(&si);
+
+	info->phys_present = si.totalram;
+	info->phys_tot_used = si.totalswap;
+
+	info->virt_present = si.totalram + si.totalswap;
+	info->virt_tot_used = (si.totalram - si.freeram) + (si.totalswap - si.freeswap);
+
+	if (CU_UNLIKELY(!(f = fopen("/proc/self/statm", "r")))) return 0;
+	sres = fscanf(f, "%lu %lu", &info->phys_loc_used, &info->virt_loc_used);
+	fclose(f);
+
+	return sres == 2;
+#elif CU_OS_WINDOWS
+	MEMORYSTATUSEX mstat;
+	PROCESS_MEMORY_COUNTERS_EX pmc;
+
+	mstat.dwLength = sizeof mstat;
+	GlobalMemoryStatusEx(&mstat);
+
+	info->virt_present = (uptr)mstat.ullTotalPageFile;
+	info->virt_tot_used = (uptr)(mstat.ullTotalPageFile - mstat.ullAvailPageFile);
+
+	info->phys_present = (uptr)mstat.ullTotalPhys;
+	info->phys_tot_used = (uptr)(mstat.ullTotalPhys - mstat.ullAvailPhys);
+
+	GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS *)&pmc, sizeof pmc);
+
+	info->phys_loc_used = pmc.WorkingSetSize;
+	info->virt_loc_used = pmc.PrivateUsage;
+
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+CU_API_SOURCE real64 cu_res_cpuusage(void)
+{
+#if CU_OS_UNIX
+	static int proc_count = 0;
+	static clock_t prev_rtime = 0, prev_stime = 0, prev_utime = 0;
+	struct tms tbuf;
+	clock_t rtime;
+	real64 res;
+
+	if ((rtime = times(&tbuf)) == -1) return -1.0;
+#if CU_SETTING_THREAD_FUNCS
+	if (!proc_count) proc_count = cu_thread_count();
+#else
+	proc_count = 1;
+#endif
+
+	res = (double)((tbuf.tms_stime - prev_stime) + (tbuf.tms_utime - prev_utime)) / (0.01 * (double)(rtime - prev_rtime) * proc_count);
+
+	prev_rtime = rtime;
+	prev_stime = tbuf.tms_stime;
+	prev_utime = tbuf.tms_utime;
+
+	return res;
+#elif CU_OS_WINDOWS
+	static ULARGE_INTEGER ltm_cpu, ltm_scpu, ltm_ucpu;
+	static HANDLE cpu_handle;
+	static int proc_count = 0;
+
+	FILETIME ft_now, ft_sys, ft_user;
+	ULARGE_INTEGER now, sys, user;
+	real64 res;
+
+	if (!proc_count) {
+		proc_count = cu_thread_count();
+		cpu_handle = GetCurrentProcess();
+	}
+
+	GetSystemTimeAsFileTime(&ft_now);
+	memcpy(&now, &ft_now, sizeof ft_now);
+	GetProcessTimes(cpu_handle, &ft_now, &ft_now, &ft_sys, &ft_user);
+	memcpy(&sys, &ft_sys, sizeof ft_sys);
+	memcpy(&user, &ft_user, sizeof ft_user);
+
+	res = (double)((sys.QuadPart - ltm_scpu.QuadPart) + (user.QuadPart - ltm_ucpu.QuadPart)) / (0.01 * (double)(now.QuadPart - ltm_cpu.QuadPart) * proc_count);
+
+	ltm_cpu = now;
+	ltm_ucpu = user;
+	ltm_scpu = sys;
+
+	return res;
+#else
+	return (real64)0;
+#endif
+}
 
 CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
 {
@@ -767,13 +898,9 @@ CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
 	if (info->cpuid_level >= 0x16 && cu_res_cpuid(0x16, 0, regs)) info->base_freq_hz = regs[0] * 1000 * 1000;
 	else {
 		float base_ghz = 0.0f;
-		char *base_ghz_parser = s_strchr(info->name, '@');
+		char *base_ghz_parser = cu_strchr(info->name, '@');
 		if (base_ghz_parser) {
-		#if CU_COMP_MSVC
-			CU_UNUSED(sscanf_s(base_ghz_parser, "%*s%f", &base_ghz));
-		#else
-			CU_UNUSED(sscanf(base_ghz_parser, "%*s%f", &base_ghz));
-		#endif
+			CU_UNUSED(cu_sscanf(base_ghz_parser, "%*s%f", &base_ghz));
 			info->base_freq_hz = (u64)(base_ghz * 1000.0f) * 1000 * 1000;
 		}
 	#if CU_ARCH_X86
@@ -790,72 +917,14 @@ CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
 	return info->name[0] && info->vendor[0] && i >= 4 &&  info->base_freq_hz;
 }
 
-#if CU_OS_WINDOWS
-#  include <psapi.h>
-#  include <stdio.h>
-#  include <ntsecapi.h>
-#  if CU_COMP_MSVC
-#    pragma comment(lib, "Advapi32.lib")
-#  endif
-
-CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes)
-{
-	return RtlGenRandom(data, (ULONG)bytes) ? bytes : 0;
-}
-
-CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
-{
-	MEMORYSTATUSEX mstat;
-	PROCESS_MEMORY_COUNTERS_EX pmc;
-
-	mstat.dwLength = sizeof mstat;
-	GlobalMemoryStatusEx(&mstat);
-
-	info->virt_present = (uptr)mstat.ullTotalPageFile;
-	info->virt_tot_used = (uptr)(mstat.ullTotalPageFile - mstat.ullAvailPageFile);
-
-	info->phys_present = (uptr)mstat.ullTotalPhys;
-	info->phys_tot_used = (uptr)(mstat.ullTotalPhys - mstat.ullAvailPhys);
-
-	GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS *)&pmc, sizeof pmc);
-
-	info->phys_loc_used = pmc.WorkingSetSize;
-	info->virt_loc_used = pmc.PrivateUsage;
-
-	return 1;
-}
-CU_API_SOURCE real64 cu_res_cpuusage(void)
-{
-	static ULARGE_INTEGER ltm_cpu, ltm_scpu, ltm_ucpu;
-	static HANDLE cpu_handle;
-	static int proc_count = 0;
-
-	FILETIME ft_now, ft_sys, ft_user;
-	ULARGE_INTEGER now, sys, user;
-	real64 res;
-
-	if (!proc_count) {
-		proc_count = cu_thread_count();
-		cpu_handle = GetCurrentProcess();
-	}
-
-	GetSystemTimeAsFileTime(&ft_now);
-	memcpy(&now, &ft_now, sizeof ft_now);
-	GetProcessTimes(cpu_handle, &ft_now, &ft_now, &ft_sys, &ft_user);
-	memcpy(&sys, &ft_sys, sizeof ft_sys);
-	memcpy(&user, &ft_user, sizeof ft_user);
-
-	res = (double)((sys.QuadPart - ltm_scpu.QuadPart) + (user.QuadPart - ltm_ucpu.QuadPart)) / (0.01 * (double)(now.QuadPart - ltm_cpu.QuadPart) * proc_count);
-
-	ltm_cpu = now;
-	ltm_ucpu = user;
-	ltm_scpu = sys;
-
-	return res;
-}
-
 CU_API_SOURCE uptr cu_res_osname(char *namebuf)
 {
+#if CU_OS_UNIX
+	struct utsname ubuf;
+	if (uname(&ubuf) < 0) return 0;
+	if (namebuf) sprintf(namebuf, "%s %s", ubuf.sysname, ubuf.release);
+	return (uptr)(strlen(ubuf.sysname) + strlen(ubuf.release) + 2);
+#elif CU_OS_WINDOWS
 	DWORD dsize = namebuf ? CU_RES_NAME_MAXSIZE : 0, off = 0;
 	LONG res = RegGetValue(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion", "ProductName", RRF_RT_REG_SZ, NULL, namebuf, &dsize);
 	if (res != ERROR_SUCCESS) return 0;
@@ -864,147 +933,46 @@ CU_API_SOURCE uptr cu_res_osname(char *namebuf)
 	if (namebuf) namebuf[off - 1] = ' ';
 	res = RegGetValue(HKEY_LOCAL_MACHINE, "Software\\Microsoft\\Windows NT\\CurrentVersion", "DisplayVersion", RRF_RT_REG_SZ, NULL, namebuf ? namebuf + off : NULL, &dsize);
 	return res != ERROR_SUCCESS ? 0 : off + dsize;
-}
-CU_API_SOURCE uptr cu_res_hostname(char *namebuf)
-{
-	DWORD len = namebuf ? CU_RES_NAME_MAXSIZE : 1;
-	char lbuf;
-	if (!GetComputerNameEx(ComputerNamePhysicalDnsHostname, namebuf ? namebuf : &lbuf, &len)) return 0;
-	return (uptr)len + 1;
-}
-CU_API_SOURCE uptr cu_res_username(char *namebuf)
-{
-	DWORD len = namebuf ? CU_RES_NAME_MAXSIZE : 1;
-	char lbuf;
-	if (!GetUserNameA(namebuf ? namebuf : &lbuf, &len)) return 0;
-	return (uptr)len;
-}
-
-#elif CU_OS_UNIX
-#  include <sys/sysinfo.h>
-#  include <sys/utsname.h>
-#  include <sys/times.h>
-#  include <string.h>
-#  include <unistd.h>
-#  include <stdio.h>
-#  include <pwd.h>
-
-CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes)
-{
-	FILE *f;
-	size_t n;
-	if (CU_UNLIKELY(!(f = fopen("/dev/urandom", "r")))) return 0;
-	n = fread(data, 1, bytes, f);
-	fclose(f);
-	return n;
-}
-
-CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
-{
-	struct sysinfo si;
-	int sres;
-	FILE *f;
-
-	memset(info, 0, sizeof *info);
-	sysinfo(&si);
-
-	info->phys_present = si.totalram;
-	info->phys_tot_used = si.totalswap;
-
-	info->virt_present = si.totalram + si.totalswap;
-	info->virt_tot_used = (si.totalram - si.freeram) + (si.totalswap - si.freeswap);
-
-	if (CU_UNLIKELY(!(f = fopen("/proc/self/statm", "r")))) return 0;
-	sres = fscanf(f, "%lu %lu", &info->phys_loc_used, &info->virt_loc_used);
-	fclose(f);
-
-	return sres == 2;
-}
-CU_API_SOURCE real64 cu_res_cpuusage(void)
-{
-	static int proc_count = 0;
-	static clock_t prev_rtime = 0, prev_stime = 0, prev_utime = 0;
-	struct tms tbuf;
-	clock_t rtime;
-	real64 res;
-
-	if ((rtime = times(&tbuf)) == -1) return -1.0;
-
-#if CU_SETTING_THREAD_FUNCS
-	if (!proc_count) proc_count = cu_thread_count();
 #else
-	proc_count = 1;
+	return 0;
 #endif
-
-	res = (double)((tbuf.tms_stime - prev_stime) + (tbuf.tms_utime - prev_utime)) / (0.01 * (double)(rtime - prev_rtime) * proc_count);
-
-	prev_rtime = rtime;
-	prev_stime = tbuf.tms_stime;
-	prev_utime = tbuf.tms_utime;
-
-	return res;
 }
 
-CU_API_SOURCE uptr cu_res_osname(char *namebuf)
-{
-	struct utsname ubuf;
-	if (uname(&ubuf) < 0) return 0;
-	if (namebuf) sprintf(namebuf, "%s %s", ubuf.sysname, ubuf.release);
-	return (uptr)(strlen(ubuf.sysname) + strlen(ubuf.release) + 2);
-}
 CU_API_SOURCE uptr cu_res_hostname(char *namebuf)
 {
+#if CU_OS_UNIX
 	char tbuf[CU_RES_NAME_MAXSIZE];
 	if (!namebuf) namebuf = tbuf;
 	if (gethostname(namebuf, CU_RES_NAME_MAXSIZE)) return 0;
 	return strlen(namebuf) + 1;
+#elif CU_OS_WINDOWS
+	DWORD len = namebuf ? CU_RES_NAME_MAXSIZE : 1;
+	char lbuf;
+	if (!GetComputerNameEx(ComputerNamePhysicalDnsHostname, namebuf ? namebuf : &lbuf, &len)) return 0;
+	return (uptr)len + 1;
+#else
+	return 0;
+#endif
 }
+
+
 CU_API_SOURCE uptr cu_res_username(char *namebuf)
 {
+#if CU_OS_UNIX
 	struct passwd *p = getpwuid(geteuid());
 	if (p) {
 		size_t tlen = strlen(p->pw_name) + 1;
 		if (namebuf) memcpy(namebuf, p->pw_name, tlen);
 		return tlen;
 	} else return 0;
-}
-
+#elif CU_OS_WINDOWS
+	DWORD len = namebuf ? CU_RES_NAME_MAXSIZE : 1;
+	char lbuf;
+	if (!GetUserNameA(namebuf ? namebuf : &lbuf, &len)) return 0;
+	return (uptr)len;
 #else
-
-CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes) { CU_UNUSED(data); CU_UNUSED(bytes); return 0; }
-CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info) { CU_UNUSED(info); return 0; }
-CU_API_SOURCE real64 cu_res_cpuusage(void) { return 0.0; }
-CU_API_SOURCE uptr cu_res_osname(char *namebuf) { CU_UNUSED(namebuf); return 0; }
-CU_API_SOURCE uptr cu_res_hostname(char *namebuf) { CU_UNUSED(namebuf); return 0; }
-CU_API_SOURCE uptr cu_res_username(char *namebuf) { CU_UNUSED(namebuf); return 0; }
-
+	return 0;
 #endif
-
-CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
-{
-	static const char bytefmt_suffix[6] = { 'K', 'M', 'G', 'T', 'P', 'E' };
-	int small = bytes < 1000, suffix = -1, prev = 0;
-	char *start = str;
-
-	while (bytes >= 1000) {
-		++suffix;
-		prev = (int)(bytes % 1000);
-		bytes /= 1000;
-	}
-
-	if (bytes >= 100) *str++ = '0' + (char)((bytes / 100) % 10);
-	if (bytes >= 10) *str++ = '0' + (char)((bytes / 10) % 10);
-	*str++ = '0' + (char)(bytes % 10);
-
-	if (!small) {
-		*str++ = '.';
-		*str++ = '0' + (char)((prev / 100) % 10);
-		*str++ = bytefmt_suffix[suffix];
-	}
-
-	*str++ = 'B';
-	*str++ = '\0';
-	return start;
 }
 
 #endif
@@ -1025,12 +993,17 @@ CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
 #elif CU_OS_UNIX
 #  include <sys/time.h>
 #elif CU_OS_WINDOWS
+   static LARGE_INTEGER cu_timer_freq;
 #  include <windows.h>
 #  include <stdlib.h>
 #endif
 
-#if CU_COMP_MSVC
-#  define tzset _tzset
+#if CU_LANG_C >= CU_LANG_C23
+#  if CU_COMP_MSVC
+#    define cu_tzset() _tzset()
+#  else
+#    define cu_tzset() tzset()
+#  endif
 #endif
 
 CU_API_SOURCE void cu_time_now(cu_ctime *tm)
@@ -1054,7 +1027,7 @@ CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 
 #if CU_LANG_C >= CU_LANG_C23
 	struct tm now_st;
-	tzset();
+	cu_tzset();
 	localtime_r(&now_val, &now_st);
 	now = &now_st;
 #elif CU_COMP_MSVC
@@ -1128,10 +1101,6 @@ CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 #endif
 }
 
-#if CU_OS_WINDOWS
-static LARGE_INTEGER cu_timer_freq;
-#endif
-
 CU_API_SOURCE void cu_timer_fill(cu_timer *tm)
 {
 #if CU_OS_MAC
@@ -1180,7 +1149,6 @@ static int cu_net_gai_err;
 #define CU_NET_RECVBUF 1023
 
 #if CU_OS_UNIX
-
 #  include <sys/socket.h>
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
@@ -1192,6 +1160,7 @@ static int cu_net_gai_err;
 #  include <errno.h>
 #  include <poll.h>
 
+#  define cu_close close
 #  define cu_sprintf(buf, mlen, fmt, args) sprintf(buf, fmt, args)
 #  define CU_UWSZ(unixsz, winsz) unixsz
 
@@ -1207,7 +1176,6 @@ static int cu_net_gai_err;
 
 #  define CU_NET_GETERR() errno
 #  define CU_NET_SETERR(e) errno = e
-
 #  define CU_NETSIG_SETUP() struct sigaction sact; memset(&sact, 0, sizeof sact)
 #  define CU_NETSIG_SETFUNC(f) do { \
 CU_DIAGNOSTICS_IGNORE_1(clang, "-Wdisabled-macro-expansion") \
@@ -1218,21 +1186,6 @@ sigaction(SIGINT, &sact, NULL); \
 
 typedef ssize_t cu_net_data;
 typedef nfds_t cu_net_pollcnt;
-
-CU_API_SOURCE const char *cu_net_lasterr(void)
-{
-	int gai = cu_net_gai_err;
-	cu_net_gai_err = 0;
-	return (gai && gai != EAI_SYSTEM) ? gai_strerror(gai) : strerror(errno);
-}
-
-CU_ATTRIB_NOTHROW static int cu_net_setsockopt(cu_socket sock, int opt, int val, size_t len)
-{
-	return setsockopt(sock, SOL_SOCKET, opt, &val, (socklen_t)len) != CU_SOCKET_ERROR;
-}
-
-CU_API int cu_net_init(void) { return 1; }
-CU_API void cu_net_terminate(void) {}
 
 #else
 #  if CU_COMP_MSVC
@@ -1245,7 +1198,7 @@ CU_API void cu_net_terminate(void) {}
 #  include <signal.h>
 
 #  define poll WSAPoll
-#  define close closesocket
+#  define cu_close closesocket
 #  define cu_sprintf(buf, mlen, fmt, args) sprintf_s(buf, mlen, fmt, args)
 #  define CU_UWSZ(unixsz, winsz) winsz
 
@@ -1262,7 +1215,6 @@ CU_API void cu_net_terminate(void) {}
 
 #  define CU_NET_GETERR() WSAGetLastError()
 #  define CU_NET_SETERR(e) WSASetLastError(e)
-
 #  define CU_NETSIG_SETUP() CU_EMPTY()
 #  define CU_NETSIG_SETFUNC(f) signal(SIGINT, f)
 
@@ -1272,40 +1224,33 @@ typedef ULONG cu_net_pollcnt;
 static WSADATA cu_net_wsastate;
 static char *cu_net_wsaerrstr;
 
-CU_API_SOURCE void cu_net_terminate(void) { free(cu_net_wsaerrstr); WSACleanup(); }
-CU_API_SOURCE int cu_net_init(void)
-{
-	if (WSAStartup(MAKEWORD(2, 2), &cu_net_wsastate) != 0) return 0;
-	if (!(cu_net_wsaerrstr = (char *)calloc(1, 512))) return 0;
-	if (LOBYTE(cu_net_wsastate.wVersion) == 2 && HIBYTE(cu_net_wsastate.wVersion) == 2) return 1;
-	WSACleanup();
-	return 0;
-}
-CU_API_SOURCE const char *cu_net_lasterr(void)
-{
-	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, WSAGetLastError(), 0, cu_net_wsaerrstr, 512, NULL);
-	return cu_net_wsaerrstr;
-}
-
-CU_ATTRIB_NOTHROW static int cu_net_setsockopt(cu_socket sock, int opt, int val, size_t len)
-{
-	BOOL res = (BOOL)val;
-	return setsockopt(sock, SOL_SOCKET, opt, (char *)&res, (int)len) != CU_SOCKET_ERROR;
-}
-
 #endif
 
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-static int cu_net_closesock(cu_socket *fd)
+CU_ATTRIB_NOTHROW
+static int cu_net_setsockopt(cu_socket sock, int opt, int val, size_t len)
 {
-	int saved = CU_NET_GETERR(), res = 0;
-	if (*fd != CU_INVALID_SOCKET) res = close(*fd) != CU_SOCKET_ERROR;
+#if CU_OS_UNIX
+	return setsockopt(sock, SOL_SOCKET, opt, &val, (socklen_t)len) != CU_SOCKET_ERROR;
+#else
+	BOOL res = (BOOL)val;
+	return setsockopt(sock, SOL_SOCKET, opt, (char *)&res, (int)len) != CU_SOCKET_ERROR;
+#endif
+}
+
+CU_ATTRIB_NOTHROW static void cu_net_sigint(int unused) { CU_UNUSED(unused); }
+
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static int cu_net_closesock(cu_socket *fd)
+{
+	int saved, res;
+	if (*fd == CU_INVALID_SOCKET) return 0;
+	saved = CU_NET_GETERR();
+	res = cu_close(*fd) != CU_SOCKET_ERROR;
 	*fd = CU_INVALID_SOCKET;
 	CU_NET_SETERR(saved);
 	return res;
 }
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2))
-static void cu_net_getaddrip(void *CU_RESTRICT ai_addr, char *CU_RESTRICT buf)
+
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2)) static void cu_net_getaddrip(void *CU_RESTRICT ai_addr, char *CU_RESTRICT buf)
 {
 	inet_ntop(
 		((struct sockaddr_storage *)ai_addr)->ss_family,
@@ -1315,8 +1260,8 @@ static void cu_net_getaddrip(void *CU_RESTRICT ai_addr, char *CU_RESTRICT buf)
 		buf, (socklen_t)(INET6_ADDRSTRLEN)
 	);
 }
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-static enum cu_net_error cu_net_getremotesock(cu_net_remote *CU_RESTRICT remote, u16 port, const char *CU_RESTRICT server_addr)
+
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static enum cu_net_error cu_net_getremotesock(cu_net_remote *CU_RESTRICT remote, u16 port, const char *CU_RESTRICT server_addr)
 {
 	struct addrinfo hints, *addr_list, *addr_it;
 	int res, is_server = server_addr == NULL;
@@ -1351,10 +1296,12 @@ static enum cu_net_error cu_net_getremotesock(cu_net_remote *CU_RESTRICT remote,
 
 	return remote->fd == CU_INVALID_SOCKET ? CUERR_CONNECT : CUERR_NONE;
 }
-CU_ATTRIB_NOTHROW static void cu_net_sigint(int unused) { CU_UNUSED(unused); }
 
-CU_API_SOURCE enum cu_net_error cu_client_start(cu_net_remote *CU_RESTRICT server_info, const char *CU_RESTRICT address, u16 port) { return cu_net_getremotesock(server_info, port, address); }
-CU_API_SOURCE void cu_client_close(cu_net_remote *server_info) { cu_net_closesock(&server_info->fd); }
+
+CU_API_SOURCE enum cu_net_error cu_client_start(cu_net_remote *CU_RESTRICT server_info, const char *CU_RESTRICT address, u16 port)
+{
+	return cu_net_getremotesock(server_info, port, address);
+}
 
 CU_API_SOURCE void cu_client_listen(cu_net_remote *CU_RESTRICT server_info, cu_client_event event_handler, int heartbeat_delay_msec)
 {
@@ -1391,6 +1338,9 @@ CU_API_SOURCE void cu_client_listen(cu_net_remote *CU_RESTRICT server_info, cu_c
 
 	CU_NETSIG_SETFUNC(SIG_DFL);
 }
+
+CU_API_SOURCE void cu_client_close(cu_net_remote *server_info) { cu_net_closesock(&server_info->fd); }
+
 
 CU_API_SOURCE enum cu_net_error cu_server_start(cu_net_server *server, u16 port, int max_clients)
 {
@@ -1537,6 +1487,26 @@ CU_API_SOURCE void cu_server_close(cu_net_server *server)
 }
 
 
+CU_API_SOURCE int cu_net_init(void)
+{
+#if CU_OS_UNIX
+	return 1;
+#else
+	if (WSAStartup(MAKEWORD(2, 2), &cu_net_wsastate) != 0) return 0;
+	if (!(cu_net_wsaerrstr = (char *)calloc(1, 512))) return 0;
+	if (LOBYTE(cu_net_wsastate.wVersion) == 2 && HIBYTE(cu_net_wsastate.wVersion) == 2) return 1;
+	WSACleanup();
+	return 0;
+#endif
+}
+
+CU_API_SOURCE void cu_net_terminate(void)
+{
+#if !CU_OS_UNIX
+	free(cu_net_wsaerrstr); WSACleanup();
+#endif
+}
+
 CU_API_SOURCE enum cu_net_error cu_net_sendmsg(const cu_net_remote *CU_RESTRICT target, const void *CU_RESTRICT data, uptr bytes)
 {
 	uptr offset = 0;
@@ -1641,6 +1611,18 @@ end:
 #endif
 }
 
+CU_API_SOURCE const char *cu_net_lasterr(void)
+{
+#if CU_OS_UNIX
+	int gai = cu_net_gai_err;
+	cu_net_gai_err = 0;
+	return (gai && gai != EAI_SYSTEM) ? gai_strerror(gai) : strerror(errno);
+#else
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, WSAGetLastError(), 0, cu_net_wsaerrstr, 512, NULL);
+	return cu_net_wsaerrstr;
+#endif
+}
+
 CU_API_SOURCE int cu_net_isclosed(const cu_net_remote *remote) { return remote->fd == CU_INVALID_SOCKET; }
 
 #endif
@@ -1656,7 +1638,6 @@ CU_API_SOURCE int cu_net_isclosed(const cu_net_remote *remote) { return remote->
 #if CU_THREAD_POSIX_USED
 #  include <pthread.h>
 #  include <unistd.h>
-#  include <errno.h>
 
 CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg)
 {
@@ -1664,17 +1645,9 @@ CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg 
 	if (pthread_create(&thr, NULL, function, arg) != 0) return 0;
 	return thr;
 }
-CU_API_SOURCE cu_thread cu_thread_self(void) { return pthread_self(); }
 CU_API_SOURCE int cu_thread_join(cu_thread thread) { return pthread_join(thread, NULL) == 0; }
 CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return pthread_detach(thread) == 0; }
 
-CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return pthread_mutex_init(mutex, NULL) == 0; }
-CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return pthread_mutex_lock(mutex) == 0; }
-CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return pthread_mutex_unlock(mutex) == 0; }
-CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return pthread_mutex_trylock(mutex) == 0; }
-CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return pthread_mutex_destroy(mutex) == 0; }
-
-CU_API_SOURCE int cu_thread_count(void) { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
 CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	struct timespec abstime;
@@ -1684,6 +1657,15 @@ CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 	abstime.tv_sec = (long)(secs + (nsecs / 1000000000));
 	pthread_cond_timedwait(&fcond, &fmut, &abstime);
 }
+CU_API_SOURCE int cu_thread_count(void) { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
+
+CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return pthread_mutex_init(mutex, NULL) == 0; }
+CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return pthread_mutex_lock(mutex) == 0; }
+CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return pthread_mutex_unlock(mutex) == 0; }
+CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return pthread_mutex_trylock(mutex) == 0; }
+CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return pthread_mutex_destroy(mutex) == 0; }
+
+CU_API_SOURCE cu_thread cu_thread_self(void) { return pthread_self(); }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)getpid(); }
 CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)pthread_self(); }
 
@@ -1691,22 +1673,9 @@ CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)pthread_self(); }
 #  include <windows.h>
 
 CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg) { return CreateThread(NULL, 0, function, arg, 0, 0); }
-CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
 CU_API_SOURCE int cu_thread_join(cu_thread thread) { return WaitForSingleObject(thread, INFINITE) == WAIT_OBJECT_0; }
 CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return CloseHandle(thread) != 0; }
 
-CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { InitializeCriticalSection(mutex); return 1; }
-CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { EnterCriticalSection(mutex); return 1; }
-CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { LeaveCriticalSection(mutex); return 1; }
-CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return TryEnterCriticalSection(mutex) != 0; }
-CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { DeleteCriticalSection(mutex); return 1; }
-
-CU_API_SOURCE int cu_thread_count(void)
-{
-	SYSTEM_INFO info;
-	GetSystemInfo(&info);
-	return (int)info.dwNumberOfProcessors;
-}
 CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	HANDLE timer;
@@ -1718,6 +1687,20 @@ CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 	WaitForSingleObject(timer, INFINITE);
 	CloseHandle(timer);
 }
+CU_API_SOURCE int cu_thread_count(void)
+{
+	SYSTEM_INFO info;
+	GetSystemInfo(&info);
+	return (int)info.dwNumberOfProcessors;
+}
+
+CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { InitializeCriticalSection(mutex); return 1; }
+CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { EnterCriticalSection(mutex); return 1; }
+CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { LeaveCriticalSection(mutex); return 1; }
+CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return TryEnterCriticalSection(mutex) != 0; }
+CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { DeleteCriticalSection(mutex); return 1; }
+
+CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)GetCurrentProcessId(); }
 CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)GetCurrentThreadId(); }
 
@@ -1731,17 +1714,9 @@ CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg 
 	if (thrd_create(&thr, function, arg) != thrd_success) return 0;
 	return thr;
 }
-CU_API_SOURCE cu_thread cu_thread_self(void) { return thrd_current(); }
 CU_API_SOURCE int cu_thread_join(cu_thread thread) { return thrd_join(thread, NULL) == thrd_success; }
 CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return thrd_detach(thread) == thrd_success; }
 
-CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return mtx_init(mutex, mtx_plain) == thrd_success; }
-CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return mtx_lock(mutex) == thrd_success; }
-CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return mtx_unlock(mutex) == thrd_success; }
-CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return mtx_trylock(mutex) == thrd_success; }
-CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { mtx_destroy(mutex); return 1; }
-
-CU_API_SOURCE int cu_thread_count(void) { return 1; }
 CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	struct timespec ts;
@@ -1749,6 +1724,15 @@ CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 	ts.tv_sec = (long)(secs + (nsecs / 1000000000));
 	while (thrd_sleep(&ts, &ts) == -1);
 }
+CU_API_SOURCE int cu_thread_count(void) { return 1; }
+
+CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return mtx_init(mutex, mtx_plain) == thrd_success; }
+CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return mtx_lock(mutex) == thrd_success; }
+CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return mtx_unlock(mutex) == thrd_success; }
+CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return mtx_trylock(mutex) == thrd_success; }
+CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { mtx_destroy(mutex); return 1; }
+
+CU_API_SOURCE cu_thread cu_thread_self(void) { return thrd_current(); }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)0; }
 CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)0; }
 
