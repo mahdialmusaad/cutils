@@ -1,5 +1,7 @@
 #include "tests.h"
 
+#if CU_SETTING_STRING_FUNCS
+
 TFUNC(custr1)
 {
 	custr cs, *c = &cs, al;
@@ -38,3 +40,7 @@ TFUNC(custr1)
 	custr_clear(&al);
 	custr_clear(c);
 }
+
+#else
+TFUNC(custr1) { }
+#endif

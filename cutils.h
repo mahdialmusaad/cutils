@@ -882,7 +882,7 @@ extern "C" {
 #  define CU_OS_LYNX 0
 #endif
 
-#if (defined(macintosh) || defined(Macintosh)) && (defined(__APPLE__) || defined(__MACH__))
+#if defined(macintosh) || defined(Macintosh) || defined(__APPLE__) || defined(__MACH__)
 #  if defined(__APPLE__) && defined(__MACH__)
 #    define CU_OS_MAC 10
 #  else
@@ -893,7 +893,7 @@ extern "C" {
 #endif
 
 #if defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) && (defined(__APPLE__) || defined(__MACH__))
-#  define CU_OS_IOS (__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ - 0) * 1000
+#  define CU_OS_IOS __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ * 1000
 #else
 #  define CU_OS_IOS 0
 #endif
@@ -1629,12 +1629,6 @@ extern "C" {
 #  define CU_THREAD_POSIX_AVAILABLE 0
 #endif
 
-#if CU_THREAD_POSIX_AVAILABLE || CU_THREAD_C_AVAILABLE || CU_THREAD_WIN_AVAILABLE
-#  define CU_THREAD_ANY_AVAILABLE 1
-#else
-#  define CU_THREAD_ANY_AVAILABLE 0
-#endif
-
 #define CU_CONCAT3_DETAIL(a, b, c) a ## b ## c
 #define CU_CONCAT_DETAIL(a, b) a ## b
 #define CU_STRINGIFY_DETAIL(a) #a
@@ -1919,7 +1913,7 @@ extern "C" {
 #  define CU_THREAD_LOCAL_AVAILABLE 0
 #endif
 
-#if CU_LANG_C >= CU_LANG_C11 && !defined(__STDC_NO_ATOMICS__)
+#if CU_LANG_C >= CU_LANG_C11 && !defined(__STDC_NO_ATOMICS__) && CU_HAS_INCLUDE(<stdatomic.h>)
 #  if CU_ARCH_RISCV && CU_COMP_CLANG
 #    include <stdint.h>
 #  endif
@@ -2275,7 +2269,7 @@ CU_DIAGNOSTICS_POP
 #elif CU_COMPVER(GNU, 4, 8) || CU_COMPVER(PGI, 18, 4) || CU_COMPVER(INTEL, 13, 0)
 #  define CU_WARNING(msg) CU_PRAGMA(GCC warning msg)
 #elif CU_COMPVER(MSVC, 15, 0)
-#  define CU_WARNING CU_PRAGMA(message(msg))
+#  define CU_WARNING(msg) CU_PRAGMA(message(msg))
 #else
 #  define CU_WARNING(msg) CU_MESSAGE(msg)
 #endif
@@ -2616,7 +2610,6 @@ CU_STATIC_ASSERT(sizeof(i32) == 4, "Invalid type size (i32)")
 CU_STATIC_ASSERT(sizeof(i64) == 8, "Invalid type size (i64)")
 #endif
 CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
-CU_STATIC_ASSERT(sizeof(imax) >= sizeof(void *), "Invalid type size (imax)")
 
 /* ========================= Optimization ======================== */
 
@@ -2680,14 +2673,6 @@ CU_STATIC_ASSERT(sizeof(imax) >= sizeof(void *), "Invalid type size (imax)")
 
 /* ========================= Constants ======================== */
 
-#define CU_PI     3.141592653589793238462643383279502884197169399375105820974944
-#define CU_SQRT2  1.414213562373095048801688724209698078569671875376948073176679
-#define CU_SQRT3  1.732050807568877293527446341505872366942805253810380628055806
-#define CU_EULER  2.718281828459045235360287471352662497757247093699959574966967
-
-#define CU_TODEG_MULT (180.0 / CU_PI)
-#define CU_TORAD_MULT (CU_PI / 180.0)
-
 #define CU_I8MAX 0x7F
 #define CU_U8MAX 0xFF
 #define CU_I16MAX 0x7FFF
@@ -2743,34 +2728,36 @@ CU_STATIC_ASSERT(sizeof(imax) >= sizeof(void *), "Invalid type size (imax)")
 #  define NULL ((void *)(0))
 #endif
 
-/* ========================= Function support ======================== */
+/* ========================= Functions ======================== */
 
-#if !CU_SETTING_QUIET && CU_SETTING_FUNCS
+#if CU_SETTING_FUNCS
 
-/* Define CU_SETTING_QUIET to 1 before including this header file or as part of your compiler options to disable support warnings. */
-
-#if CU_SETTING_FILE_FUNCS && !CU_OS_WINDOWS && (!CU_HAS_INCLUDE(<dirent.h>) || CU_ARCH_M68K || defined(__MSP430__))
-CU_WARNING("Recursive directory deletion is unavailable.")
-#endif
-
-#if CU_SETTING_FILE_FUNCS && !CU_HAS_INCLUDE(<sys/stat.h>)
+#if CU_SETTING_FILE_FUNCS && !CU_OS_WINDOWS && (!CU_HAS_INCLUDE(<sys/stat.h>) || !CU_HAS_INCLUDE(<dirent.h>))
+#  if !CU_SETTING_QUIET
 CU_WARNING("File functions are unavailable.")
+#  endif
 #  undef CU_SETTING_FILE_FUNCS
 #  define CU_SETTING_FILE_FUNCS 0
 #endif
 
 #if CU_SETTING_RESOURCES_FUNCS && !CU_ARCH_X86
+#if !CU_SETTING_QUIET
 CU_WARNING("cpuid instruction not supported; cu_res_cpuinfo will be limited.")
+#  endif
 #endif
 
 #if CU_SETTING_NETWORK_FUNCS && !CU_OS_WINDOWS && !CU_OS_UNIX
+#  if !CU_SETTING_QUIET
 CU_WARNING("Networking functions are unavailable.")
+#  endif
 #  undef CU_SETTING_NETWORK_FUNCS
 #  define CU_SETTING_NETWORK_FUNCS 0
 #endif
 
-#if CU_SETTING_THREAD_FUNCS && !CU_THREAD_ANY_AVAILABLE
+#if CU_SETTING_THREAD_FUNCS && !(CU_THREAD_POSIX_AVAILABLE || CU_THREAD_C_AVAILABLE || CU_THREAD_WIN_AVAILABLE)
+#  if !CU_SETTING_QUIET
 CU_WARNING("Threading functions are unavailable.")
+#  endif
 #  undef CU_SETTING_THREAD_FUNCS
 #  define CU_SETTING_THREAD_FUNCS 0
 #endif
@@ -2784,6 +2771,8 @@ CU_WARNING("Threading functions are unavailable.")
 #define A_WUR CU_ATTRIB_WARN_UNUSED_RESULT
 #define A_NTL(p) CU_API CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL(p)
 #define A_RES CU_RESTRICT
+
+/* ========================= String ======================== */
 
 #if CU_SETTING_STRING_FUNCS
 
@@ -2879,6 +2868,8 @@ A_NTL((1)) void custr_replace(custr *c, uptr c_offset, char target, char replace
 A_NTL((1, 3)) int custr_replacesub(custr *A_RES c, uptr c_offset, const char *A_RES target, const char *A_RES replacement);
 
 #endif
+
+/* ========================= Filesystem ======================== */
 
 #if CU_SETTING_FILE_FUNCS
 
@@ -3002,6 +2993,8 @@ A_NTHRW uptr cu_res_username(char *namebuf);
 
 #endif
 
+/* ========================= Time ======================== */
+
 #if CU_SETTING_TIME_FUNCS
 
 /* Current date & time data structure. */
@@ -3058,6 +3051,8 @@ A_NNULL((1, 2)) A_WUR u64 cu_timer_dif(const cu_timer *A_RES start, const cu_tim
 #define CU_TIMER_USECS(tm) ((tm.nsecs / CU_TIME_USEC) + secs * 1000000)
 
 #endif
+
+/* ========================= Networking ======================== */
 
 #if CU_SETTING_NETWORK_FUNCS
 
@@ -3227,6 +3222,8 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
 
 #endif
 
+/* ========================= Threading ======================== */
+
 #if CU_SETTING_THREAD_FUNCS
 
 #if CU_THREAD_POSIX_AVAILABLE
@@ -3236,6 +3233,7 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
 #  include <pthread.h>
    typedef pthread_t cu_thread;
    typedef pthread_mutex_t cu_thread_mutex;
+   typedef pthread_cond_t cu_thread_cond;
    typedef void *cu_thread_arg;
    typedef void *cu_thread_return;
    typedef cu_thread_return (*cu_thread_func)(cu_thread_arg);
@@ -3247,6 +3245,7 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
 #  include <windows.h>
    typedef HANDLE cu_thread;
    typedef CRITICAL_SECTION cu_thread_mutex;
+   typedef CONDITION_VARIABLE cu_thread_cond;
    typedef LPVOID cu_thread_arg;
    typedef DWORD cu_thread_return;
    typedef cu_thread_return (WINAPI *cu_thread_func)(cu_thread_arg);
@@ -3258,6 +3257,7 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
 #  include <threads.h>
    typedef thrd_t cu_thread;
    typedef mtx_t cu_thread_mutex;
+   typedef cnd_t cu_thread_cond;
    typedef void *cu_thread_arg;
    typedef int cu_thread_return;
    typedef cu_thread_return (*cu_thread_func)(cu_thread_arg);
@@ -3289,6 +3289,17 @@ A_NTL((1)) int cu_thread_mutex_unlock(cu_thread_mutex *mutex);
 A_NTL((1)) int cu_thread_mutex_trylock(cu_thread_mutex *mutex);
 /* Destroys the given mutex. Returns 0 if failed. */
 A_NTL((1)) int cu_thread_mutex_destroy(cu_thread_mutex *mutex);
+
+/* Initializes the given condition variable. Returns 0 if failed. */
+A_NTL((1)) int cu_thread_cond_init(cu_thread_cond *cond);
+/* Waits on the given condition variable. Returns 0 if failed. */
+A_NTL((1)) int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex);
+/* Unlocks the given mutex. Returns 0 if failed. */
+A_NTL((1)) int cu_thread_cond_signal(cu_thread_cond *cond);
+/* Tries to lock the given mutex. Returns 0 if failed. */
+A_NTL((1)) int cu_thread_cond_broadcast(cu_thread_cond *cond);
+/* Destroys the given condition variable. Returns 0 if failed. */
+A_NTL((1)) int cu_thread_cond_destroy(cu_thread_cond *cond);
 
 /* Returns the current thread. */
 A_NTHRW cu_thread cu_thread_self(void);

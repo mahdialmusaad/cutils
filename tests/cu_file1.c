@@ -1,5 +1,7 @@
 #include "tests.h"
 
+#if CU_SETTING_FILE_FUNCS
+
 #define s_strlen(C) (C ? strlen(C) : 0)
 
 TFUNC(cu_file1)
@@ -26,3 +28,7 @@ TFUNC(cu_file1)
 	EXPECT(cu_file_delete("tfile"));
 	EXPECT0(cu_file_exists("tfile"));
 }
+
+#else
+TFUNC(cu_file1) { }
+#endif

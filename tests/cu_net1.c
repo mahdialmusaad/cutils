@@ -1,5 +1,7 @@
 #include "tests.h"
 
+#if CU_SETTING_NETWORK_FUNCS
+
 static int client_i, server_i;
 
 static int client_event(cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
@@ -92,3 +94,7 @@ TFUNC(cu_net1)
 	cu_thread_join(ct);
 	cu_net_terminate();
 }
+
+#else
+TFUNC(cu_net1) { }
+#endif
