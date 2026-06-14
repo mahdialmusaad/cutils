@@ -18,7 +18,7 @@ if(CU_SETTING_FUNCS)
 	option(CU_SETTING_NETWORK_FUNCS "Build the networking functions" ON)
 	option(CU_SETTING_THREAD_FUNCS "Build the threading functions" ON)
 
-	option(CU_BUILD_MISC "Build the test and example programs" OFF)
+	option(CU_BUILD_MISC "Build the test and example programs" ON)
 endif()
 
 option(CU_SETTING_QUIET "Do not warn about unavailable features" OFF)
@@ -47,15 +47,15 @@ elseif(CU_DEFAULT_CFLAGS)
 endif()
 
 target_compile_definitions(cutils PRIVATE
-	${CU_SETTING_FUNCS}
-	${CU_SETTING_STRING_FUNCS}
-	${CU_SETTING_FILE_FUNCS}
-	${CU_SETTING_RESOURCES_FUNCS}
-	${CU_SETTING_TIME_FUNCS}
-	${CU_SETTING_NETWORK_FUNCS}
-	${CU_SETTING_THREAD_FUNCS}
-	${CU_SETTING_QUIET}
-	${CU_SETTING_FORCE_DEBUG}
+	CU_SETTING_FUNCS=$<BOOL:${CU_SETTING_FUNCS}>
+	CU_SETTING_STRING_FUNCS=$<BOOL:${CU_SETTING_STRING_FUNCS}>
+	CU_SETTING_FILE_FUNCS=$<BOOL:${CU_SETTING_FILE_FUNCS}>
+	CU_SETTING_RESOURCES_FUNCS=$<BOOL:${CU_SETTING_RESOURCES_FUNCS}>
+	CU_SETTING_TIME_FUNCS=$<BOOL:${CU_SETTING_TIME_FUNCS}>
+	CU_SETTING_NETWORK_FUNCS=$<BOOL:${CU_SETTING_NETWORK_FUNCS}>
+	CU_SETTING_THREAD_FUNCS=$<BOOL:${CU_SETTING_THREAD_FUNCS}>
+	CU_SETTING_QUIET=$<BOOL:${CU_SETTING_QUIET}>
+	CU_SETTING_FORCE_DEBUG=$<BOOL:${CU_SETTING_FORCE_DEBUG}>
 )
 
 if(CU_INSTALL)
@@ -81,13 +81,19 @@ endif()
 
 if(CU_BUILD_MISC)
 	get_target_property(CU_COMPILE_OPTIONS cutils COMPILE_OPTIONS)
+	get_target_property(CU_COMPILE_DEFINITIONS cutils COMPILE_DEFINITIONS)
+
 	if (CU_COMPILE_OPTIONS STREQUAL CU_COMPILE_OPTIONS-NOTFOUND)
 		set(CU_COMPILE_OPTIONS "")	
+	endif()
+	if (CU_COMPILE_DEFINITIONS STREQUAL CU_COMPILE_DEFINITIONS-NOTFOUND)
+		set(CU_COMPILE_DEFINITIONS "")	
 	endif()
 
 	add_executable(test tests/main.c)
 	target_link_libraries(test PRIVATE cutils)
 	target_compile_options(test PRIVATE ${CU_COMPILE_OPTIONS})
+	target_compile_definitions(test PRIVATE ${CU_COMPILE_DEFINITIONS})
 
 	file(GLOB CU_EXAMPLES examples/*.c)
 
@@ -96,5 +102,6 @@ if(CU_BUILD_MISC)
 		add_executable(${CU_EXAMPLE_TARGET} ${CU_EXAMPLE_SOURCE})
 		target_link_libraries(${CU_EXAMPLE_TARGET} PRIVATE cutils)
 		target_compile_options(${CU_EXAMPLE_TARGET} PRIVATE ${CU_COMPILE_OPTIONS})
+		target_compile_definitions(${CU_EXAMPLE_TARGET} PRIVATE ${CU_COMPILE_DEFINITIONS})
 	endforeach()
 endif()
