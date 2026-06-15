@@ -646,8 +646,19 @@ fail:
 #  include <time.h>
 #endif
 
-#if CU_OS_UNIX
+#if CU_OS_MAC
+#  include <mach/mach.h>
+#  include <sys/types.h>
+#  include <sys/sysctl.h>
+#  include <mach/vm_statistics.h>
+#  include <mach/mach_types.h>
+#  include <mach/mach_init.h>
+#  include <mach/mach_host.h>
+#elif CU_OS_UNIX && CU_HAS_INCLUDE(<sys/sysinfo.h>)
 #  include <sys/sysinfo.h>
+#endif
+
+#if CU_OS_UNIX
 #  include <sys/utsname.h>
 #  include <sys/times.h>
 #  include <string.h>
@@ -658,15 +669,14 @@ fail:
 #  include <psapi.h>
 #  include <stdio.h>
 #  include <ntsecapi.h>
-#  if CU_COMP_MSVC
-#    include <intrin.h>
-#    pragma comment(lib, "Advapi32.lib")
-#  endif
 #endif
 
 #if CU_COMP_MSVC
 #  define cu_res_rdtsc() __rdtsc()
 #  define cu_sscanf(str, fmt, a1) sscanf_s(str, fmt, a1)
+#  pragma comment(lib, "Psapi.lib")
+#  include <intrin.h>
+#  pragma comment(lib, "Advapi32.lib")
 #else
 #  define cu_sscanf(str, fmt, a1) sscanf(str, fmt, a1)
 #endif
@@ -747,7 +757,42 @@ CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes)
 
 CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 {
-#if CU_OS_UNIX
+#if CU_OS_MAC
+	mach_port_t mach_port = mach_host_self();
+	mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
+	vm_statistics64_data_t vm_stats;
+
+	struct task_basic_info t_info;
+	mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
+
+	struct xsw_usage swap;
+	size_t size = sizeof swap;
+
+	int mib[2] = { CTL_HW, HW_MEMSIZE };
+	int64_t physical_memory = 0;
+	size_t length = sizeof physical_memory;
+
+	memset(info, 0, sizeof *info);
+	sysctl(mib, 2, &physical_memory, &length, NULL, 0);
+
+	info->physical_present = (u64)physical_memory;
+
+	if (host_statistics64(mach_port, HOST_VM_INFO64_COUNT, (host_info64_t)&vm_stats, &count) == KERN_SUCCESS) {
+		vm_size_t page_size = 16384;
+		host_page_size(mach_port, &page_size);
+		info->physical_free = (u64)vm_stats.free_count * (u64)page_size;
+	}
+
+	if (sysctlbyname("vm.swapusage", &swap, &size, NULL, 0) == 0) {
+		info->virtual_present = info->physical_present + (u64)swap.xsu_total;
+		info->virtual_free = info->physical_free + (u64)swap.xsu_avail;
+	}
+
+	if (task_info(mach_task_self(), TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count) == KERN_SUCCESS) {
+		info->physical_used = t_info.resident_size;
+		info->virtual_used = t_info.virtual_size;
+	}
+#elif CU_OS_UNIX && CU_HAS_INCLUDE(<sys/sysinfo.h>)
 	struct sysinfo si;
 	int sres;
 	FILE *f;
@@ -755,34 +800,34 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 	memset(info, 0, sizeof *info);
 	sysinfo(&si);
 
-	info->phys_present = si.totalram;
-	info->phys_tot_used = si.totalswap;
-
-	info->virt_present = si.totalram + si.totalswap;
-	info->virt_tot_used = (si.totalram - si.freeram) + (si.totalswap - si.freeswap);
+	info->physical_present = (u64)(si.totalram);
+	info->physical_free = (u64)(si.freeram);
+	info->virtual_present = (u64)(si.totalram) + (u64)(si.totalswap);
+	info->virtual_free = (u64)(si.freeram) + (u64)(si.freeswap);
 
 	if (CU_UNLIKELY(!(f = fopen("/proc/self/statm", "r")))) return 0;
-	sres = fscanf(f, "%lu %lu", &info->phys_loc_used, &info->virt_loc_used);
+	sres = fscanf(f, "%lu %lu", &info->virtual_used, &info->physical_used);
 	fclose(f);
 
 	return sres == 2;
 #elif CU_OS_WINDOWS
 	MEMORYSTATUSEX mstat;
 	PROCESS_MEMORY_COUNTERS_EX pmc;
-
 	mstat.dwLength = sizeof mstat;
-	GlobalMemoryStatusEx(&mstat);
 
-	info->virt_present = (uptr)mstat.ullTotalPageFile;
-	info->virt_tot_used = (uptr)(mstat.ullTotalPageFile - mstat.ullAvailPageFile);
+	memset(info, 0, sizeof *info);
 
-	info->phys_present = (uptr)mstat.ullTotalPhys;
-	info->phys_tot_used = (uptr)(mstat.ullTotalPhys - mstat.ullAvailPhys);
+	if (GlobalMemoryStatusEx(&mstat)) {
+		info->physical_present = (u64)mstat.ullTotalPhys;
+		info->physical_free = (u64)mstat.ullAvailPhys;
+		info->virtual_present = (u64)mstat.ullTotalPageFile;
+		info->virtual_free = (u64)mstat.ullAvailPageFile;
+	}
 
-	GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS *)&pmc, sizeof pmc);
-
-	info->phys_loc_used = pmc.WorkingSetSize;
-	info->virt_loc_used = pmc.PrivateUsage;
+	if (GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS *)&pmc, sizeof pmc)) {
+		info->physical_used = pmc.WorkingSetSize;
+		info->virtual_used = pmc.PrivateUsage;
+	}
 
 	return 1;
 #else

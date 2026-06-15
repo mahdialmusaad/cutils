@@ -1961,13 +1961,13 @@ A_NTL((1)) int cu_dir_delete(const char *path, int recursive);
 /* Memory usage and availability information. */
 typedef struct cu_res_mem
 {
-	uptr phys_present;  /* Total physical memory on the system. */
-	uptr phys_tot_used; /* Total physical memory used. */
-	uptr phys_loc_used; /* Total physical memory used by this process. */
+	u64 physical_present;  /* Amount of physical memory present on the system. */
+	u64 physical_free;     /* Amount of free physical memory. */
+	u64 physical_used;     /* Total physical memory used by this process. */
 
-	uptr virt_present;  /* Total virtual memory on the system. */
-	uptr virt_tot_used; /* Total virtual memory used. */
-	uptr virt_loc_used; /* Total virtual memory used by this process. */
+	u64 virtual_present;  /* Amount of virtual memory present on the system. */
+	u64 virtual_free;     /* Amount of free virtual memory. */
+	u64 virtual_used;     /* Total virtual memory used by this process. */
 } cu_res_mem;
 
 struct cu_res_cpu_cache
