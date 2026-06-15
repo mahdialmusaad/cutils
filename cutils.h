@@ -1274,29 +1274,23 @@ extern "C" {
 #  define CU_FREESTANDING 1
 #endif
 
-#if CU_HAS_WARNING("-Wunknown-pragmas")
-#  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("clang diagnostic ignored \"-Wunknown-pragmas\"")
+#if CU_HAS_WARNING("-Wunknown-pragmas") || CU_COMPVER(GNU, 4, 3)
+#  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("GCC diagnostic ignored \"-Wunknown-pragmas\"")
 #elif CU_COMPVER(INTEL, 13, 0)
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("warning(disable:161)")
-#elif CU_COMPVER(GNU, 4, 3)
-#  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS _Pragma("GCC diagnostic ignored \"-Wunknown-pragmas\"")
 #elif CU_COMPVER(MSVC, 15, 0)
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS __pragma(warning(disable:4068))
 #else
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
 #endif
 
-#ifdef __clang__
-#  define CU_DIAGNOSTICS_PUSH _Pragma("clang diagnostic push")
-#  define CU_DIAGNOSTICS_POP _Pragma("clang diagnostic pop")
+#if defined(__clang__) || CU_COMPVER(GNU, 4, 6)
+#  define CU_DIAGNOSTICS_PUSH _Pragma("GCC diagnostic push")
+#  define CU_DIAGNOSTICS_POP _Pragma("GCC diagnostic pop")
 #  define CU_DIAGNOSTICS_AVAILABLE 1
 #elif CU_COMPVER(INTEL, 13, 0)
 #  define CU_DIAGNOSTICS_PUSH _Pragma("warning(push)")
 #  define CU_DIAGNOSTICS_POP _Pragma("warning(pop)")
-#  define CU_DIAGNOSTICS_AVAILABLE 1
-#elif CU_COMPVER(GNU, 4, 6)
-#  define CU_DIAGNOSTICS_PUSH _Pragma("GCC diagnostic push")
-#  define CU_DIAGNOSTICS_POP _Pragma("GCC diagnostic pop")
 #  define CU_DIAGNOSTICS_AVAILABLE 1
 #elif CU_COMPVER(MSVC, 15, 0)
 #  define CU_DIAGNOSTICS_PUSH __pragma(warning(push))
@@ -1495,11 +1489,13 @@ static void __cu_assert_fail(int line, const char *func, const char *file, const
 #  define CU_DM_32BIT 1
 #endif
 
-#if CU_DM_LLP64 || CU_COMP_MSVC || CU_PLAT_MINGW || CU_ARCH_MIPS
+#if CU_DM_LLP64 || CU_COMP_MSVC || CU_PLAT_MINGW || CU_ARCH_MIPS || (CU_COMP_CLANG && CU_OS_MAC)
 #  define CU_DM_LONGSUF ll
+#  define CU_DM_LONGSUF_CAP LL
 #  define CU_DM_LL 1
 #else
 #  define CU_DM_LONGSUF l
+#  define CU_DM_LONGSUF_CAP L
 #  define CU_DM_LL 0
 #endif
 

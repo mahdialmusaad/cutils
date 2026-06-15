@@ -772,6 +772,7 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 	struct xsw_usage swap;
 	size_t size = sizeof swap;
 
+	int success = 1;
 	int mib[2] = { CTL_HW, HW_MEMSIZE };
 	int64_t physical_memory = 0;
 	size_t length = sizeof physical_memory;
@@ -785,36 +786,41 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 		vm_size_t page_size = 16384;
 		host_page_size(mach_port, &page_size);
 		info->physical_free = (u64)vm_stats.free_count * (u64)page_size;
-	}
+	} else success = 0;
 
 	if (sysctlbyname("vm.swapusage", &swap, &size, NULL, 0) == 0) {
 		info->virtual_present = info->physical_present + (u64)swap.xsu_total;
 		info->virtual_free = info->physical_free + (u64)swap.xsu_avail;
-	}
+	} else success = 0;
 
 	if (task_info(mach_task_self(), TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count) == KERN_SUCCESS) {
 		info->physical_used = t_info.resident_size;
 		info->virtual_used = t_info.virtual_size;
-	}
+	} else success = 0;
+
+	return success;
 #elif CU_OS_UNIX && CU_HAS_INCLUDE(<sys/sysinfo.h>)
 	struct sysinfo si;
-	int sres;
+	int success = 1;
 	FILE *f;
 
 	memset(info, 0, sizeof *info);
-	sysinfo(&si);
 
-	info->physical_present = (u64)(si.totalram);
-	info->physical_free = (u64)(si.freeram);
-	info->virtual_present = (u64)(si.totalram) + (u64)(si.totalswap);
-	info->virtual_free = (u64)(si.freeram) + (u64)(si.freeswap);
+	if (sysinfo(&si) == 0) {
+		info->physical_present = (u64)(si.totalram);
+		info->physical_free = (u64)(si.freeram);
+		info->virtual_present = (u64)(si.totalram) + (u64)(si.totalswap);
+		info->virtual_free = (u64)(si.freeram) + (u64)(si.freeswap);
+	} else success = 0;
 
-	if (CU_UNLIKELY(!(f = fopen("/proc/self/statm", "r")))) return 0;
-	sres = fscanf(f, "%lu %lu", &info->virtual_used, &info->physical_used);
-	fclose(f);
+	if (CU_LIKELY((f = fopen("/proc/self/statm", "r")))) {
+		fscanf(f, "%lu %lu", &info->virtual_used, &info->physical_used);
+		fclose(f);
+	} else success = 0;
 
-	return sres == 2;
+	return success;
 #elif CU_OS_WINDOWS
+	int success = 1;
 	MEMORYSTATUSEX mstat;
 	PROCESS_MEMORY_COUNTERS_EX pmc;
 	mstat.dwLength = sizeof mstat;
@@ -826,14 +832,14 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 		info->physical_free = (u64)mstat.ullAvailPhys;
 		info->virtual_present = (u64)mstat.ullTotalPageFile;
 		info->virtual_free = (u64)mstat.ullAvailPageFile;
-	}
+	} else success = 0;
 
 	if (GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS *)&pmc, sizeof pmc)) {
 		info->physical_used = pmc.WorkingSetSize;
 		info->virtual_used = pmc.PrivateUsage;
-	}
+	} else success = 0;
 
-	return 1;
+	return success;
 #else
 	CU_UNUSED(info);
 	return 0;
@@ -849,7 +855,7 @@ CU_API_SOURCE real64 cu_res_cpuusage(void)
 	clock_t rtime;
 	real64 res;
 
-	if ((rtime = times(&tbuf)) == -1) return -1.0;
+	if ((rtime = times(&tbuf)) == (clock_t)(-1)) return -1.0;
 #if CU_SETTING_THREAD_FUNCS
 	if (!proc_count) proc_count = cu_thread_count();
 #else
@@ -1437,7 +1443,7 @@ static void cu_server_process_connection(cu_net_server *CU_RESTRICT server, cu_s
 	return;
 decline:
 	if (csock == CU_INVALID_SOCKET) csock = accept(server->pfds->fd, (struct sockaddr *)&saddr, &addrlen);
-	if (csock != CU_INVALID_SOCKET) close(csock);
+	if (csock != CU_INVALID_SOCKET) cu_net_closesock(&csock);
 }
 
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 3))
@@ -1699,7 +1705,7 @@ CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return pthread_
 
 CU_API_SOURCE cu_thread cu_thread_self(void) { return pthread_self(); }
 CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)getpid(); }
-CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)pthread_self(); }
+CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)gettid(); }
 
 #elif CU_THREAD_WIN_USED
 #  include <windows.h>
