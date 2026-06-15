@@ -6,10 +6,12 @@
 
 TFUNC(cu_file1)
 {
-	cu_file_info f = { 0, 0, 0 };
+	cu_file_info f;
 	time_t bf = time(NULL);
 	char *pb;
 	uptr u;
+
+	memset(&f, 0, sizeof f);
 
 	EXPECT((pb = cu_file_exe_path(*e_argv, &u)));
 	EXPECT(u > s_strlen(pb));

@@ -386,64 +386,65 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 
 #if CU_SETTING_FILE_FUNCS
 
-#if CU_COMP_MSVC
-#  define cu_fileno(f) _fileno(f)
-#  define cu_fopen(file, path, mode) (fopen_s(&file, path, mode) != 0)
-#else
-#  define cu_fileno(f) fileno(f)
-#  define cu_fopen(file, path, mode) (!(file = fopen(path, mode)))
-#endif
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include <sys/stat.h>
 
 #if CU_OS_WINDOWS
 #  include <io.h>
 #  include <direct.h>
 #  include <windows.h>
-#  define mkdir(path, mode) _mkdir(path)
+#  define cu_fileno(f) _fileno(f)
+#  define cu_fopen(file, path, mode) (fopen_s(&file, path, mode) != 0)
+#  define cu_mkdir(path, mode) _mkdir(path)
+#  define cu_fstat _fstati64
+#  define cu_stat _stati64
 #  define F_OK 0
 #else
 #  include <unistd.h>
 #  include <dirent.h>
+#  define cu_fileno(f) fileno(f)
+#  define cu_fopen(file, path, mode) (!(file = fopen(path, mode)))
+#  define cu_mkdir(path, mode) mkdir(path, mode)
+#  define cu_fstat fstat
+#  define cu_stat stat
 #endif
-
-#include <stdio.h>
-#include <sys/stat.h>
-
-#include <string.h>
-#include <stdlib.h>
 
 CU_API_SOURCE int cu_file_exists(const char *path)
 {
-	struct stat dir_stat;
-	return stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFREG) == S_IFREG);
+	struct cu_stat dir_stat;
+	return cu_stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFREG) == S_IFREG);
 }
 CU_API_SOURCE int cu_dir_exists(const char *path)
 {
-	struct stat dir_stat;
-	return stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFDIR) == S_IFDIR);
+	struct cu_stat dir_stat;
+	return cu_stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFDIR) == S_IFDIR);
 }
 
 CU_API_SOURCE int cu_dir_create(const char *path)
 {
-	if (cu_dir_exists(path)) return 1;
-	return mkdir(path, 0777) == 0;
+	return cu_mkdir(path, 0777) == 0;
 }
 
 CU_API_SOURCE void *cu_file_read(const char *CU_RESTRICT path, void *CU_RESTRICT result, int binary_file, uptr *CU_RESTRICT bytes)
 {
 	uptr to_read, filesize;
-	struct stat file_stat;
+	struct cu_stat file_stat;
 	FILE *file;
 	int res = 0;
 
 	if (CU_UNLIKELY(cu_fopen(file, path, binary_file ? "rb" : "r") != 0)) return 0;
-	if (CU_UNLIKELY(fstat(cu_fileno(file), &file_stat) == -1)) goto fail;
+	if (CU_UNLIKELY(cu_fstat(cu_fileno(file), &file_stat) == -1)) goto fail;
 
 	filesize = (uptr)file_stat.st_size;
 	to_read = (bytes && *bytes != 0) ? (*bytes > filesize ? filesize : *bytes) : filesize;
 
-	if (!result && !(result = malloc((size_t)filesize))) goto fail;
+	if (!result && !(result = malloc((size_t)(filesize) + !binary_file))) goto fail;
 	res = fread(result, 1, (size_t)to_read, file) == (size_t)to_read;
 
+	if (!binary_file) ((char *)result)[filesize] = '\0';
 	if (bytes) *bytes = filesize;
 fail:
 	fclose(file);
@@ -466,11 +467,14 @@ CU_API_SOURCE int cu_file_write(const char *CU_RESTRICT path, const void *CU_RES
 
 CU_API_SOURCE int cu_file_getinfo(const char *CU_RESTRICT path, cu_file_info *CU_RESTRICT f_info)
 {
-	struct stat dir_stat;
-	if (stat(path, &dir_stat) == -1) return 0;
-	f_info->fsize_bytes = dir_stat.st_size;
-	f_info->access_time = dir_stat.st_atime;
-	f_info->mod_time = dir_stat.st_mtime;
+	struct cu_stat dir_stat;
+	if (cu_stat(path, &dir_stat) == -1) return 0;
+
+	f_info->fsize_bytes = (u64)dir_stat.st_size;
+	f_info->access_time = (i64)dir_stat.st_atime;
+	f_info->mod_time = (i64)dir_stat.st_mtime;
+	f_info->create_time = (i64)dir_stat.st_ctime;
+
 	return 1;
 }
 
