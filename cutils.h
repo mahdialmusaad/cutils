@@ -358,6 +358,9 @@ extern "C" {
 #  ifndef _GNU_SOURCE
 #    define _GNU_SOURCE
 #  endif
+#  ifndef _FILE_OFFSET_BITS
+#    define _FILE_OFFSET_BITS 64
+#  endif
 #else
 #  define CU_OS_UNIX 0
 #endif
@@ -1911,9 +1914,10 @@ A_NTL((1, 3)) int custr_replacesub(custr *A_RES c, uptr c_offset, const char *A_
 
 typedef struct cu_file_info
 {
-	i64 fsize_bytes; /* file bytes size */
-	i64 mod_time;    /* last modification time */
-	i64 access_time; /* last access time */
+	u64 fsize_bytes; /* Filesize in bytes. */
+	i64 mod_time;    /* Last modification time. */
+	i64 access_time; /* Last access time. */
+	i64 create_time; /* Creation time. */
 } cu_file_info;
 
 /* Returns whether the path is a file. */
@@ -1921,7 +1925,7 @@ A_NTL((1)) int cu_file_exists(const char *path);
 /* Returns whether the path is a directory. */
 A_NTL((1)) int cu_dir_exists(const char *path);
 
-/* Create a directory. Succeeds if it already exists. */
+/* Create a directory. */
 A_NTL((1)) int cu_dir_create(const char *path);
 
 /* Read a number of bytes from a file.
@@ -1929,11 +1933,13 @@ A_NTL((1)) int cu_dir_create(const char *path);
    It is clamped to the file's size. Afterwards, 'bytes' is changed to the file size.
    If 'bytes' is a NULL pointer or zero, the entire file is read into 'result'.
    If 'result' is NULL, enough data is allocated to store the file contents.
-   Returns the given 'result' pointer/allocated data, or NULL on error. */
+   If the file is not a binary file, the contents are null terminated.
+   Returns the given 'result' pointer or allocated data; otherwise NULL on error. */
 A_NTL((1)) void *cu_file_read(const char *A_RES path, void *A_RES result, int binary_file, uptr *A_RES bytes);
 
 /* Write or append a number of bytes of 'content' into a file.
-   Valid modes can be found in the macros CU_FILE_WRITETXT, CU_FILE_WRITEBIN, CU_FILE_APPENDTXT and CU_FILE_APPENDBIN. */
+   Valid modes can be found in the macros CU_FILE_WRITETXT, CU_FILE_WRITEBIN, CU_FILE_APPENDTXT and CU_FILE_APPENDBIN.
+   Returns 0 on error, which can be from failing to write to/open the file or an invalid mode value. */
 A_NTL((1, 2)) int cu_file_write(const char *A_RES path, const void *A_RES content, unsigned int mode, uptr bytes);
 
 #define CU_FILE_WRITETXT 0
@@ -1941,7 +1947,7 @@ A_NTL((1, 2)) int cu_file_write(const char *A_RES path, const void *A_RES conten
 #define CU_FILE_APPENDTXT 2
 #define CU_FILE_APPENDBIN 3
 
-/* Gets file information. Fails if file does not exist. */
+/* Gets file information. Returns 0 if the file does not exist. */
 A_NTL((1, 2)) int cu_file_getinfo(const char *A_RES path, cu_file_info *A_RES f_info);
 
 /* Determines the current running executable's path.
@@ -1956,14 +1962,16 @@ A_NTL((1)) int cu_dir_delete(const char *path, int recursive);
 
 #endif
 
+/* ========================= Resources ======================== */
+
 #if CU_SETTING_RESOURCES_FUNCS
 
 /* Memory usage and availability information. */
 typedef struct cu_res_mem
 {
-	u64 physical_present;  /* Amount of physical memory present on the system. */
-	u64 physical_free;     /* Amount of free physical memory. */
-	u64 physical_used;     /* Total physical memory used by this process. */
+	u64 physical_present; /* Amount of physical memory present on the system. */
+	u64 physical_free;    /* Amount of free physical memory. */
+	u64 physical_used;    /* Total physical memory used by this process. */
 
 	u64 virtual_present;  /* Amount of virtual memory present on the system. */
 	u64 virtual_free;     /* Amount of free virtual memory. */
