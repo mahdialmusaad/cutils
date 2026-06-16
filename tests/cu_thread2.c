@@ -37,7 +37,7 @@ TFUNC(cu_thread2)
 	EXPECT(cu_thread_split(splitjob, (u64)(nthreads * WORKMULT), eacharg, nthreads));
 	cu_thread_mutex_init(&poolmutex);
 	poolwork = (volatile int *)calloc((size_t)nthreads * WORKMULT, sizeof *poolwork);
-	EXPECT(cu_thread_pool_init(&pool, 0));
+	EXPECT(cu_thread_pool_init(&pool, nthreads));
 	for (i = c = 0; i < pool.nthreads * WORKMULT; ++i) c += cu_thread_pool_add(&pool, pooljob, (void *)((uptr)i));
 	EXPECT(c == i);
 	while (pooldone < pool.nthreads * WORKMULT) cu_thread_sleep(17000000, 0);
@@ -45,6 +45,7 @@ TFUNC(cu_thread2)
 	EXPECT(c == i);
 	free((void *)poolwork);
 	free(splitwork);
+	free(eacharg);
 	cu_thread_mutex_destroy(&poolmutex);
 	cu_thread_pool_destroy(&pool);
 }

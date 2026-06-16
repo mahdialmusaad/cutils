@@ -19,6 +19,7 @@ static int client_event(cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev,
 		EXPECT(remote && !remote->ext && (!strcmp(remote->ip, "127.0.0.1") || !strncmp(remote->ip, "192.168.", 8)));
 		EXPECT(ev == CUEVT_MESSAGE);
 		EXPECT(d && !strcmp((const char *)d, "data2"));
+		free(d);
 		EXPECT(n == 6);
 		EXPECT(cu_net_sendmsg(remote, "bye", 4) == CUERR_NONE);
 	} else if (client_i == 1) {
@@ -45,11 +46,13 @@ static int server_event(struct cu_net_server *CU_RESTRICT server, cu_net_remote 
 	} else if (server_i == 1) {
 		EXPECT(ev == CUEVT_MESSAGE);
 		EXPECT(d && !strcmp((const char *)d, "data"));
+		free(d);
 		EXPECT(n == 5);
 		EXPECT(cu_net_sendmsg(remote, "data2", 6) == CUERR_NONE);
 	} else if (server_i == 2) {
 		EXPECT(ev == CUEVT_MESSAGE);
 		EXPECT(d && !strcmp((const char *)d, "bye"));
+		free(d);
 		EXPECT(n == 4);
 		cu_server_disconnect_client(server, remote);
 	} else if (server_i == 3) {
