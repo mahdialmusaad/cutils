@@ -1671,7 +1671,7 @@ CU_API_SOURCE int cu_net_isclosed(const cu_net_remote *remote) { return remote->
 #  include <pthread.h>
 #  include <unistd.h>
 
-CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg)
+CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, void *arg)
 {
 	cu_thread thr;
 	if (pthread_create(&thr, NULL, function, arg) != 0) return 0;
@@ -1702,15 +1702,23 @@ CU_API_SOURCE int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mut
 CU_API_SOURCE int cu_thread_cond_signal(cu_thread_cond *cond) { return pthread_cond_signal(cond) == 0; }
 CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { return pthread_cond_broadcast(cond) == 0; }
 CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return pthread_cond_destroy(cond) == 0; }
-
 CU_API_SOURCE cu_thread cu_thread_self(void) { return pthread_self(); }
-CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)getpid(); }
-CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)gettid(); }
+CU_API_SOURCE u64 cu_thread_pid(void) { return (u64)getpid(); }
+#if CU_OS_MAC
+CU_API_SOURCE u64 cu_thread_tid(void)
+{
+	uin64_t res;
+	pthread_threadid_np(NULL, &res);
+	return (u64)res;
+}
+#else
+CU_API_SOURCE u64 cu_thread_tid(void) { return (u64)gettid(); }
+#endif
 
 #elif CU_THREAD_WIN_USED
 #  include <windows.h>
 
-CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg) { return CreateThread(NULL, 0, function, arg, 0, 0); }
+CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, void *arg) { return CreateThread(NULL, 0, function, arg, 0, 0); }
 CU_API_SOURCE int cu_thread_join(cu_thread thread) { return WaitForSingleObject(thread, INFINITE) == WAIT_OBJECT_0; }
 CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return CloseHandle(thread) != 0; }
 
@@ -1745,14 +1753,14 @@ CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { WakeAllCondit
 CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return 1; }
 
 CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
-CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)GetCurrentProcessId(); }
-CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)GetCurrentThreadId(); }
+CU_API_SOURCE u64 cu_thread_pid(void) { return (u64)GetCurrentProcessId(); }
+CU_API_SOURCE u64 cu_thread_tid(void) { return (u64)GetCurrentThreadId(); }
 
 #elif CU_THREAD_C_USED
 #  include <threads.h>
 #  include <time.h>
 
-CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg)
+CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, void *arg)
 {
 	thrd_t thr;
 	if (thrd_create(&thr, function, arg) != thrd_success) return 0;
@@ -1783,10 +1791,142 @@ CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { return cnd_br
 CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return cnd_destroy(cond) == thrd_success; }
 
 CU_API_SOURCE cu_thread cu_thread_self(void) { return thrd_current(); }
-CU_API_SOURCE u32 cu_thread_pid(void) { return (u32)0; }
-CU_API_SOURCE u32 cu_thread_tid(void) { return (u32)0; }
+CU_API_SOURCE u64 cu_thread_pid(void) { return (u64)0; }
+CU_API_SOURCE u64 cu_thread_tid(void) { return (u64)0; }
 
 #endif
+
+CU_API_SOURCE int cu_thread_split(cu_thread_func func, u64 work_count, void **each_thread_arg, int thread_count)
+{
+	struct cu_split { cu_thread thread; cu_thread_split_arg arg; } *thrs;
+	u64 effective_threads, div, remaining, c, i;
+
+	if (!work_count) return 0;
+	else if (thread_count <= 0) return 0;
+
+	effective_threads = (u64)(thread_count - 1);
+	if (effective_threads && !(thrs = (struct cu_split *)malloc(sizeof *thrs * (size_t)thread_count))) return 0;
+	div = work_count / (u64)thread_count;
+	remaining = work_count - (div * (u64)thread_count);
+
+	for (i = c = 0; i <= effective_threads; ++i) {
+		cu_thread_split_arg *a = &thrs[i].arg;
+		a->thread_arg = each_thread_arg ? each_thread_arg[i] : NULL;
+		a->start_index = c;
+		a->end_index = (u64)(c += div + (remaining ? (--remaining, 1) : 0));
+		if (i == effective_threads || CU_UNLIKELY(!(thrs[i].thread = cu_thread_create(func, a)))) {
+			thrs[i].thread = 0;
+			func(a);
+		}
+	}
+
+	for (i = 0; i < effective_threads; ++i) if (thrs[i].thread) cu_thread_join(thrs[i].thread);
+	free(thrs);
+
+	return 1;
+}
+
+struct cu_thread_pool_job
+{
+	struct cu_thread_pool_job *next;
+	cu_thread_func func;
+	void *arg;
+};
+
+#define CU_THREAD_POOL_CLOSING -2
+#define CU_THREAD_POOL_WAITING -1
+#define CU_THREAD_POOL_WORKING 0
+
+CU_THREAD_FUNCTION(cu_thread_pool_inner, arg)
+{
+	cu_thread_pool *pool = (cu_thread_pool *)arg;
+	struct cu_thread_pool_job *cjob;
+
+	while (pool->jobsig != CU_THREAD_POOL_CLOSING) {
+		cu_thread_mutex_lock(&pool->mutex);
+
+		while (!pool->jobs && pool->jobsig == CU_THREAD_POOL_WAITING) cu_thread_cond_wait(&pool->cond, &pool->mutex);
+		if (pool->jobsig == CU_THREAD_POOL_CLOSING) {
+			cu_thread_mutex_unlock(&pool->mutex);
+			break;
+		}
+
+		pool->jobsig = CU_THREAD_POOL_WAITING;
+		cjob = (struct cu_thread_pool_job *)pool->jobs;
+		pool->jobs = cjob->next;
+		cu_thread_mutex_unlock(&pool->mutex);
+
+		cjob->func(cjob->arg);
+		free(cjob);
+	}
+
+	return CU_THREAD_RETURN_VAL;
+}
+
+int cu_thread_pool_init(cu_thread_pool *pool, int nthreads)
+{
+	int i;
+	memset(pool, 0, sizeof *pool);
+
+	if (nthreads <= 0) return 0;
+
+	if (CU_UNLIKELY(!cu_thread_cond_init(&pool->cond))) return 0;
+	if (CU_UNLIKELY(!cu_thread_mutex_init(&pool->mutex))) {
+		cu_thread_cond_destroy(&pool->cond);
+		return 0;
+	}
+
+	if (!(pool->thrs = (cu_thread *)calloc((size_t)nthreads, sizeof *pool->thrs))) goto fail;
+	pool->jobsig = CU_THREAD_POOL_WAITING;
+
+	for (i = 0; i < nthreads; ++i) {
+		++pool->nthreads;
+		if ((pool->thrs[i] = cu_thread_create(cu_thread_pool_inner, pool))) continue;
+		cu_thread_pool_destroy(pool);
+		return 0;
+	}
+
+	return 1;
+fail:
+	cu_thread_pool_destroy(pool);
+	return 0;
+}
+
+int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg)
+{
+	struct cu_thread_pool_job *ljob = (struct cu_thread_pool_job *)malloc(sizeof *ljob);
+	if (!ljob) return 0;
+
+	ljob->arg = arg;
+	ljob->func = job;
+
+	cu_thread_mutex_lock(&pool->mutex);
+	ljob->next = pool->jobs ? (struct cu_thread_pool_job *)pool->jobs : NULL;
+	pool->jobs = ljob;
+	pool->jobsig = CU_THREAD_POOL_WORKING;
+	cu_thread_cond_signal(&pool->cond);
+	cu_thread_mutex_unlock(&pool->mutex);
+
+	return 1;
+}
+
+void cu_thread_pool_destroy(cu_thread_pool *pool)
+{
+	int i;
+
+	cu_thread_mutex_lock(&pool->mutex);
+	pool->jobsig = CU_THREAD_POOL_CLOSING;
+	cu_thread_cond_broadcast(&pool->cond);
+	cu_thread_mutex_unlock(&pool->mutex);
+
+	for (i = 0; i < pool->nthreads; ++i) cu_thread_join(pool->thrs[i]);
+
+	free(pool->thrs);
+	free(pool->jobs);
+
+	cu_thread_mutex_destroy(&pool->mutex);
+	cu_thread_cond_destroy(&pool->cond);
+}
 
 #endif /* CU_SETTING_THREAD_FUNCS */
 

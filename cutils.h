@@ -1039,7 +1039,7 @@ extern "C" {
 #  define CU_THREAD_LOCAL _Thread_local
 #  define CU_THREAD_LOCAL_AVAILABLE 1
 #else
-#  define CU_THREAD_LOCAL volatile
+#  define CU_THREAD_LOCAL
 #  define CU_THREAD_LOCAL_AVAILABLE 0
 #endif
 
@@ -1051,7 +1051,7 @@ extern "C" {
 #  define CU_ATOMIC _Atomic
 #  define CU_ATOMIC_AVAILABLE 1
 #else
-#  define CU_ATOMIC volatile
+#  define CU_ATOMIC
 #  define CU_ATOMIC_AVAILABLE 0
 #endif
 
@@ -2274,10 +2274,9 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
    typedef pthread_t cu_thread;
    typedef pthread_mutex_t cu_thread_mutex;
    typedef pthread_cond_t cu_thread_cond;
-   typedef void *cu_thread_arg;
    typedef void *cu_thread_return;
-   typedef cu_thread_return (*cu_thread_func)(cu_thread_arg);
-#  define CU_THREAD_FUNCTION(name, argname) cu_thread_return name(cu_thread_arg argname)
+   typedef cu_thread_return (*cu_thread_func)(void *);
+#  define CU_THREAD_FUNCTION(name, argname) cu_thread_return name(void *argname)
 #elif CU_THREAD_WIN_AVAILABLE
 #  define CU_THREAD_POSIX_USED 0
 #  define CU_THREAD_WIN_USED 1
@@ -2286,10 +2285,9 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
    typedef HANDLE cu_thread;
    typedef CRITICAL_SECTION cu_thread_mutex;
    typedef CONDITION_VARIABLE cu_thread_cond;
-   typedef LPVOID cu_thread_arg;
    typedef DWORD cu_thread_return;
-   typedef cu_thread_return (WINAPI *cu_thread_func)(cu_thread_arg);
-#  define CU_THREAD_FUNCTION(name, argname) DWORD WINAPI name(cu_thread_arg argname)
+   typedef cu_thread_return (WINAPI *cu_thread_func)(void *);
+#  define CU_THREAD_FUNCTION(name, argname) cu_thread_return WINAPI name(void *argname)
 #elif CU_THREAD_C_AVAILABLE
 #  define CU_THREAD_POSIX_USED 0
 #  define CU_THREAD_WIN_USED 0
@@ -2298,16 +2296,15 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
    typedef thrd_t cu_thread;
    typedef mtx_t cu_thread_mutex;
    typedef cnd_t cu_thread_cond;
-   typedef void *cu_thread_arg;
    typedef int cu_thread_return;
-   typedef cu_thread_return (*cu_thread_func)(cu_thread_arg);
-#  define CU_THREAD_FUNCTION(name, argname) cu_thread_return name(cu_thread_arg argname)
+   typedef cu_thread_return (*cu_thread_func)(void *);
+#  define CU_THREAD_FUNCTION(name, argname) cu_thread_return name(void *argname)
 #endif
 
 #define CU_THREAD_RETURN_VAL ((cu_thread_return)0)
 
 /* Creates a thread. Returns 0 if failed. */
-A_NTL((1)) cu_thread cu_thread_create(cu_thread_func function, cu_thread_arg arg);
+A_NTL((1)) cu_thread cu_thread_create(cu_thread_func function, void *arg);
 /* Waits for the given thread to finish. Returns 0 if failed. */
 A_NTHRW int cu_thread_join(cu_thread thread);
 /* Detaches the given thread. Returns 0 if failed. */
@@ -2341,12 +2338,50 @@ A_NTL((1)) int cu_thread_cond_broadcast(cu_thread_cond *cond);
 /* Destroys the given condition variable. Returns 0 if failed. */
 A_NTL((1)) int cu_thread_cond_destroy(cu_thread_cond *cond);
 
+typedef struct cu_thread_split_arg
+{
+	/* Inclusive starting index of work. */
+	u64 start_index;
+	/* Exclusive ending index of work. */
+	u64 end_index;
+	/* Thread-specific argument. */
+	void *thread_arg;
+} cu_thread_split_arg;
+
+/* Splits indexed work evenly into multiple threads and blocks until all of them complete.
+   The thread function's argument is a cu_thread_split_arg pointer, which will contain
+   the thread-specific indices and the individual thread argument given through the double void pointer.
+   Returns 0 if invalid arguments were given. */
+A_NTL((1)) int cu_thread_split(cu_thread_func func, u64 work_count, void **each_thread_arg, int thread_count);
+
+typedef struct cu_thread_pool
+{
+	/* Number of threads the pool was initialized with. */
+	int nthreads;
+	/* The jobs to do. */
+	void *jobs;
+
+	int jobsig;
+	cu_thread_mutex mutex;
+	cu_thread_cond cond;
+	cu_thread *thrs;
+} cu_thread_pool;
+
+/* Initializes the given thread pool with the given number of threads.
+   Returns 0 on initialization error or if an invalid thread count is given. */
+A_NTL((1)) int cu_thread_pool_init(cu_thread_pool *pool, int nthreads);
+/* Adds a job to the thread pool.
+   A thread will execute the function with the provided argument. */
+A_NTL((1, 2)) int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg);
+/* Waits for all threads to join and destroys the thread pool. */
+A_NTL((1)) void cu_thread_pool_destroy(cu_thread_pool *pool);
+
 /* Returns the current thread. */
-A_NTHRW cu_thread cu_thread_self(void);
+A_NTHRW A_WUR cu_thread cu_thread_self(void);
 /* Returns the current process ID. */
-A_NTHRW A_WUR u32 cu_thread_pid(void);
+A_NTHRW A_WUR u64 cu_thread_pid(void);
 /* Returns the current thread ID. */
-A_NTHRW A_WUR u32 cu_thread_tid(void);
+A_NTHRW A_WUR u64 cu_thread_tid(void);
 
 #endif /* CU_SETTING_THREAD_FUNCS */
 

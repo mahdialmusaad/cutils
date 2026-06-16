@@ -188,7 +188,7 @@ int main(int argc, char **argv)
 	}
 
 	while ((ipres = cu_net_interfaces(ipbuf, CU_NET_INTERFACE_IPV4, ip_id++)) && strncmp(ipbuf, "192.168.", 8));
-	printf("PID: %u, IPv4: %s\n", cu_thread_pid(), ipbuf);
+	printf("IPv4: %s\n", ipbuf);
 
 	if (!cu_net_init()) {
 		fprintf(stderr, "Could not initialize networking library.");
