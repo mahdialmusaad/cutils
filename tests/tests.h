@@ -16,7 +16,7 @@ static uptr f_expr_got;
 static int f_expr_exp;
 
 static int tested;
-static int failed;
+static int failed, gfailed;
 static int fline;
 
 static char buf[1024];
@@ -26,6 +26,7 @@ static void cu_test_expect(const char *expr, int line, uptr res, int want)
 	++tested;
 	if (!!(res) == want) return;
 	++failed;
+	++gfailed;
 	if (f_expr) return;
 	f_expr = expr;
 	f_expr_got = res;

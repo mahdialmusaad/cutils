@@ -59,6 +59,10 @@ target_compile_definitions(cutils PRIVATE
 	_FILE_OFFSET_BITS=64
 )
 
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+	target_compile_definitions(cutils PRIVATE _DARWIN_C_SOURCE)
+endif()
+
 if(CU_INSTALL)
 	install(TARGETS cutils ARCHIVE DESTINATION lib)
 	install(FILES cutils.h DESTINATION include)

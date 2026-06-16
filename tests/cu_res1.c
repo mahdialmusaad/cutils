@@ -6,7 +6,7 @@ TFUNC(cu_res1)
 {
 	cu_res_cpu cpu;
 	cu_res_mem mem;
-	int i;
+	volatile int i;
 
 	EXPECT(cu_res_meminfo(&mem));
 	EXPECT(cu_res_cpuinfo(&cpu));
