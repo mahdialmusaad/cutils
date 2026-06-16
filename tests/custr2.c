@@ -26,8 +26,10 @@ TFUNC(custr2)
 	EXPECT(c->cap == 64);
 	EXPECT(custr_optimize(c));
 	EXPECT(c->cap == 8);
+	custr_clear(c);
 	EXPECT(custr_tosub(&ss, 7, 9));
 	EXPECT0(strcmp(ss.str, "STR"));
+	custr_clear(&ss);
 	EXPECT(((custr_create(c, "STRING")), (custr_tosub(c, 2, 1000))));
 	EXPECT0(strcmp(c->str, "RING"));
 	EXPECT0(((custr_shrinkto(c, 2)), (strcmp(c->str, "RI"))));

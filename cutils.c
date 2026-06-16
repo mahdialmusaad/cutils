@@ -1707,7 +1707,7 @@ CU_API_SOURCE u64 cu_thread_pid(void) { return (u64)getpid(); }
 #if CU_OS_MAC
 CU_API_SOURCE u64 cu_thread_tid(void)
 {
-	uin64_t res;
+	uint64_t res;
 	pthread_threadid_np(NULL, &res);
 	return (u64)res;
 }

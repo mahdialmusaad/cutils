@@ -15,6 +15,7 @@ TFUNC(cu_file1)
 
 	EXPECT((pb = cu_file_exe_path(*e_argv, &u)));
 	EXPECT(u > s_strlen(pb));
+	free(pb);
 	EXPECT(cu_dir_create("tdir"));
 	EXPECT(cu_dir_exists("tdir"));
 	EXPECT(cu_dir_delete("tdir", 0));
