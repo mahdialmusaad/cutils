@@ -21,6 +21,7 @@ if(CU_SETTING_FUNCS)
 	option(CU_BUILD_MISC "Build the test and example programs" ON)
 endif()
 
+option(CU_SETTING_TYPES "Typedef fixed-width and other integer and float types" ON)
 option(CU_SETTING_QUIET "Do not warn about unavailable features" OFF)
 option(CU_SETTING_FORCE_DEBUG "Assume compiling in debug mode" OFF)
 
