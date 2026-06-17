@@ -2,15 +2,7 @@
 
 #if CU_SETTING_STRING_FUNCS
 
-#if CU_OS_WINDOWS
-#  define FS(s) "C:" s
-#else
-#  define FS(s) s
-#endif
 
-#define Q CU_FILE_SEPARATOR_DQ
-#define Q2 Q Q
-#define Q3 Q Q Q
 
 TFUNC(custr4)
 {

@@ -8,6 +8,16 @@
 #include <stdio.h>
 #include <time.h>
 
+#if CU_OS_WINDOWS
+#  define FS(s) "C:" s
+#else
+#  define FS(s) s
+#endif
+
+#define Q CU_FILE_SEPARATOR_DQ
+#define Q2 Q Q
+#define Q3 Q Q Q
+
 static char **e_argv;
 static CU_ATTRIB_USED int e_argc;
 
