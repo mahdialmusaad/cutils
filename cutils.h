@@ -979,7 +979,7 @@ extern "C" {
       CU_COMPVER(INTEL, 13, 0) || \
       CU_COMPVER(ARM, 4, 1) || \
       CU_COMPVER(IBM, 10, 1) || \
-      defined(__clang__)
+      CU_COMP_CLANG
 #  define CU_RESTRICT __restrict
 #  define CU_RESTRICT_AVAILABLE 1
 #else
@@ -1284,7 +1284,30 @@ extern "C" {
 #  define CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
 #endif
 
-#if defined(__clang__) || CU_COMPVER(GNU, 4, 6)
+#if CU_HAS_WARNING("-Wpre-c11-compat")
+#  define CU_DIAGNOSTICS_DISABLE_PREC11 _Pragma("GCC diagnostic ignored \"-Wpre-c11-compat\"")
+#else
+#  define CU_DIAGNOSTICS_DISABLE_PREC11
+#endif
+
+#if CU_HAS_WARNING("-Wreserved-macro-identifier")
+#  define CU_DIAGNOSTICS_DISABLE_RESERVED \
+_Pragma("GCC diagnostic ignored \"-Wreserved-macro-identifier\"") \
+_Pragma("GCC diagnostic ignored \"-Wreserved-id-macro\"")
+#elif CU_HAS_WARNING("-Wreserved-id-macro")
+#  define CU_DIAGNOSTICS_DISABLE_RESERVED _Pragma("GCC diagnostic ignored \"-Wreserved-id-macro\"")
+#else
+#  define CU_DIAGNOSTICS_DISABLE_RESERVED
+#endif
+
+
+#if CU_HAS_WARNING("-Wdisabled-macro-expansion")
+#  define CU_DIAGNOSTICS_DISABLE_MACRO_EXP _Pragma("GCC diagnostic ignored \"-Wdisabled-macro-expansion\"")
+#else
+#  define CU_DIAGNOSTICS_DISABLE_MACRO_EXP
+#endif
+
+#if CU_COMP_CLANG || CU_COMPVER(GNU, 4, 6)
 #  define CU_DIAGNOSTICS_PUSH _Pragma("GCC diagnostic push")
 #  define CU_DIAGNOSTICS_POP _Pragma("GCC diagnostic pop")
 #  define CU_DIAGNOSTICS_AVAILABLE 1
@@ -1331,26 +1354,6 @@ CU_DIAGNOSTICS_POP
 #else
 #  define CU_WARNING(msg) CU_MESSAGE(msg)
 #endif
-
-#define CU_DIAGNOSTICS_IGNORE_1(comp, warn1) \
-CU_DIAGNOSTICS_PUSH \
-CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
-CU_PRAGMA(comp diagnostic ignored warn1)
-
-#define CU_DIAGNOSTICS_IGNORE_2(comp, warn1, warn2) \
-CU_DIAGNOSTICS_PUSH \
-CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
-CU_PRAGMA(comp diagnostic ignored warn1) \
-CU_PRAGMA(comp diagnostic ignored warn2)
-
-#define CU_DIAGNOSTICS_IGNORE_3(comp, warn1, warn2, warn3) \
-CU_DIAGNOSTICS_PUSH \
-CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
-CU_PRAGMA(comp diagnostic ignored warn1) \
-CU_PRAGMA(comp diagnostic ignored warn2) \
-CU_PRAGMA(comp diagnostic ignored warn3)
-
-#define CU_DIAGNOSTICS_IGNORE_END CU_DIAGNOSTICS_POP
 
 #if CU_FREESTANDING && CU_HAS_BUILTIN(__builtin_trap)
 #  define CU_BREAKPOINT() __builtin_trap()
@@ -1404,6 +1407,7 @@ CU_ATTRIB_USED static void __cu_breakpoint(void) { *(volatile char *)0 = 0; }
 #if CU_HAS_BUILTIN(__builtin_trap)
 #  define CU_TRAP() __builtin_trap()
 #elif CU_HAS_INCLUDE(<stdlib.h>)
+#  include <stdlib.h>
 #  define CU_TRAP() abort()
 #endif
 
@@ -1419,14 +1423,16 @@ CU_ATTRIB_USED CU_ATTRIB_NORETURN static void __cu_trap(void) { while (1) *(vola
 
 #if CU_LANG_C >= CU_LANG_C23
 #  define CU_STATIC_ASSERT(cond, msg) \
-CU_DIAGNOSTICS_IGNORE_1(clang, "-Wpre-c11-compat") \
+CU_DIAGNOSTICS_PUSH \
+CU_DIAGNOSTICS_DISABLE_PREC11 \
 static_assert(cond, msg); \
-CU_DIAGNOSTICS_IGNORE_END
+CU_DIAGNOSTICS_POP
 #elif CU_LANG_C >= CU_LANG_C11
 #  define CU_STATIC_ASSERT(cond, msg) \
-CU_DIAGNOSTICS_IGNORE_1(clang, "-Wpre-c11-compat") \
+CU_DIAGNOSTICS_PUSH \
+CU_DIAGNOSTICS_DISABLE_PREC11 \
 _Static_assert(cond, msg); \
-CU_DIAGNOSTICS_IGNORE_END
+CU_DIAGNOSTICS_POP
 #elif CU_COMP_MSVC
 #  define CU_STATIC_ASSERT(cond, msg) typedef char CU_CONCAT(cu_static_assert_line, CU_EVAL(CU_LINE))[!!(cond) ? 1 : -1];
 #else
@@ -1475,7 +1481,7 @@ static void __cu_assert_fail(int line, const char *func, const char *file, const
 #  define CU_DM_LP64 0
 #endif
 
-#ifdef __LLP64__
+#if defined(__LLP64__) || CU_COMP_MSVC || CU_PLAT_MINGW || (CU_COMP_CLANG && CU_OS_MAC)
 #  define CU_DM_LLP64 1
 #else
 #  define CU_DM_LLP64 0
@@ -1489,7 +1495,7 @@ static void __cu_assert_fail(int line, const char *func, const char *file, const
 #  define CU_DM_32BIT 1
 #endif
 
-#if CU_DM_LLP64 || CU_COMP_MSVC || CU_PLAT_MINGW || CU_ARCH_MIPS || (CU_COMP_CLANG && CU_OS_MAC)
+#if CU_DM_LLP64 || CU_DM_32BIT
 #  define CU_DM_LONGSUF ll
 #  define CU_DM_LONGSUF_CAP LL
 #  define CU_DM_LL 1
@@ -2356,10 +2362,10 @@ A_NTL((1)) int cu_thread_split(cu_thread_func func, u64 work_count, void **each_
 
 typedef struct cu_thread_pool
 {
-	/* Number of threads the pool was initialized with. */
-	int nthreads;
 	/* The jobs to do. */
 	void *jobs;
+	/* Number of threads the pool was initialized with. */
+	int nthreads;
 
 	int jobsig;
 	cu_thread_mutex mutex;

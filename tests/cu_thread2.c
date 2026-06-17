@@ -2,7 +2,7 @@
 
 #if CU_SETTING_THREAD_FUNCS
 
-static volatile int *poolwork;
+static int *poolwork;
 static char *splitwork;
 static cu_thread_mutex poolmutex;
 static int pooldone;
@@ -31,19 +31,21 @@ TFUNC(cu_thread2)
 {
 	cu_thread_pool pool;
 	int nthreads = cu_thread_count(), i, c;
-	void **eacharg = malloc(sizeof(void *) * (size_t)nthreads);
+	void **eacharg = (void **)malloc(sizeof(void *) * (size_t)nthreads);
 	for (i = 0; i < nthreads; ++i) eacharg[i] = (void *)0x2;
-	splitwork = (char *)malloc(nthreads * WORKMULT);
+	splitwork = (char *)malloc((size_t)nthreads * WORKMULT);
 	EXPECT(cu_thread_split(splitjob, (u64)(nthreads * WORKMULT), eacharg, nthreads));
+	for (i = c = 0; i < nthreads * WORKMULT; ++i) c += splitwork[i] != (char)1;
+	EXPECT(!c);
 	cu_thread_mutex_init(&poolmutex);
-	poolwork = (volatile int *)calloc((size_t)nthreads * WORKMULT, sizeof *poolwork);
+	poolwork = (int *)calloc((size_t)nthreads * WORKMULT, sizeof *poolwork);
 	EXPECT(cu_thread_pool_init(&pool, nthreads));
 	for (i = c = 0; i < pool.nthreads * WORKMULT; ++i) c += cu_thread_pool_add(&pool, pooljob, (void *)((uptr)i));
 	EXPECT(c == i);
 	while (pooldone < pool.nthreads * WORKMULT) cu_thread_sleep(17000000, 0);
 	for (i = c = 0; i < pool.nthreads; ++i) c += poolwork[i] == 1000;
 	EXPECT(c == i);
-	free((void *)poolwork);
+	free(poolwork);
 	free(splitwork);
 	free(eacharg);
 	cu_thread_mutex_destroy(&poolmutex);

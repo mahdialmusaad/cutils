@@ -6,7 +6,7 @@ static void *thr_shared_p;
 static cu_thread_mutex mut;
 static cu_thread thr;
 static int ecnt, thr_ret;
-static u32 mtid, pid;
+static u64 mtid, pid;
 
 #define WORKCOUNT 1000
 
