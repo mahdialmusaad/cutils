@@ -1345,7 +1345,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2)) static void cu_net_getaddrip(void *C
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static enum cu_net_error cu_net_getremotesock(cu_net_remote *CU_RESTRICT remote, u16 port, const char *CU_RESTRICT server_addr)
 {
 	struct addrinfo hints, *addr_list, *addr_it;
-	int res, is_server = server_addr == NULL;
+	int is_server = server_addr == NULL;
 	char portbuf[6];
 
 	if (port < 1024) return CUERR_ARGS;
@@ -1365,8 +1365,8 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static enum cu_net_error cu_net_getremo
 		if ((remote->fd = socket(addr_it->ai_family, addr_it->ai_socktype, addr_it->ai_protocol)) == CU_INVALID_SOCKET) continue;
 		if (is_server) {
 			cu_net_setsockopt(remote->fd, SO_REUSEADDR, 1, CU_UWSZ(sizeof(int), sizeof(BOOL)));
-			if ((res = bind(remote->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
-		} else if ((res = connect(remote->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
+			if ((bind(remote->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
+		} else if ((connect(remote->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
 		break;
 	fail:
 		cu_net_closesock(&remote->fd);

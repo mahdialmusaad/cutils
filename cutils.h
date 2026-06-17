@@ -739,7 +739,7 @@ extern "C" {
 #  define CU_LANG_C CU_LANG_CKR
 #endif
 
-#if CU_COMPVER(GNU, 2, 0)
+#if CU_COMPVER(GNU, 2, 8) || CU_COMP_CLANG
 #  define CU_GNU_EXT __extension__
 #else
 #  define CU_GNU_EXT
@@ -1068,51 +1068,35 @@ extern "C" {
 
 /* ========================= Attributes ======================== */
 
-#if CU_COMPVER(GNU, 2, 5)
-#  define CU_EXT_ATTRIBS 1
-#  if CU_COMPVER(GNU, 11, 1)
-#    define CU_ATTRIB_MALLOC_FULL(dealloc_func, dealloc_ind) __attribute__ ((__malloc__(dealloc_func, dealloc_ind)))
-#  else
-#    define CU_ATTRIB_MALLOC_FULL(dealloc_func, dealloc_ind) CU_ATTRIB_MALLOC
-#  endif
-#  if CU_HAS_ATTRIBUTE(__hot__) || CU_COMPVER(GNU, 4, 4)
-#    define CU_ATTRIB_COLD __attribute__ ((__cold__))
-#    define CU_ATTRIB_HOT __attribute__ ((__hot__))
-#  else
-#    define CU_ATTRIB_COLD
-#    define CU_ATTRIB_HOT
-#  endif
-#  if CU_HAS_ATTRIBUTE(__alloc_size__) || CU_COMPVER(GNU, 4, 4)
-#    define CU_ATTRIB_ALLOCSIZE(arg_ind) __attribute__ ((__alloc_size__ (arg_ind)))
-#    define CU_ATTRIB_ALLOCSIZE_MUL(arg_ind, arg_ind_p) __attribute__ ((__alloc_size__ (arg_ind, arg_ind_p)))
-#  else
-#    define CU_ATTRIB_ALLOCSIZE(arg_ind)
-#    define CU_ATTRIB_ALLOCSIZE_MUL(arg_ind, arg_ind_p)
-#  endif
-#  define CU_ATTRIB_ALIGNED(bytes) __attribute__ ((__aligned__ (bytes)))
-#  define CU_ATTRIB_ARTIFICIAL __attribute__ ((__artificial__))
+#if CU_HAS_ATTRIBUTE(__hot__) || CU_COMPVER(GNU, 4, 3)
+#  define CU_ATTRIB_COLD __attribute__ ((__cold__))
+#  define CU_ATTRIB_HOT __attribute__ ((__hot__))
+#else
+#  define CU_ATTRIB_COLD
+#  define CU_ATTRIB_HOT
+#endif
+
+#if CU_HAS_ATTRIBUTE(__flatten__) || CU_COMPVER(GNU, 4, 1)
 #  define CU_ATTRIB_FLATTEN __attribute__ ((__flatten__))
+#else
+#  define CU_ATTRIB_FLATTEN
+#endif
+
+#if CU_HAS_ATTRIBUTE(__format__) || CU_COMPVER(GNU, 3, 0)
 #  define CU_ATTRIB_FORMAT(fmt) __attribute__ ((__format__ fmt))
-#  define CU_ATTRIB_MALLOC __attribute__ ((__malloc__))
-#  define CU_ATTRIB_NOREORDER __attribute__ ((__noreorder__))
+#else
+#  define CU_ATTRIB_FORMAT(fmt)
+#endif
+
+#if CU_HAS_ATTRIBUTE(__nonnull__) || CU_COMPVER(GNU, 3, 3)
 #  define CU_ATTRIB_NONNULL(inds) __attribute__ ((__nonnull__ inds))
-#  define CU_ATTRIB_UNUSED __attribute__ ((__unused__))
+#else
+#  define CU_ATTRIB_NONNULL(inds)
+#endif
+
+#if CU_HAS_ATTRIBUTE(__nonnull__) || CU_COMPVER(GNU, 3, 1)
 #  define CU_ATTRIB_USED __attribute__ ((__used__))
 #else
-#  define CU_EXT_ATTRIBS 0
-#  define CU_ATTRIB_ALIGNED(bytes)
-#  define CU_ATTRIB_ALLOCSIZE(arg_ind)
-#  define CU_ATTRIB_ALLOCSIZE_MUL(arg_ind, arg_ind_p)
-#  define CU_ATTRIB_ARTIFICIAL
-#  define CU_ATTRIB_COLD
-#  define CU_ATTRIB_FLATTEN
-#  define CU_ATTRIB_FORMAT(fmt)
-#  define CU_ATTRIB_HOT
-#  define CU_ATTRIB_MALLOC
-#  define CU_ATTRIB_MALLOC_FULL(dealloc_func, dealloc_ind)
-#  define CU_ATTRIB_NOREORDER
-#  define CU_ATTRIB_NONNULL(inds)
-#  define CU_ATTRIB_UNUSED
 #  define CU_ATTRIB_USED
 #endif
 
@@ -1216,8 +1200,6 @@ extern "C" {
 
 #if CU_HAS_ATTRIBUTE(nothrow) || CU_COMPVER(GNU, 3, 3) || CU_COMPVER(INTEL, 13, 0)
 #  define CU_ATTRIB_NOTHROW __attribute__((__nothrow__))
-#elif CU_COMPVER(MSVC, 13, 1) || CU_COMPVER(ARM, 4, 1)
-#  define CU_ATTRIB_NOTHROW /* __declspec(nothrow) */
 #else
 #  define CU_ATTRIB_NOTHROW
 #endif
@@ -1378,28 +1360,28 @@ CU_DIAGNOSTICS_POP
 #elif defined(__ARMCC_VERSION)
 #  define CU_BREAKPOINT() __breakpoint(42)
 #elif defined(__DMC__) && defined(_M_IX86)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM int 3h; }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM int 3h; }
 #elif CU_ARCH_X86
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("int3"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__("int3"); }
 #elif CU_ARCH_ARM_THUMB
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xde01"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xde01"); }
 #elif CU_ARCH_ARM_AARCH64
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xd4200000"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xd4200000"); }
 #elif CU_ARCH_ARM
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xe7f001f0"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__(".inst 0xe7f001f0"); }
 #elif defined(__alpha__) && !defined(__osf__)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("bpt"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__("bpt"); }
 #elif defined(_54_)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("ESTOP"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__("ESTOP"); }
 #elif defined(_55_)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__(";\n .if (.MNEMONIC)\n ESTOP_1\n .else\n ESTOP_1()\n .endif\n NOP"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__(";\n .if (.MNEMONIC)\n ESTOP_1\n .else\n ESTOP_1()\n .endif\n NOP"); }
 #elif defined(_64P_)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("SWBP 0"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__("SWBP 0"); }
 #elif defined(_6x_)
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void) { CU_ASM __volatile__("NOP\n .word 0x10000000"); }
+CU_ATTRIB_USED static void __cu_breakpoint(void) { CU_ASM __volatile__("NOP\n .word 0x10000000"); }
 #elif CU_OS_UNIX
 #  include <signal.h>
-CU_ATTRIB_UNUSED static void __cu_breakpoint(void)
+CU_ATTRIB_USED static void __cu_breakpoint(void)
 {
 #ifdef SIGTRAP
 	raise(SIGTRAP);
