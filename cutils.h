@@ -1916,7 +1916,7 @@ A_NTL((1, 3)) int custr_replacesub(custr *A_RES c, uptr c_offset, const char *A_
 
 typedef struct cu_file_info
 {
-	u64 fsize_bytes; /* Filesize in bytes. */
+	u64 fsize_bytes; /* Size of the file in bytes. */
 	i64 mod_time;    /* Last modification time. */
 	i64 access_time; /* Last access time. */
 	i64 create_time; /* Creation time. */
@@ -1927,8 +1927,17 @@ A_NTL((1)) int cu_file_exists(const char *path);
 /* Returns whether the path is a directory. */
 A_NTL((1)) int cu_dir_exists(const char *path);
 
-/* Create a directory. */
+/* Creates a directory. */
 A_NTL((1)) int cu_dir_create(const char *path);
+
+/* Returns the name of each filesystem object (files, nested directories, links, etc) in a given directory.
+   If 'fullname' is non-zero, the object's name is prefixed with the given directory path, otherwise, only the object's name is stored.
+   The 'count' pointer will store how many objects there are.
+   Returns NULL on allocation error or if the directory is inaccessible/does not exist. */
+A_NTL((1, 3)) char **cu_dir_list(const char *path, int fullname, int *count);
+
+/* Deallocate a directory list. */
+A_NTL((1)) void cu_dir_close(char **dirlist, int count);
 
 /* Read a number of bytes from a file.
    'bytes' determines how many bytes of the given file are read into 'result'.
@@ -1959,8 +1968,9 @@ A_NTHRW char *cu_file_exe_path(const char *A_RES argv_first, uptr *A_RES allocat
 
 /* Removes the file at the given path. */
 A_NTL((1)) int cu_file_delete(const char *path);
-/* Removes the directory at the given path. */
-A_NTL((1)) int cu_dir_delete(const char *path, int recursive);
+/* Removes the directory at the given path.
+   Fails if the directory is not empty unless 'rm_contents' is non-zero. */
+A_NTL((1)) int cu_dir_delete(const char *path, int rm_contents);
 
 #endif
 

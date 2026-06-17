@@ -405,7 +405,9 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 #  include <io.h>
 #  include <direct.h>
 #  include <windows.h>
-#  define cu_fileno(f) _fileno(f)
+#  include <sys/types.h>
+#  define cu_rmdir _rmdir
+#  define cu_fileno _fileno
 #  define cu_fopen(file, path, mode) (fopen_s(&file, path, mode) != 0)
 #  define cu_mkdir(path, mode) _mkdir(path)
 #  define cu_fstat _fstati64
@@ -414,7 +416,8 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 #else
 #  include <unistd.h>
 #  include <dirent.h>
-#  define cu_fileno(f) fileno(f)
+#  define cu_rmdir rmdir
+#  define cu_fileno fileno
 #  define cu_fopen(file, path, mode) (!(file = fopen(path, mode)))
 #  define cu_mkdir(path, mode) mkdir(path, mode)
 #  define cu_fstat fstat
@@ -426,6 +429,7 @@ CU_API_SOURCE int cu_file_exists(const char *path)
 	struct cu_stat dir_stat;
 	return cu_stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFREG) == S_IFREG);
 }
+
 CU_API_SOURCE int cu_dir_exists(const char *path)
 {
 	struct cu_stat dir_stat;
@@ -435,6 +439,107 @@ CU_API_SOURCE int cu_dir_exists(const char *path)
 CU_API_SOURCE int cu_dir_create(const char *path)
 {
 	return cu_mkdir(path, 0x1FF) == 0;
+}
+
+CU_API_SOURCE char **cu_dir_list(const char *path, int fullname, int *count)
+{
+#if CU_OS_WINDOWS
+	size_t dbufcap = 4, dbufcnt = 0, pathlen = strlen(path), nosep = path[pathlen - 1] != CU_FILE_SEPARATOR;
+	char **dbuf, *findpat;
+	WIN32_FIND_DATA fd;
+	HANDLE dir;
+
+	if (!(dbuf = (char **)malloc(dbufcap * sizeof *dbuf)) || !(findpat = (char *)malloc(pathlen + 4))) {
+		free(dbuf);
+		return NULL;
+	}
+
+	memcpy(findpat, path, pathlen);
+	findpat[pathlen + 0] = CU_FILE_SEPARATOR;
+	findpat[pathlen + 1] = '*';
+	findpat[pathlen + 2] = '\0';
+	findpat[pathlen + 3] = '\0';
+
+	if (CU_UNLIKELY((dir = FindFirstFile(findpat, &fd)) == INVALID_HANDLE_VALUE)) goto fail;
+
+	while ((FindNextFile(dir, &fd))) {
+		size_t entrylen;
+		char *cbuf;
+		if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0) continue;
+		
+		if (dbufcnt >= dbufcap) {
+			void *rbuf = realloc(dbuf, (dbufcap *= 2) * sizeof *dbuf);
+			if (!rbuf) goto fail;
+			dbuf = rbuf;
+		}
+		
+		entrylen = strlen(fd.cFileName) + 1;
+		if (!(cbuf = dbuf[dbufcnt++] = malloc(entrylen + (size_t)(fullname ? pathlen : 0) + nosep))) goto fail;
+
+		if (fullname) {
+			memcpy(cbuf, findpat, pathlen + 1);
+			cbuf += pathlen + 1;
+		}
+
+		memcpy(cbuf, fd.cFileName, entrylen);
+
+	}
+
+	free(findpat);
+	*count = (int)dbufcnt;
+	FindClose(dir);
+
+	return dbuf;
+fail:
+	free(findpat);
+	if (dir != INVALID_HANDLE_VALUE) FindClose(dir);
+	cu_dir_close(dbuf, (int)dbufcnt);
+	return NULL;
+#else
+	size_t dbufcap = 4, dbufcnt = 0, pathlen = strlen(path), nosep = path[pathlen - 1] != CU_FILE_SEPARATOR;
+	char **dbuf = (char **)malloc(dbufcap * sizeof *dbuf);
+	struct dirent *entry;
+	DIR *dir = NULL;
+
+	if (CU_UNLIKELY(!dbuf || !(dir = opendir(path)))) goto fail;
+
+	while ((entry = readdir(dir))) {
+		size_t entrylen;
+		char *cbuf;
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+		
+		if (dbufcnt >= dbufcap) {
+			void *rbuf = realloc(dbuf, (dbufcap *= 2) * sizeof *dbuf);
+			if (!rbuf) goto fail;
+			dbuf = (char **)rbuf;
+		}
+		
+		entrylen = strlen(entry->d_name) + 1;
+		if (!(cbuf = dbuf[dbufcnt++] = (char *)malloc(entrylen + (size_t)(fullname ? pathlen : 0) + nosep))) goto fail;
+
+		if (fullname) {
+			memcpy(cbuf, path, pathlen);
+			cbuf += pathlen;
+			if (nosep) *cbuf++ = CU_FILE_SEPARATOR;
+		}
+
+		memcpy(cbuf, entry->d_name, entrylen);
+	}
+
+	*count = (int)dbufcnt;
+	closedir(dir);
+	return dbuf;
+fail:
+	cu_dir_close(dbuf, (int)dbufcnt);
+	return NULL;
+#endif
+}
+
+void cu_dir_close(char **dirlist, int count)
+{
+	int i;
+	for (i = 0; i < count; ++i) free(dirlist[i]);
+	free(dirlist);
 }
 
 CU_API_SOURCE void *cu_file_read(const char *CU_RESTRICT path, void *CU_RESTRICT result, int binary_file, uptr *CU_RESTRICT bytes)
@@ -558,95 +663,23 @@ CU_API_SOURCE int cu_file_delete(const char *path)
 	return remove(path) == 0;
 }
 
-CU_API_SOURCE int cu_dir_delete(const char *path, int recursive)
+CU_API_SOURCE int cu_dir_delete(const char *path, int rm_contents)
 {
-#if CU_OS_WINDOWS
-	WIN32_FIND_DATA fd;
-	size_t full_len, dir_bytes;
-	HANDLE dirhandle;
-	char *dir_path;
-	int res;
+	int dircnt, i;
+	char **dirobj;
 
-	if (!recursive) return RemoveDirectoryA(path) != 0;
+	if (!rm_contents) return cu_rmdir(path) == 0;
 
-	full_len = strlen(path);
-	dir_bytes = full_len > (CU_PATH_MAX - 30) ? full_len * 2 : CU_PATH_MAX;
-	dir_path = (char *)malloc(dir_bytes);
+	dirobj = cu_dir_list(path, 1, &dircnt);
+	if (!dirobj) return 0;
 
-	if (!dir_path) return 0;
-	res = 0;
-
-	memcpy(dir_path, path, full_len);
-	dir_path[full_len] = '\\';
-	dir_path[full_len + 1] = '*';
-	dir_path[full_len + 2] = '\0';
-	dir_path[full_len + 3] = '\0';
-
-	dirhandle = FindFirstFile(dir_path, &fd);
-	if (dirhandle == INVALID_HANDLE_VALUE) goto fail;
-
-	while (FindNextFile(dirhandle, &fd)) {
-		uptr file_len;
-		if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0) continue;
-		file_len = strlen(fd.cFileName);
-
-		if (full_len + file_len + 2 > dir_bytes) {
-			void *r = realloc(dir_path, dir_bytes *= 2);
-			if (!r) goto fail;
-			dir_path = (char *)r;
-		}
-
-		memcpy(dir_path + full_len + 1, fd.cFileName, (size_t)(file_len + 1));
-
-		if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) cu_dir_delete(dir_path, 1);
-		else cu_file_delete(dir_path);
+	for (i = 0; i < dircnt; ++i) {
+		if (cu_dir_exists(dirobj[i]) && !cu_dir_delete(dirobj[i], 1)) break;
+		else if (!cu_file_delete(dirobj[i])) break;
 	}
 
-	FindClose(dirhandle);
-	res = RemoveDirectoryA(path) != 0;
-fail:
-	free(dir_path);
-	return res;
-#else
-	struct dirent *entry;
-	uptr plen, dlen, entrylen;
-	char *dbuf;
-	int ret = 0;
-	DIR *dir;
-
-	if (!recursive) return rmdir(path) == 0;
-
-	plen = strlen(path);
-	dlen = 0xFF;
-
-	if (!(dbuf = (char *)malloc(plen + dlen + (path[plen - 1] != '/') + 1))) return 0;
-	if (!(dir = opendir(path))) goto fail;
-
-	memcpy(dbuf, path, plen);
-	if (path[plen - 1] != '/') dbuf[plen++] = '/';
-
-	while ((entry = readdir(dir))) {
-		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-		entrylen = strlen(entry->d_name) + 1;
-
-		if (entrylen > dlen) {
-			void *rel = realloc(dbuf, plen + entrylen);
-			if (!rel) goto fail_dir;
-			dbuf = (char *)rel;
-		}
-
-		memcpy(dbuf + plen, entry->d_name, entrylen);
-		if (cu_dir_exists(dbuf)) { if (!cu_dir_delete(dbuf, 1)) goto fail_dir; }
-		else if (!cu_file_delete(dbuf)) goto fail_dir;
-	}
-
-	ret = rmdir(path) == 0;
-fail_dir:
-	ret &= closedir(dir) == 0;
-fail:
-	free(dbuf);
-	return ret;
-#endif
+	cu_dir_close(dirobj, dircnt);
+	return 1;
 }
 
 #endif
@@ -686,18 +719,17 @@ fail:
 #  include <ntsecapi.h>
 #endif
 
-#if CU_COMP_MSVC
-#  define cu_res_rdtsc() __rdtsc()
-#  define cu_sscanf(str, fmt, a1) sscanf_s(str, fmt, a1)
-#  pragma comment(lib, "Psapi.lib")
-#  include <intrin.h>
-#  pragma comment(lib, "Advapi32.lib")
-#else
+#if !CU_COMP_MSVC
 #  define cu_sscanf(str, fmt, a1) sscanf(str, fmt, a1)
+#else
+#  define cu_sscanf(str, fmt, a1) sscanf_s(str, fmt, a1)
 #endif
 
-#if CU_COMP_MSVC
+#if CU_COMP_MSVC && CU_ARCH_X86
+#  include <intrin.h>
 #  define cu_res_rdtsc() __rdtsc()
+#  pragma comment(lib, "Psapi.lib")
+#  pragma comment(lib, "Advapi32.lib")
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2)) static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
 {
 	__cpuidex((int *)regs, id, count);
@@ -710,7 +742,7 @@ CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NOTHROW static u64 cu_res_rdtsc(void)
 	CU_ASM volatile ("rdtsc" : "=a" (low), "=d" (high));
 	return CU_UPSHIFT((u64)high, 32) | low;
 }
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3)) CU_ATTRIB_WARN_UNUSED_RESULT static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3)) static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
 {
 	CU_ASM(
 		"  xchg{q|} {%%|}rbx,%q1\n"
@@ -1878,7 +1910,7 @@ static CU_THREAD_FUNCTION(cu_thread_pool_inner, arg)
 	return CU_THREAD_RETURN_VAL;
 }
 
-int cu_thread_pool_init(cu_thread_pool *pool, int nthreads)
+CU_API_SOURCE int cu_thread_pool_init(cu_thread_pool *pool, int nthreads)
 {
 	int i;
 	memset(pool, 0, sizeof *pool);
@@ -1907,7 +1939,7 @@ fail:
 	return 0;
 }
 
-int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg)
+CU_API_SOURCE int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg)
 {
 	struct cu_thread_pool_job *ljob = (struct cu_thread_pool_job *)malloc(sizeof *ljob);
 	if (!ljob) return 0;
@@ -1925,7 +1957,7 @@ int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg)
 	return 1;
 }
 
-void cu_thread_pool_destroy(cu_thread_pool *pool)
+CU_API_SOURCE void cu_thread_pool_destroy(cu_thread_pool *pool)
 {
 	int i;
 
