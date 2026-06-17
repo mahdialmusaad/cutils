@@ -7,6 +7,7 @@ TFUNC(custr3)
 	custr cs = CUSTR_EMPTY, *c = &cs;
 
 	EXPECT(custr_fmt(c, "%s %d %s %d %s %.1f", "CUSTR4.C", 1, "STRING", 2, "FMT", 3.0));
+	if (!c->str) return;
 	EXPECT0(strcmp(c->str, "CUSTR4.C 1 STRING 2 FMT 3.0"));
 	EXPECT(c->cap == 32);
 	EXPECT(custr_find(c, 0, '3', 0) == 24);

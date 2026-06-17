@@ -1,4 +1,6 @@
 ## Overview
+[![CMake on multiple platforms](https://github.com/mahdialmusaad/cutils/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/mahdialmusaad/cutils/actions/workflows/cmake-multi-platform.yml)
+
 A portable C utilities library.
 
 This offers identification macros, wrappers for OS-specific functions and other QOL additions for your C projects, simplifying writing applications by not having to worry about coding and testing multiple implementations for different systems.
@@ -14,21 +16,18 @@ Macros are available for identifying the following:
 - Platform
 - Endianness and data model
 
-Most version values for compilers are simplified into a major, minor and revision format.
+Version values for compilers are simplified into a major, minor and revision format.
 
 ### Functions
-Functions are provided for tasks that simplify development or those that are OS/compiler specific. <br>
-The functions provided are as follows:
+Functions are provided for tasks that simplify development or those that are OS/compiler specific:<br>
 
 - String and path functions (insert, replace, path traversal, etc)
 - File management functions
 - Cryptographic RNG
 - Hardware information functions
 - Time-related functions
-- Networking functions (TCP, client and server)
+- Networking functions
 - Threading and synchronization primitives functions
-
-Bit operation functions (e.g. popcount, count leading zeros) are also provided directly in the header.
 
 An example of a chat server and client is provided in the following [file](examples/network.c).
 
@@ -67,20 +66,18 @@ The macros are also written in such a way to simplify checks (no need to check i
 ```
 
 ## Support
-This is mostly aimed towards being used for creating applications that can be compiled for Unix and Windows operating systems as well as the major compilers without needing to write specific code for each.
+This is mostly aimed towards being used for writing C code that can be compiled for Linux, MacOS and Windows as well as on major compilers without needing to write specific code for each - the source code is written in C89 and checks for feature support so any reasonable compiler should have no problem compiling it.
 
-Warnings are given if you are compiling the library and a lack of support for specific functions are detected. Compilation can still continue, but the relevant functions will always fail (i.e. return 0), or may not be available.
-
-The source code is written in C89 and checks for feature support so any reasonable compiler should have no problem compiling it. If you encounter any errors resulting from the source code itself, it would be great if you open an issue.
+If you are attempting to build the library yourself but your system does not provide the required functionality, a warning will be emitted and the functions affected will not be available.
 
 ## Building
 You can download the static library from the Releases section for each version. <br>
-Alternatively, both a [Makefile](Makefile) and [CMakeLists.txt](CMakeLists.txt) are provided to build the library:
+Alternatively, both [CMakeLists.txt](CMakeLists.txt) and a [Makefile](Makefile) are provided to build the library:
 
 ```bash
 # Using CMake (omit '-DCU_BUILD_MISC=1' to only build the library):
-$ cmake -B build -DCMAKE_BUILD_TYPE=MinSizeRel -DCU_BUILD_MISC=1
-$ cmake --build build --config MinSizeRel
+$ cmake -B build -DCMAKE_BUILD_TYPE=Release -DCU_BUILD_MISC=1
+$ cmake --build build --config Release
 
 # Using make (omit 'all' to only build the library):
 $ make all
@@ -89,8 +86,8 @@ Results can be found in the `build` directory. <br>
 Additional documentation can be found in the aforementioned files.
 
 ## Sources
-Most identification macros are from [predef](https://github.com/cpredef/predef) and [Boost](https://www.boost.org/doc/libs/latest/libs/predef/doc/index.html). <br>
-Optimization macros and some attributes are from [Hedley](https://github.com/nemequ/hedley). <br>
+Most identification macros are from [predef](https://github.com/cpredef/predef) and [Boost](https://www.boost.org/doc/libs/latest/libs/predef/doc/index.html).<br>
+Optimization macros and some attributes are from [Hedley](https://github.com/nemequ/hedley).<br>
 Other macros are from own tests and may have incorrect detection.
 
 ## Changelog

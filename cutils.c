@@ -20,16 +20,23 @@
 #include "cutils.h"
 
 #if CU_LANG_C11 || CU_COMP_MSVC
-CU_DIAGNOSTICS_IGNORE_2(clang, "-Wreserved-macro-identifier", "-Wunused-macros")
+CU_DIAGNOSTICS_PUSH
+CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
+CU_DIAGNOSTICS_DISABLE_RESERVED
+CU_PRAGMA(clang diagnostic ignored "-Wunused-macros")
 #  define __STDC_WANT_LIB_EXT1__ 1
-CU_DIAGNOSTICS_IGNORE_END
+CU_DIAGNOSTICS_POP
 #endif
 
 #if CU_COMPVER(CLANG, 19, 0)
 #  define cu_strchr(S, C) \
-CU_DIAGNOSTICS_IGNORE_3(clang, "-Wc11-extensions", "-Wpre-c11-compat", "-Wdisabled-macro-expansion") \
+CU_DIAGNOSTICS_PUSH \
+CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
+CU_DIAGNOSTICS_DISABLE_PREC11 \
+CU_DIAGNOSTICS_DISABLE_MACRO_EXP \
+CU_PRAGMA(clang diagnostic ignored "-Wc11-extensions") \
 strchr(S, C) \
-CU_DIAGNOSTICS_IGNORE_END
+CU_DIAGNOSTICS_POP
 #else
 #  define cu_strchr(S, C) strchr(S, C)
 #endif
@@ -246,6 +253,8 @@ fail:
 	va_end(copy);
 	return ret;
 #else
+	CU_UNUSED(c);
+	CU_UNUSED(fmt);
 	return 0;
 #endif
 }
@@ -425,7 +434,7 @@ CU_API_SOURCE int cu_dir_exists(const char *path)
 
 CU_API_SOURCE int cu_dir_create(const char *path)
 {
-	return cu_mkdir(path, 0777) == 0;
+	return cu_mkdir(path, 0x1FF) == 0;
 }
 
 CU_API_SOURCE void *cu_file_read(const char *CU_RESTRICT path, void *CU_RESTRICT result, int binary_file, uptr *CU_RESTRICT bytes)
@@ -485,8 +494,10 @@ CU_API_SOURCE char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_REST
 	char *buf = (char *)malloc(CU_PATH_MAX);
 	CU_UNUSED(argv);
 	if (!buf) return NULL;
-	res = GetModuleFileName(NULL, buf, CU_PATH_MAX);
-	if (allocd) *allocd = CU_PATH_MAX;
+	if (!(res = GetModuleFileName(NULL, buf, CU_PATH_MAX))) {
+		free(buf);
+		buf = NULL;
+	} else if (allocd) *allocd = CU_PATH_MAX;
 	return buf;
 #elif CU_OS_UNIX
 	struct stat s;
@@ -699,7 +710,7 @@ CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NOTHROW static u64 cu_res_rdtsc(void)
 	CU_ASM volatile ("rdtsc" : "=a" (low), "=d" (high));
 	return CU_UPSHIFT((u64)high, 32) | low;
 }
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3)) static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3)) CU_ATTRIB_WARN_UNUSED_RESULT static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
 {
 	CU_ASM(
 		"  xchg{q|} {%%|}rbx,%q1\n"
@@ -814,7 +825,7 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 	} else success = 0;
 
 	if (CU_LIKELY((f = fopen("/proc/self/statm", "r")))) {
-		fscanf(f, "%lu %lu", &info->virtual_used, &info->physical_used);
+		fscanf(f, "%" CU_U64_FMT " %" CU_U64_FMT, &info->virtual_used, &info->physical_used);
 		fclose(f);
 	} else success = 0;
 
@@ -914,11 +925,11 @@ CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
 	memcpy(info->vendor + 8, regs + 2, 4);
 
 	for (i = 0; i < 3; ++i) {
-		cu_res_cpuid(0x80000002 + i, 0, regs);
+		CU_UNUSED(cu_res_cpuid(0x80000002 + i, 0, regs));
 		memcpy(info->name + i * 16, regs, 16);
 	}
 
-	cu_res_cpuid(0x1, 0, regs);
+	CU_UNUSED(cu_res_cpuid(0x1, 0, regs));
 	info->stepping_id = (u32)(CU_BITSOF(regs[0], 0, 3));
 	cpu_family = (u32)(CU_BITSOF(regs[0], 8, 11));
 	info->model_id = (u32)(CU_BITSOF(regs[0], 4, 7) + ((cpu_family == 6 || cpu_family == 15) * CU_UPSHIFT(CU_BITSOF(regs[0], 16, 19), 4)));
@@ -1214,9 +1225,11 @@ static int cu_net_gai_err;
 #  define CU_NET_SETERR(e) errno = e
 #  define CU_NETSIG_SETUP() struct sigaction sact; memset(&sact, 0, sizeof sact)
 #  define CU_NETSIG_SETFUNC(f) do { \
-CU_DIAGNOSTICS_IGNORE_1(clang, "-Wdisabled-macro-expansion") \
+CU_DIAGNOSTICS_PUSH \
+CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
+CU_DIAGNOSTICS_DISABLE_MACRO_EXP \
 sact.sa_handler = f; \
-CU_DIAGNOSTICS_IGNORE_END \
+CU_DIAGNOSTICS_POP \
 sigaction(SIGINT, &sact, NULL); \
 } while (0)
 
@@ -1750,7 +1763,7 @@ CU_API_SOURCE int cu_thread_cond_init(cu_thread_cond *cond) { InitializeConditio
 CU_API_SOURCE int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return SleepConditionVariableCS(cond, mutex, INFINITE) != 0; }
 CU_API_SOURCE int cu_thread_cond_signal(cu_thread_cond *cond) { WakeConditionVariable(cond); return 1; }
 CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { WakeAllConditionVariable(cond); return 1; }
-CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return 1; }
+CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { CU_UNUSED(cond); return 1; }
 
 CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
 CU_API_SOURCE u64 cu_thread_pid(void) { return (u64)GetCurrentProcessId(); }
@@ -1805,7 +1818,7 @@ CU_API_SOURCE int cu_thread_split(cu_thread_func func, u64 work_count, void **ea
 	else if (thread_count <= 0) return 0;
 
 	effective_threads = (u64)(thread_count - 1);
-	if (effective_threads && !(thrs = (struct cu_split *)malloc(sizeof *thrs * (size_t)thread_count))) return 0;
+	if (!(thrs = (struct cu_split *)malloc(sizeof *thrs * (size_t)thread_count))) return 0;
 	div = work_count / (u64)thread_count;
 	remaining = work_count - (div * (u64)thread_count);
 
@@ -1813,7 +1826,9 @@ CU_API_SOURCE int cu_thread_split(cu_thread_func func, u64 work_count, void **ea
 		cu_thread_split_arg *a = &thrs[i].arg;
 		a->thread_arg = each_thread_arg ? each_thread_arg[i] : NULL;
 		a->start_index = c;
-		a->end_index = (u64)(c += div + (remaining ? (--remaining, 1) : 0));
+		c += div + remaining ? 1 : 0;
+		if (remaining) --remaining;
+		a->end_index = c;
 		if (i == effective_threads || CU_UNLIKELY(!(thrs[i].thread = cu_thread_create(func, a)))) {
 			thrs[i].thread = 0;
 			func(a);
@@ -1837,7 +1852,7 @@ struct cu_thread_pool_job
 #define CU_THREAD_POOL_WAITING -1
 #define CU_THREAD_POOL_WORKING 0
 
-CU_THREAD_FUNCTION(cu_thread_pool_inner, arg)
+static CU_THREAD_FUNCTION(cu_thread_pool_inner, arg)
 {
 	cu_thread_pool *pool = (cu_thread_pool *)arg;
 	struct cu_thread_pool_job *cjob;
