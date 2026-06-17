@@ -28,10 +28,12 @@ extern "C" {
 
 /* ========================= User settings ======================== */
 
+/* Whether to enable functions at all. */
 #ifndef CU_SETTING_FUNCS
 #  define CU_SETTING_FUNCS 1
 #endif
 
+/* Whether to enable certain function groups. */
 #if CU_SETTING_FUNCS
 #  ifndef CU_SETTING_STRING_FUNCS
 #    define CU_SETTING_STRING_FUNCS 1
@@ -53,10 +55,19 @@ extern "C" {
 #  endif
 #endif
 
+/* Whether to typedef the numeric types (i32, u64, real32, etc).
+   This needs the types to be defined elsewhere to compile. */
+#ifndef CU_SETTING_TYPES
+#  define CU_SETTING_TYPES 1
+#endif
+
+/* Whether to force CU_DEBUG, regardless of what mode the program was compiled with.
+   This means assertions will not be disabled (CU_ASSERT). */
 #ifndef CU_SETTING_FORCE_DEBUG
 #  define CU_SETTING_FORCE_DEBUG 0
 #endif
 
+/* Whether to disable warning messages about unsupported functions. */
 #ifndef CU_SETTING_QUIET
 #  define CU_SETTING_QUIET 0
 #endif
@@ -1515,22 +1526,12 @@ static void __cu_assert_fail(int line, const char *func, const char *file, const
 
 /* ========================= Types ======================== */
 
-#if CU_LANG_C < CU_LANG_C23
-#  if CU_LANG_C >= CU_LANG_C99 && CU_HAS_INCLUDE(<stdbool.h>)
-#    include <stdbool.h>
-#  else
-#    define bool char
-#    define true 1
-#    define false 0
-#  endif
-#endif
+#if CU_SETTING_TYPES
 
 typedef signed char i8;
 typedef signed short i16;
 typedef unsigned char u8;
 typedef unsigned short u16;
-
-#define CU_ENUM_MAX 0x7FFFFFFF
 
 #if CU_HAS_INCLUDE(<stdint.h>) || CU_COMPVER(GNU, 4, 5) || defined(_STDINT) || defined(_STDINT_H) || defined(_STDINT_H_) || defined(_STDINT_H_INCLUDED)
 #  include <stdint.h>
@@ -1538,18 +1539,7 @@ typedef unsigned short u16;
    typedef int64_t i64;
    typedef uint32_t u32;
    typedef uint64_t u64;
-#  define CU_INT_USEINTPTR
-#elif defined(__INT32_TYPE__) && defined(__UINT32_TYPE__) && defined(__INT64_TYPE__) && defined(__UINT64_TYPE__)
-   typedef __INT32_TYPE__ i32;
-   typedef __INT64_TYPE__ i64;
-   typedef __UINT32_TYPE__ u32;
-   typedef __UINT64_TYPE__ u64;
-#elif CU_COMP_MSVC
-   typedef __int32 i32;
-   typedef __int64 i64;
-   typedef unsigned __int32 u32;
-   typedef unsigned __int64 u64;
-#elif CU_DM_LLP64
+#elif CU_DM_LL
    typedef signed int i32;
    typedef signed long long int i64;
    typedef unsigned int u32;
@@ -1573,6 +1563,38 @@ typedef unsigned short u16;
 
 typedef i64 imax;
 typedef u64 umax;
+
+#if defined(INT128_MAX) || defined(__SIZEOF_INT128__)
+   CU_GNU_EXT typedef __int128 imaxl;
+   CU_GNU_EXT typedef unsigned __int128 umaxl;
+#  define CU_INT128_AVAILABLE 1
+#else
+   typedef imax imaxl;
+   typedef umax umaxl;
+#  define CU_INT128_AVAILABLE 0
+#endif
+
+#if CU_LANG_C >= CU_LANG_C23 && defined(__STDC_IEC_60559_DFP__)
+   typedef _Decimal32 real32;
+   typedef _Decimal64 real64;
+   typedef _Decimal128 real128;
+#  define CU_DECIMAL128_AVAILABLE 1
+#else
+   typedef float real32;
+   typedef double real64;
+   typedef long double real128;
+#  if CU_DM_64BIT && (CU_OS_HPUX || CU_ARCH_SPARC || CU_ARCH_MIPS || CU_ARCH_ARM)
+#    define CU_DECIMAL128_AVAILABLE 1
+#  else
+#    define CU_DECIMAL128_AVAILABLE 0
+#  endif
+#endif
+
+CU_STATIC_ASSERT(sizeof(i32) == 4, "Invalid type size (i32)")
+CU_STATIC_ASSERT(sizeof(i64) == 8, "Invalid type size (i64)")
+CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
+
+#endif
 
 #if CU_DM_LL
 #  define CU_U64_C(a) a ## ULL
@@ -1629,36 +1651,6 @@ typedef u64 umax;
 #  define CU_REAL_OF(x)
 #  define CU_COMPLEX_AVAILABLE 0
 #endif
-
-#if defined(INT128_MAX) || defined(__SIZEOF_INT128__)
-   CU_GNU_EXT typedef __int128 imaxl;
-   CU_GNU_EXT typedef unsigned __int128 umaxl;
-#  define CU_INT128_AVAILABLE 1
-#else
-   typedef imax imaxl;
-   typedef umax umaxl;
-#  define CU_INT128_AVAILABLE 0
-#endif
-
-#if CU_LANG_C >= CU_LANG_C23 && defined(__STDC_IEC_60559_DFP__)
-   typedef _Decimal32 real32;
-   typedef _Decimal64 real64;
-   typedef _Decimal128 real128;
-#  define CU_DECIMAL128_AVAILABLE 1
-#else
-   typedef float real32;
-   typedef double real64;
-   typedef long double real128;
-#  if CU_DM_64BIT && (CU_OS_HPUX || CU_ARCH_SPARC || CU_ARCH_MIPS || CU_ARCH_ARM)
-#    define CU_DECIMAL128_AVAILABLE 1
-#  else
-#    define CU_DECIMAL128_AVAILABLE 0
-#  endif
-#endif
-
-CU_STATIC_ASSERT(sizeof(i32) == 4, "Invalid type size (i32)")
-CU_STATIC_ASSERT(sizeof(i64) == 8, "Invalid type size (i64)")
-CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
 
 /* ========================= Optimization ======================== */
 
