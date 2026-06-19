@@ -23,9 +23,10 @@ static void cu_test_given(void (*base)(void), const char *basename)
 #include "custr4.c"
 #include "cu_file1.c"
 #include "cu_res1.c"
+#include "cu_time1.c"
+#include "cu_net1.c"
 #include "cu_thread1.c"
 #include "cu_thread2.c"
-#include "cu_net1.c"
 
 int main(int argc, char **argv)
 {
@@ -39,8 +40,9 @@ int main(int argc, char **argv)
 	TEST(custr4);
 	TEST(cu_file1);
 	TEST(cu_res1);
+	TEST(cu_time1);
+	TEST(cu_net1);
 	TEST(cu_thread1);
 	TEST(cu_thread2);
-	TEST(cu_net1);
 	return gfailed != 0;
 }
