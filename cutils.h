@@ -20,7 +20,7 @@
 #ifndef CUTILS_HDR
 #define CUTILS_HDR
 
-#define CUTILS_VERSION 2
+#define CUTILS_VERSION 3
 
 #ifdef __cplusplus
 extern "C" {

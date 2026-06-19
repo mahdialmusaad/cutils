@@ -21,13 +21,13 @@ Version values for compilers are simplified into a major, minor and revision for
 ### Functions
 Functions are provided for tasks that simplify development or those that are OS/compiler specific:<br>
 
-- String and path functions (insert, replace, path traversal, etc)
+- String and path functions
 - File management functions
 - Cryptographic RNG
-- Hardware information functions
+- Hardware and OS information functions
 - Time-related functions
 - Networking functions
-- Threading and synchronization primitives functions
+- Threading and synchronization functions
 
 An example of a chat server and client is provided in the following [file](examples/network.c).
 
@@ -47,14 +47,14 @@ Macros are also available for simplifying optimizing and debugging your code:
 - Explicit breakpoints and traps
 
 ### QOL macros
-Finally, there are some general macros for providing functionality which usually requires checking the compiler, available headers, etc:
+Finally, there are some general macros for ease of development:
 
 - Keywords (thread_local, restrict)
 - Feature availability (keywords, compiler macros, builtins)
 - Fixed-width integers (i32, u64, etc), with their respective formats and maximum values
 - C version checking
 
-The macros are also written in such a way to simplify checks (no need to check if defined), and helper macros are also provided to do so as well.
+The macros are also written in such a way to simplify checks:
 
 ```c
 #if CU_OS_LINUX
@@ -91,6 +91,13 @@ Optimization macros and some attributes are from [Hedley](https://github.com/nem
 Other macros are from own tests and may have incorrect detection.
 
 ## Changelog
+### cu3
+- Added thread pool/split, condition variables, directory listing and user/host name retrieval
+- Various bug fixes relating to functions and macros
+- Improved support for MacOS specific functionality
+- Removed obsolete features
+- Changed test and examples format
+
 ### cu2
 - Networking functions added with chat server example
 - custr_findnot, cu_res_osname and cu_thread_self added
