@@ -1462,7 +1462,7 @@ static void __cu_assert_fail(int line, const char *func, const char *file, const
 #  define CU_DM_LP32 0
 #endif
 
-#if defined(_ILP32) || defined(__ILP32__) || (defined(__fourbyteints__) && __fourbyteints__)
+#if (CU_COMP_MSVC && CU_OS_WIN32) || defined(_ILP32) || defined(__ILP32__) || (defined(__fourbyteints__) && __fourbyteints__)
 #  define CU_DM_ILP32 1
 #else
 #  define CU_DM_ILP32 0
@@ -1474,7 +1474,7 @@ static void __cu_assert_fail(int line, const char *func, const char *file, const
 #  define CU_DM_LP64 0
 #endif
 
-#if defined(__LLP64__) || CU_COMP_MSVC || CU_PLAT_MINGW || (CU_COMP_CLANG && CU_OS_MAC)
+#if defined(__LLP64__) || (CU_COMP_MSVC && CU_OS_WIN64) || CU_PLAT_MINGW || (CU_COMP_CLANG && CU_OS_MAC)
 #  define CU_DM_LLP64 1
 #else
 #  define CU_DM_LLP64 0
@@ -2057,8 +2057,14 @@ typedef struct cu_timer
 	u64 secs; /* Total seconds passed. */
 } cu_timer;
 
-/* Get current time. */
+/* Get current time in a date format. */
 A_NTL((1)) void cu_time_now(cu_ctime *tm);
+
+/* Get given timestamp in a date format. */
+A_NTL((1)) void cu_time_date(cu_ctime *tm, i64 timestamp);
+/* Get current sub-second timestamps (ms, us and ns) in a date format. */
+A_NTL((1)) void cu_time_subsec(cu_ctime *tm);
+
 /* Fill the given timer with current time. */
 A_NTL((1)) void cu_timer_fill(cu_timer *tm);
 

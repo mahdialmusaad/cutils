@@ -408,7 +408,6 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 #  include <sys/types.h>
 #  define cu_rmdir _rmdir
 #  define cu_fileno _fileno
-#  define cu_fopen(file, path, mode) (fopen_s(&file, path, mode) != 0)
 #  define cu_mkdir(path, mode) _mkdir(path)
 #  define cu_fstat _fstati64
 #  define cu_stat _stati64
@@ -418,10 +417,15 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 #  include <dirent.h>
 #  define cu_rmdir rmdir
 #  define cu_fileno fileno
-#  define cu_fopen(file, path, mode) (!(file = fopen(path, mode)))
 #  define cu_mkdir(path, mode) mkdir(path, mode)
 #  define cu_fstat fstat
 #  define cu_stat stat
+#endif
+
+#if !CU_COMP_MSVC
+#  define cu_fopen(file, path, mode) (!(file = fopen(path, mode)))
+#else
+#  define cu_fopen(file, path, mode) (fopen_s(&file, path, mode) != 0)
 #endif
 
 CU_API_SOURCE int cu_file_exists(const char *path)
@@ -1091,20 +1095,18 @@ CU_API_SOURCE uptr cu_res_username(char *namebuf)
 
 CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 {
-	time_t now_val = time(NULL);
+	cu_time_date(tm, (i64)time(NULL));
+	cu_time_subsec(tm);
+}
+
+CU_API_SOURCE void cu_time_date(cu_ctime *tm, i64 timestamp)
+{
+	time_t now_val = (time_t)timestamp;
 	struct tm *now;
 
-#if CU_OS_MAC
-	mach_timespec_t ts;
-	clock_serv_t cserv;
-#elif CU_OS_UNIX
-	struct timespec ts;
-#elif CU_OS_WINDOWS
+#if CU_OS_WINDOWS
 	static char _cu_windows_tzname[32];
 	TIME_ZONE_INFORMATION tzinfo;
-	ULARGE_INTEGER uli;
-	FILETIME ft;
-	u64 cnsec;
 	size_t i;
 #endif
 
@@ -1156,8 +1158,13 @@ CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 	tm->tznm = NULL;
 	tm->utcdif = 0;
 #endif
+}
 
+CU_API_SOURCE void cu_time_subsec(cu_ctime *tm)
+{
 #if CU_OS_MAC
+	mach_timespec_t ts;
+	clock_serv_t cserv;
 	host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cserv);
 	clock_get_time(cserv, &ts);
 	mach_port_deallocate(mach_task_self(), cserv);
@@ -1165,11 +1172,15 @@ CU_API_SOURCE void cu_time_now(cu_ctime *tm)
 	tm->microsec = (int)((ts.tv_nsec / 1000) % 1000);
 	tm->millisec = (int)((ts.tv_nsec / 1000000) % 1000);
 #elif CU_OS_UNIX
+	struct timespec ts;
 	if (clock_gettime(CLOCK_REALTIME, &ts) == -1) ts.tv_nsec = 0;
 	tm->nanosec = (int)(ts.tv_nsec % 1000);
 	tm->microsec = (int)((ts.tv_nsec / 1000) % 1000);
 	tm->millisec = (int)((ts.tv_nsec / 1000000) % 1000);
 #elif CU_OS_WINDOWS
+	ULARGE_INTEGER uli;
+	FILETIME ft;
+	u64 cnsec;
 	GetSystemTimePreciseAsFileTime(&ft);
 	uli.LowPart = ft.dwLowDateTime;
 	uli.HighPart = ft.dwHighDateTime;
