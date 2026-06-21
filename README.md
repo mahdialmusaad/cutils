@@ -33,6 +33,8 @@ An example of a chat server and client is provided in the following [file](examp
 
 You can selectively disable certain function groups by defining their specific `CU_SETTING_*_FUNCS` macro to `0`:
 ```c
+/* The #define has to occur before any inclusion of cutils.h.
+   You can also define it in your compiler directly. */
 #define CU_SETTING_NETWORK_FUNCS 0
 #include "cutils.h"
 ```
@@ -72,7 +74,7 @@ If you are attempting to build the library yourself but your system does not pro
 
 ## Building
 You can download the static library from the Releases section for each version. <br>
-Alternatively, both [CMakeLists.txt](CMakeLists.txt) and a [Makefile](Makefile) are provided to build the library:
+Alternatively, both a [CMakeLists.txt](CMakeLists.txt) and [Makefile](Makefile) are provided to build the library:
 
 ```bash
 # Using CMake (omit '-DCU_BUILD_MISC=1' to only build the library):
@@ -83,7 +85,7 @@ $ cmake --build build --config Release
 $ make all
 ```
 Results can be found in the `build` directory. <br>
-Additional documentation can be found in the aforementioned files.
+Additional documentation can be found in the respective build files.
 
 ## Sources
 Most identification macros are from [predef](https://github.com/cpredef/predef) and [Boost](https://www.boost.org/doc/libs/latest/libs/predef/doc/index.html).<br>

@@ -1,9 +1,3 @@
-/*
-   Example usage for provided networking functions from the cutils library.
-   Main library code and documentation can found in cutils.c and cutils.h in the same directory.
-   The cutils library is licensed under the GPLv2, see aforementioned files for full statement.
-*/
-
 #include "../cutils.h"
 
 #include <stdlib.h>

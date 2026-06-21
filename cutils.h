@@ -1121,7 +1121,7 @@ extern "C" {
 #  define CU_DEPRECATED_AVAILABLE 0
 #endif
 
-#if CU_HAS_ATTRIBUTE(warn_unused_result) || CU_COMPVER(GNU, 3, 4) ||  CU_COMPVER(INTEL, 13, 0) 
+#if CU_HAS_ATTRIBUTE(warn_unused_result) || CU_COMPVER(GNU, 3, 4) ||  CU_COMPVER(INTEL, 13, 0)
 #  define CU_ATTRIB_WARN_UNUSED_RESULT __attribute__((__warn_unused_result__))
 #elif defined(_Check_return_)
 #  define CU_ATTRIB_WARN_UNUSED_RESULT _Check_return_

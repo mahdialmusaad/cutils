@@ -6,7 +6,7 @@ TFUNC(custr1)
 {
 	custr cs, *c = &cs, al;
 	char *astr = (char *)malloc(5);
-	
+
 	EXPECT(custr_create(c, "CUSTR1.C STRING"));
 	EXPECT(c->str);
 	EXPECT(c->len == 15);

@@ -470,13 +470,13 @@ CU_API_SOURCE char **cu_dir_list(const char *path, int fullname, int *count)
 		size_t entrylen;
 		char *cbuf;
 		if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0) continue;
-		
+
 		if (dbufcnt >= dbufcap) {
 			void *rbuf = realloc(dbuf, (dbufcap *= 2) * sizeof *dbuf);
 			if (!rbuf) goto fail;
 			dbuf = rbuf;
 		}
-		
+
 		entrylen = strlen(fd.cFileName) + 1;
 		if (!(cbuf = dbuf[dbufcnt++] = malloc(entrylen + (size_t)(fullname ? pathlen : 0) + nosep))) goto fail;
 
@@ -511,13 +511,13 @@ fail:
 		size_t entrylen;
 		char *cbuf;
 		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-		
+
 		if (dbufcnt >= dbufcap) {
 			void *rbuf = realloc(dbuf, (dbufcap *= 2) * sizeof *dbuf);
 			if (!rbuf) goto fail;
 			dbuf = (char **)rbuf;
 		}
-		
+
 		entrylen = strlen(entry->d_name) + 1;
 		if (!(cbuf = dbuf[dbufcnt++] = (char *)malloc(entrylen + (size_t)(fullname ? pathlen : 0) + nosep))) goto fail;
 
