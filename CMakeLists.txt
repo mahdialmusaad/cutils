@@ -55,10 +55,16 @@ target_compile_definitions(cutils PRIVATE
 	CU_SETTING_TIME_FUNCS=$<BOOL:${CU_SETTING_TIME_FUNCS}>
 	CU_SETTING_NETWORK_FUNCS=$<BOOL:${CU_SETTING_NETWORK_FUNCS}>
 	CU_SETTING_THREAD_FUNCS=$<BOOL:${CU_SETTING_THREAD_FUNCS}>
-	CU_SETTING_QUIET=$<BOOL:${CU_SETTING_QUIET}>
 	CU_SETTING_FORCE_DEBUG=$<BOOL:${CU_SETTING_FORCE_DEBUG}>
 	_FILE_OFFSET_BITS=64
 )
+
+get_target_property(CU_COMPILE_DEFINITIONS cutils COMPILE_DEFINITIONS)
+if (CU_COMPILE_DEFINITIONS STREQUAL CU_COMPILE_DEFINITIONS-NOTFOUND)
+	set(CU_COMPILE_DEFINITIONS "")
+endif()
+
+target_compile_definitions(cutils PRIVATE CU_SETTING_QUIET=$<BOOL:${CU_SETTING_QUIET}>)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	target_compile_definitions(cutils PRIVATE _DARWIN_C_SOURCE)
@@ -87,21 +93,12 @@ endif()
 
 if(CU_BUILD_MISC)
 	get_target_property(CU_COMPILE_OPTIONS cutils COMPILE_OPTIONS)
-	get_target_property(CU_COMPILE_DEFINITIONS cutils COMPILE_DEFINITIONS)
-
 	if (CU_COMPILE_OPTIONS STREQUAL CU_COMPILE_OPTIONS-NOTFOUND)
-		set(CU_COMPILE_OPTIONS "")	
+		set(CU_COMPILE_OPTIONS "")
 	endif()
-	if (CU_COMPILE_DEFINITIONS STREQUAL CU_COMPILE_DEFINITIONS-NOTFOUND)
-		set(CU_COMPILE_DEFINITIONS "")	
-	endif()
-
-	add_executable(test tests/main.c)
-	target_link_libraries(test PRIVATE cutils)
-	target_compile_options(test PRIVATE ${CU_COMPILE_OPTIONS})
-	target_compile_definitions(test PRIVATE ${CU_COMPILE_DEFINITIONS})
 
 	file(GLOB CU_EXAMPLES examples/*.c)
+	list(APPEND CU_EXAMPLES tests/test.c)
 
 	foreach(CU_EXAMPLE_SOURCE ${CU_EXAMPLES})
 		get_filename_component(CU_EXAMPLE_TARGET ${CU_EXAMPLE_SOURCE} NAME_WE)
@@ -109,5 +106,6 @@ if(CU_BUILD_MISC)
 		target_link_libraries(${CU_EXAMPLE_TARGET} PRIVATE cutils)
 		target_compile_options(${CU_EXAMPLE_TARGET} PRIVATE ${CU_COMPILE_OPTIONS})
 		target_compile_definitions(${CU_EXAMPLE_TARGET} PRIVATE ${CU_COMPILE_DEFINITIONS})
+		target_compile_definitions(${CU_EXAMPLE_TARGET} PRIVATE CU_SETTING_QUIET=1)
 	endforeach()
 endif()
