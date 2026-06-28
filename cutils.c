@@ -41,8 +41,6 @@ CU_DIAGNOSTICS_POP
 #  define cu_strchr(S, C) strchr(S, C)
 #endif
 
-#define CU_API_SOURCE CU_API
-
 #define CU_BITSOF(x, start, end) (CU_DWSHIFT(x, start) & (CU_UPSHIFT(1, (1 + (end - start))) - 1))
 
 #if CU_SETTING_FUNCS
@@ -83,7 +81,7 @@ static uptr custr_npow2(uptr v)
 	return v;
 }
 
-CU_API_SOURCE int custr_create(custr *CU_RESTRICT c, const char *CU_RESTRICT str)
+int custr_create(custr *CU_RESTRICT c, const char *CU_RESTRICT str)
 {
 	const uptr len = (size_t)strlen(str), allocd = custr_npow2(len + 1);
 	if (!(c->str = (char *)malloc((size_t)allocd))) return 0;
@@ -92,7 +90,7 @@ CU_API_SOURCE int custr_create(custr *CU_RESTRICT c, const char *CU_RESTRICT str
 	c->cap = allocd;
 	return 1;
 }
-CU_API_SOURCE custr *custr_allocd(custr *CU_RESTRICT c, char *CU_RESTRICT allocdstr, uptr allocd)
+custr *custr_allocd(custr *CU_RESTRICT c, char *CU_RESTRICT allocdstr, uptr allocd)
 {
 	c->len = strlen(allocdstr);
 	if (CU_UNLIKELY(allocd && allocd <= c->len)) return NULL;
@@ -101,7 +99,7 @@ CU_API_SOURCE custr *custr_allocd(custr *CU_RESTRICT c, char *CU_RESTRICT allocd
 	return c;
 }
 
-CU_API_SOURCE int custr_reserve(custr *c, uptr bytes)
+int custr_reserve(custr *c, uptr bytes)
 {
 	void *ptr;
 
@@ -119,7 +117,7 @@ CU_API_SOURCE int custr_reserve(custr *c, uptr bytes)
 
 	return 1;
 }
-CU_API_SOURCE int custr_copy(const custr *CU_RESTRICT copy, custr *CU_RESTRICT paste)
+int custr_copy(const custr *CU_RESTRICT copy, custr *CU_RESTRICT paste)
 {
 	paste->len = copy->len;
 	paste->cap = paste->len + 1;
@@ -128,7 +126,7 @@ CU_API_SOURCE int custr_copy(const custr *CU_RESTRICT copy, custr *CU_RESTRICT p
 	return 1;
 }
 
-CU_API_SOURCE int custr_shrinkto(custr *c, uptr shrinked_len)
+int custr_shrinkto(custr *c, uptr shrinked_len)
 {
 	if (CU_UNLIKELY(shrinked_len >= c->len)) return 0;
 	if (!c->str) return 1;
@@ -136,7 +134,7 @@ CU_API_SOURCE int custr_shrinkto(custr *c, uptr shrinked_len)
 	c->str[shrinked_len] = '\0';
 	return 1;
 }
-CU_API_SOURCE custr *custr_clear(custr *c)
+custr *custr_clear(custr *c)
 {
 	c->len = c->cap = 0;
 	if (!c->str) return c;
@@ -144,13 +142,13 @@ CU_API_SOURCE custr *custr_clear(custr *c)
 	c->str = NULL;
 	return c;
 }
-CU_API_SOURCE int custr_optimize(custr *c)
+int custr_optimize(custr *c)
 {
 	c->cap = 0;
 	return custr_reserve(c, c->len);
 }
 
-CU_API_SOURCE int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT to_insert)
+int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT to_insert)
 {
 	uptr needed, inslen = strlen(to_insert);
 
@@ -166,12 +164,12 @@ CU_API_SOURCE int custr_insert(custr *CU_RESTRICT c, uptr c_offset, const char *
 	c->len = needed - 1;
 	return 1;
 }
-CU_API_SOURCE int custr_append(custr *CU_RESTRICT c, const char *CU_RESTRICT to_append)
+int custr_append(custr *CU_RESTRICT c, const char *CU_RESTRICT to_append)
 {
 	return custr_insert(c, c->len, to_append);
 }
 
-CU_API_SOURCE int custr_sub(const custr *CU_RESTRICT c, custr *CU_RESTRICT subresult, uptr start_ind, uptr end_ind)
+int custr_sub(const custr *CU_RESTRICT c, custr *CU_RESTRICT subresult, uptr start_ind, uptr end_ind)
 {
 	uptr charcount;
 
@@ -187,7 +185,7 @@ CU_API_SOURCE int custr_sub(const custr *CU_RESTRICT c, custr *CU_RESTRICT subre
 
 	return 1;
 }
-CU_API_SOURCE int custr_tosub(custr *c, uptr start_ind, uptr end_ind)
+int custr_tosub(custr *c, uptr start_ind, uptr end_ind)
 {
 	if (CU_UNLIKELY(start_ind > end_ind || start_ind > c->len)) return 0;
 	if (CU_LIKELY(end_ind < c->len)) custr_shrinkto(c, end_ind + 1);
@@ -196,7 +194,7 @@ CU_API_SOURCE int custr_tosub(custr *c, uptr start_ind, uptr end_ind)
 	return 1;
 }
 
-CU_API_SOURCE void custr_cut(custr *c, uptr start_ind, uptr count)
+void custr_cut(custr *c, uptr start_ind, uptr count)
 {
 	if (CU_UNLIKELY(start_ind >= c->len)) return;
 	if (CU_UNLIKELY(start_ind + count > c->len)) count = c->len - start_ind;
@@ -204,7 +202,7 @@ CU_API_SOURCE void custr_cut(custr *c, uptr start_ind, uptr count)
 	c->len -= count;
 }
 
-CU_API_SOURCE int custr_count(const custr *c, char target)
+int custr_count(const custr *c, char target)
 {
 	int n = 0;
 	uptr offset = CU_UPTRMAX;
@@ -214,7 +212,7 @@ CU_API_SOURCE int custr_count(const custr *c, char target)
 		++n;
 	}
 }
-CU_API_SOURCE int custr_countsub(const custr *CU_RESTRICT c, const char *CU_RESTRICT target)
+int custr_countsub(const custr *CU_RESTRICT c, const char *CU_RESTRICT target)
 {
 	uptr offset = CU_UPTRMAX;
 	int n = 0;
@@ -224,7 +222,7 @@ CU_API_SOURCE int custr_countsub(const custr *CU_RESTRICT c, const char *CU_REST
 	}
 }
 
-CU_API_SOURCE int custr_fmt(custr *CU_RESTRICT c, char *CU_RESTRICT fmt, ...)
+int custr_fmt(custr *CU_RESTRICT c, char *CU_RESTRICT fmt, ...)
 {
 #ifdef CUSTR_FMT
 	va_list va, copy;
@@ -259,7 +257,7 @@ fail:
 #endif
 }
 
-CU_API_SOURCE int custr_cd(custr *CU_RESTRICT c, const char *CU_RESTRICT name)
+int custr_cd(custr *CU_RESTRICT c, const char *CU_RESTRICT name)
 {
 	custr tmp;
 	int ret = 1;
@@ -283,7 +281,7 @@ fail:
 	return ret;
 }
 
-CU_API_SOURCE void custr_simplify(custr *c)
+void custr_simplify(custr *c)
 {
 	uptr ind = 0, prev;
 	int dw = 1;
@@ -316,21 +314,21 @@ CU_API_SOURCE void custr_simplify(custr *c)
 	}
 }
 
-CU_API_SOURCE uptr custr_find(const custr *c, uptr c_offset, char target, int n)
+uptr custr_find(const custr *c, uptr c_offset, char target, int n)
 {
 	iptr i;
 	if (CU_LIKELY(n >= 0)) { for (i = (iptr)c_offset; i < (iptr)c->len; ++i) if (CU_UNLIKELY(c->str[i] == target) && !(n--)) return (uptr)i; }
 	else if (CU_LIKELY(c_offset <= c->len)) { for (i = (iptr)(c->len - c_offset - 1); i >= 0; --i) if (CU_UNLIKELY(c->str[i] == target) && !(++n)) return (uptr)i; }
 	return CU_UPTRMAX;
 }
-CU_API_SOURCE uptr custr_findnot(const custr *c, uptr c_offset, char target, int n)
+uptr custr_findnot(const custr *c, uptr c_offset, char target, int n)
 {
 	iptr i;
 	if (CU_LIKELY(n >= 0)) { for (i = (iptr)c_offset; i < (iptr)c->len; ++i) if (c->str[i] != target && !(n--)) return (uptr)i; }
 	else if (CU_LIKELY(c_offset <= c->len)) { for (i = (iptr)(c->len - c_offset - 1); i >= 0; --i) if (c->str[i] != target && !(++n)) return (uptr)i; }
 	return CU_UPTRMAX;
 }
-CU_API_SOURCE uptr custr_findsub(const custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT target_substr, int n)
+uptr custr_findsub(const custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT target_substr, int n)
 {
 	uptr positive = n >= 0;
 	int nsearch = -1 + (int)positive;
@@ -349,7 +347,7 @@ CU_API_SOURCE uptr custr_findsub(const custr *CU_RESTRICT c, uptr c_offset, cons
 	CU_UNREACHABLE();
 }
 
-CU_API_SOURCE void custr_replace(custr *c, uptr c_offset, char target, char replacement)
+void custr_replace(custr *c, uptr c_offset, char target, char replacement)
 {
 	uptr i;
 
@@ -363,7 +361,7 @@ CU_API_SOURCE void custr_replace(custr *c, uptr c_offset, char target, char repl
 		} else c->str[i] = replacement;
 	}
 }
-CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT target, const char *CU_RESTRICT replacement)
+int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRICT target, const char *CU_RESTRICT replacement)
 {
 	enum { nulrep = 0x0, smallrep = 0x1, eqrep = 0x2, largerep = 0x3 } reptype;
 	size_t rlen = replacement ? strlen(replacement) : 0, tlen = strlen(target);
@@ -428,24 +426,24 @@ CU_API_SOURCE int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const ch
 #  define cu_fopen(file, path, mode) (fopen_s(&file, path, mode) != 0)
 #endif
 
-CU_API_SOURCE int cu_file_exists(const char *path)
+int cu_file_exists(const char *path)
 {
 	struct cu_stat dir_stat;
 	return cu_stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFREG) == S_IFREG);
 }
 
-CU_API_SOURCE int cu_dir_exists(const char *path)
+int cu_dir_exists(const char *path)
 {
 	struct cu_stat dir_stat;
 	return cu_stat(path, &dir_stat) == 0 && ((dir_stat.st_mode & S_IFDIR) == S_IFDIR);
 }
 
-CU_API_SOURCE int cu_dir_create(const char *path)
+int cu_dir_create(const char *path)
 {
 	return cu_mkdir(path, 0x1FF) == 0;
 }
 
-CU_API_SOURCE char **cu_dir_list(const char *path, int fullname, int *count)
+char **cu_dir_list(const char *path, int fullname, int *count)
 {
 #if CU_OS_WINDOWS
 	size_t dbufcap = 4, dbufcnt = 0, pathlen = strlen(path), nosep = path[pathlen - 1] != CU_FILE_SEPARATOR;
@@ -546,7 +544,7 @@ void cu_dir_close(char **dirlist, int count)
 	free(dirlist);
 }
 
-CU_API_SOURCE void *cu_file_read(const char *CU_RESTRICT path, void *CU_RESTRICT result, int binary_file, uptr *CU_RESTRICT bytes)
+void *cu_file_read(const char *CU_RESTRICT path, void *CU_RESTRICT result, int binary_file, uptr *CU_RESTRICT bytes)
 {
 	uptr to_read, filesize;
 	struct cu_stat file_stat;
@@ -569,7 +567,7 @@ fail:
 	return res ? result : NULL;
 }
 
-CU_API_SOURCE int cu_file_write(const char *CU_RESTRICT path, const void *CU_RESTRICT content, unsigned int mode, uptr bytes)
+int cu_file_write(const char *CU_RESTRICT path, const void *CU_RESTRICT content, unsigned int mode, uptr bytes)
 {
 	static const char *mode_strs[] = { "w", "wb", "a", "ab" };
 	FILE *file; int res;
@@ -583,7 +581,7 @@ CU_API_SOURCE int cu_file_write(const char *CU_RESTRICT path, const void *CU_RES
 	return res;
 }
 
-CU_API_SOURCE int cu_file_getinfo(const char *CU_RESTRICT path, cu_file_info *CU_RESTRICT f_info)
+int cu_file_getinfo(const char *CU_RESTRICT path, cu_file_info *CU_RESTRICT f_info)
 {
 	struct cu_stat dir_stat;
 	if (cu_stat(path, &dir_stat) == -1) return 0;
@@ -596,7 +594,7 @@ CU_API_SOURCE int cu_file_getinfo(const char *CU_RESTRICT path, cu_file_info *CU
 	return 1;
 }
 
-CU_API_SOURCE char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_RESTRICT allocd)
+char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_RESTRICT allocd)
 {
 #if CU_OS_WINDOWS
 	DWORD res;
@@ -662,12 +660,12 @@ CU_API_SOURCE char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_REST
 #endif
 }
 
-CU_API_SOURCE int cu_file_delete(const char *path)
+int cu_file_delete(const char *path)
 {
 	return remove(path) == 0;
 }
 
-CU_API_SOURCE int cu_dir_delete(const char *path, int rm_contents)
+int cu_dir_delete(const char *path, int rm_contents)
 {
 	int dircnt, i;
 	char **dirobj;
@@ -762,7 +760,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3)) static u32 cu_res_cpuid(u32 id, u32 cou
 #  define cu_res_cpuid(id, count, regs) 0
 #endif
 
-CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
+char *cu_res_bytefmt(char *str, u64 bytes)
 {
 	static const char bytefmt_suffix[6] = { 'K', 'M', 'G', 'T', 'P', 'E' };
 	int small = bytes < 1000, suffix = -1, prev = 0;
@@ -789,7 +787,7 @@ CU_API_SOURCE char *cu_res_bytefmt(char *str, u64 bytes)
 	return start;
 }
 
-CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes)
+uptr cu_res_crypto(void *data, uptr bytes)
 {
 #if CU_OS_UNIX
 	FILE *f;
@@ -806,7 +804,7 @@ CU_API_SOURCE uptr cu_res_crypto(void *data, uptr bytes)
 #endif
 }
 
-CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
+int cu_res_meminfo(cu_res_mem *info)
 {
 #if CU_OS_MAC
 	mach_port_t mach_port = mach_host_self();
@@ -893,7 +891,7 @@ CU_API_SOURCE int cu_res_meminfo(cu_res_mem *info)
 #endif
 }
 
-CU_API_SOURCE real64 cu_res_cpuusage(void)
+real64 cu_res_cpuusage(void)
 {
 #if CU_OS_UNIX
 	static int proc_count = 0;
@@ -948,7 +946,7 @@ CU_API_SOURCE real64 cu_res_cpuusage(void)
 #endif
 }
 
-CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
+int cu_res_cpuinfo(cu_res_cpu *info)
 {
 	u32 regs[4] = { 0, 0, 0, 0 }, cpu_family, level, i = 1;
 	struct cu_res_cpu_cache *target;
@@ -1005,7 +1003,7 @@ CU_API_SOURCE int cu_res_cpuinfo(cu_res_cpu *info)
 	return info->name[0] && info->vendor[0] && i >= 4 &&  info->base_freq_hz;
 }
 
-CU_API_SOURCE uptr cu_res_osname(char *namebuf)
+uptr cu_res_osname(char *namebuf)
 {
 #if CU_OS_UNIX
 	struct utsname ubuf;
@@ -1027,7 +1025,7 @@ CU_API_SOURCE uptr cu_res_osname(char *namebuf)
 #endif
 }
 
-CU_API_SOURCE uptr cu_res_hostname(char *namebuf)
+uptr cu_res_hostname(char *namebuf)
 {
 #if CU_OS_UNIX
 	char tbuf[CU_RES_NAME_MAXSIZE];
@@ -1046,7 +1044,7 @@ CU_API_SOURCE uptr cu_res_hostname(char *namebuf)
 }
 
 
-CU_API_SOURCE uptr cu_res_username(char *namebuf)
+uptr cu_res_username(char *namebuf)
 {
 #if CU_OS_UNIX
 	struct passwd *p = getpwuid(geteuid());
@@ -1093,13 +1091,13 @@ CU_API_SOURCE uptr cu_res_username(char *namebuf)
 #  endif
 #endif
 
-CU_API_SOURCE void cu_time_now(cu_ctime *tm)
+void cu_time_now(cu_ctime *tm)
 {
 	cu_time_date(tm, (i64)time(NULL));
 	cu_time_subsec(tm);
 }
 
-CU_API_SOURCE void cu_time_date(cu_ctime *tm, i64 timestamp)
+void cu_time_date(cu_ctime *tm, i64 timestamp)
 {
 	time_t now_val = (time_t)timestamp;
 	struct tm *now;
@@ -1160,7 +1158,7 @@ CU_API_SOURCE void cu_time_date(cu_ctime *tm, i64 timestamp)
 #endif
 }
 
-CU_API_SOURCE void cu_time_subsec(cu_ctime *tm)
+void cu_time_subsec(cu_ctime *tm)
 {
 #if CU_OS_MAC
 	mach_timespec_t ts;
@@ -1195,7 +1193,7 @@ CU_API_SOURCE void cu_time_subsec(cu_ctime *tm)
 #endif
 }
 
-CU_API_SOURCE void cu_timer_fill(cu_timer *tm)
+void cu_timer_fill(cu_timer *tm)
 {
 #if CU_OS_MAC
 	mach_timespec_t ts;
@@ -1224,7 +1222,7 @@ CU_API_SOURCE void cu_timer_fill(cu_timer *tm)
 #endif
 }
 
-CU_API_SOURCE u64 cu_timer_dif(const cu_timer *CU_RESTRICT start, const cu_timer *CU_RESTRICT end)
+u64 cu_timer_dif(const cu_timer *CU_RESTRICT start, const cu_timer *CU_RESTRICT end)
 {
 	return ((end->secs - start->secs) * CU_U64_C(1000000000)) + (end->nsecs - start->nsecs);
 }
@@ -1269,10 +1267,10 @@ enum
 #  include <errno.h>
 #  include <poll.h>
 #  define cu_close close
-#  define CU_EAGAIN EAGAIN 
-#  define CU_EWOULDBLOCK EWOULDBLOCK 
+#  define CU_EAGAIN EAGAIN
+#  define CU_EWOULDBLOCK EWOULDBLOCK
 #  define CU_EPIPE EPIPE
-#  define CU_ECONNRESET ECONNRESET 
+#  define CU_ECONNRESET ECONNRESET
 #  define CU_EINTR EINTR
 #  define CU_EBADF EBADF
 #  define CU_ERRNO_SET(e) errno = e;
@@ -1290,10 +1288,10 @@ typedef size_t cu_tbytes;
 #  include <ws2tcpip.h>
 #  include <iphlpapi.h>
 #  define cu_close closesocket
-#  define CU_EAGAIN WSAEWOULDBLOCK 
-#  define CU_EWOULDBLOCK WSAEWOULDBLOCK 
+#  define CU_EAGAIN WSAEWOULDBLOCK
+#  define CU_EWOULDBLOCK WSAEWOULDBLOCK
 #  define CU_EPIPE WSAEHOSTUNREACH
-#  define CU_ECONNRESET WSAECONNRESET 
+#  define CU_ECONNRESET WSAECONNRESET
 #  define CU_EINTR WSAEINTR
 #  define CU_EBADF WSAENOTSOCK
 #  define CU_ERRNO_SET(e)
@@ -1367,13 +1365,13 @@ CU_ATTRIB_NOTHROW static int cu_net_nonblock(cu_socket sock)
 #endif
 }
 
-CU_API_SOURCE char *cu_net_ipinfo(const cu_net_remote *CU_RESTRICT remote, char *CU_RESTRICT ipbuf)
+char *cu_net_ipinfo(const cu_net_remote *CU_RESTRICT remote, char *CU_RESTRICT ipbuf)
 {
 	return cu_net_getaddrip(remote->ip_info, ipbuf) ? ipbuf : NULL;
 }
 
 
-CU_API_SOURCE char *cu_net_interfaces(char *ipbuf, int if_fmt, int id)
+char *cu_net_interfaces(char *ipbuf, int if_fmt, int id)
 {
 #if CU_OS_UNIX
 	struct ifaddrs *ifd, *ifd_it;
@@ -1419,7 +1417,7 @@ end:
 #endif
 }
 
-CU_API_SOURCE const char *cu_net_lasterr(void)
+const char *cu_net_lasterr(void)
 {
 #if CU_OS_UNIX
 	if (cu_net_getaddrinfo_errno && !CU_ERRNO) return gai_strerror(cu_net_getaddrinfo_errno);
@@ -1431,7 +1429,7 @@ CU_API_SOURCE const char *cu_net_lasterr(void)
 #endif
 }
 
-CU_API_SOURCE int cu_net_sendmsg(cu_net_remote *CU_RESTRICT target, const void *CU_RESTRICT data, uptr n)
+int cu_net_sendmsg(cu_net_remote *CU_RESTRICT target, const void *CU_RESTRICT data, uptr n)
 {
 	if (target->mode & CU_NETMODE_CLOSED) return 0;
 
@@ -1616,7 +1614,7 @@ CU_NN_NT((1, 2)) static int cu_net_generic_listen(cu_net_remote *CU_RESTRICT tar
 	return CU_ERRNO != CU_EINTR;
 }
 
-CU_API_SOURCE int cu_client_listen(cu_net_remote *CU_RESTRICT srem, const char *CU_RESTRICT address, const char *CU_RESTRICT port, void *CU_RESTRICT user, u32 retryval, uptr mode, cu_event_handler ehandler, int heartbeat_delay_msec)
+int cu_client_listen(cu_net_remote *CU_RESTRICT srem, const char *CU_RESTRICT address, const char *CU_RESTRICT port, void *CU_RESTRICT user, u32 retryval, uptr mode, cu_event_handler ehandler, int heartbeat_delay_msec)
 {
 	if (!cu_net_generic_socket(srem, address, port, user, retryval, mode)) return 0;
 	if (cu_net_generic_listen(srem, ehandler, heartbeat_delay_msec) && !(mode & CU_NETMODE_UDP)) ehandler(srem, NULL, CUEVT_DISCONNECT, NULL, 0);
@@ -1773,7 +1771,7 @@ fail:
 	return ret;
 }
 
-CU_API_SOURCE void cu_server_broadcast(const cu_net_remote *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote *CU_RESTRICT *CU_RESTRICT except, uptr except_len)
+void cu_server_broadcast(const cu_net_remote *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote *CU_RESTRICT *CU_RESTRICT except, uptr except_len)
 {
 	const cu_net_server *s = (cu_net_server *)server->internal;
 	uptr i, j;
@@ -1805,56 +1803,56 @@ void cu_net_close(cu_net_remote *remote)
 #  include <pthread.h>
 #  include <unistd.h>
 
-CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, void *arg)
+cu_thread cu_thread_create(cu_thread_func function, void *arg)
 {
 	cu_thread thr;
 	if (pthread_create(&thr, NULL, function, arg) != 0) return 0;
 	return thr;
 }
-CU_API_SOURCE int cu_thread_join(cu_thread thread) { return pthread_join(thread, NULL) == 0; }
-CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return pthread_detach(thread) == 0; }
+int cu_thread_join(cu_thread thread) { return pthread_join(thread, NULL) == 0; }
+int cu_thread_detach(cu_thread thread) { return pthread_detach(thread) == 0; }
 
-CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
+void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	struct timespec rtime;
 	rtime.tv_nsec = (long)(nsecs % 1000000000);
 	rtime.tv_sec = (long)(secs + (nsecs / 1000000000));
 	while (nanosleep(&rtime, &rtime));
 }
-CU_API_SOURCE int cu_thread_count(void) { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
+int cu_thread_count(void) { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
 
-CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return pthread_mutex_init(mutex, NULL) == 0; }
-CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return pthread_mutex_lock(mutex) == 0; }
-CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return pthread_mutex_unlock(mutex) == 0; }
-CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return pthread_mutex_trylock(mutex) == 0; }
-CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return pthread_mutex_destroy(mutex) == 0; }
+int cu_thread_mutex_init(cu_thread_mutex *mutex) { return pthread_mutex_init(mutex, NULL) == 0; }
+int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return pthread_mutex_lock(mutex) == 0; }
+int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return pthread_mutex_unlock(mutex) == 0; }
+int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return pthread_mutex_trylock(mutex) == 0; }
+int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { return pthread_mutex_destroy(mutex) == 0; }
 
-CU_API_SOURCE int cu_thread_cond_init(cu_thread_cond *cond) { return pthread_cond_init(cond, NULL) == 0; }
-CU_API_SOURCE int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return pthread_cond_wait(cond, mutex) == 0; }
-CU_API_SOURCE int cu_thread_cond_signal(cu_thread_cond *cond) { return pthread_cond_signal(cond) == 0; }
-CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { return pthread_cond_broadcast(cond) == 0; }
-CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return pthread_cond_destroy(cond) == 0; }
-CU_API_SOURCE cu_thread cu_thread_self(void) { return pthread_self(); }
-CU_API_SOURCE u64 cu_thread_pid(void) { return (u64)getpid(); }
+int cu_thread_cond_init(cu_thread_cond *cond) { return pthread_cond_init(cond, NULL) == 0; }
+int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return pthread_cond_wait(cond, mutex) == 0; }
+int cu_thread_cond_signal(cu_thread_cond *cond) { return pthread_cond_signal(cond) == 0; }
+int cu_thread_cond_broadcast(cu_thread_cond *cond) { return pthread_cond_broadcast(cond) == 0; }
+int cu_thread_cond_destroy(cu_thread_cond *cond) { return pthread_cond_destroy(cond) == 0; }
+cu_thread cu_thread_self(void) { return pthread_self(); }
+u64 cu_thread_pid(void) { return (u64)getpid(); }
 #if CU_OS_MAC
-CU_API_SOURCE u64 cu_thread_tid(void)
+u64 cu_thread_tid(void)
 {
 	uint64_t res;
 	pthread_threadid_np(NULL, &res);
 	return (u64)res;
 }
 #else
-CU_API_SOURCE u64 cu_thread_tid(void) { return (u64)gettid(); }
+u64 cu_thread_tid(void) { return (u64)gettid(); }
 #endif
 
 #elif CU_THREAD_WIN_USED
 #  include <windows.h>
 
-CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, void *arg) { return CreateThread(NULL, 0, function, arg, 0, 0); }
-CU_API_SOURCE int cu_thread_join(cu_thread thread) { return WaitForSingleObject(thread, INFINITE) == WAIT_OBJECT_0; }
-CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return CloseHandle(thread) != 0; }
+cu_thread cu_thread_create(cu_thread_func function, void *arg) { return CreateThread(NULL, 0, function, arg, 0, 0); }
+int cu_thread_join(cu_thread thread) { return WaitForSingleObject(thread, INFINITE) == WAIT_OBJECT_0; }
+int cu_thread_detach(cu_thread thread) { return CloseHandle(thread) != 0; }
 
-CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
+void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	HANDLE timer;
 	LARGE_INTEGER ft;
@@ -1865,70 +1863,70 @@ CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 	WaitForSingleObject(timer, INFINITE);
 	CloseHandle(timer);
 }
-CU_API_SOURCE int cu_thread_count(void)
+int cu_thread_count(void)
 {
 	SYSTEM_INFO info;
 	GetSystemInfo(&info);
 	return (int)info.dwNumberOfProcessors;
 }
 
-CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { InitializeCriticalSection(mutex); return 1; }
-CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { EnterCriticalSection(mutex); return 1; }
-CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { LeaveCriticalSection(mutex); return 1; }
-CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return TryEnterCriticalSection(mutex) != 0; }
-CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { DeleteCriticalSection(mutex); return 1; }
+int cu_thread_mutex_init(cu_thread_mutex *mutex) { InitializeCriticalSection(mutex); return 1; }
+int cu_thread_mutex_lock(cu_thread_mutex *mutex) { EnterCriticalSection(mutex); return 1; }
+int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { LeaveCriticalSection(mutex); return 1; }
+int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return TryEnterCriticalSection(mutex) != 0; }
+int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { DeleteCriticalSection(mutex); return 1; }
 
-CU_API_SOURCE int cu_thread_cond_init(cu_thread_cond *cond) { InitializeConditionVariable(cond); return 1; }
-CU_API_SOURCE int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return SleepConditionVariableCS(cond, mutex, INFINITE) != 0; }
-CU_API_SOURCE int cu_thread_cond_signal(cu_thread_cond *cond) { WakeConditionVariable(cond); return 1; }
-CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { WakeAllConditionVariable(cond); return 1; }
-CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { CU_UNUSED(cond); return 1; }
+int cu_thread_cond_init(cu_thread_cond *cond) { InitializeConditionVariable(cond); return 1; }
+int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return SleepConditionVariableCS(cond, mutex, INFINITE) != 0; }
+int cu_thread_cond_signal(cu_thread_cond *cond) { WakeConditionVariable(cond); return 1; }
+int cu_thread_cond_broadcast(cu_thread_cond *cond) { WakeAllConditionVariable(cond); return 1; }
+int cu_thread_cond_destroy(cu_thread_cond *cond) { CU_UNUSED(cond); return 1; }
 
-CU_API_SOURCE cu_thread cu_thread_self(void) { return GetCurrentThread(); }
-CU_API_SOURCE u64 cu_thread_pid(void) { return (u64)GetCurrentProcessId(); }
-CU_API_SOURCE u64 cu_thread_tid(void) { return (u64)GetCurrentThreadId(); }
+cu_thread cu_thread_self(void) { return GetCurrentThread(); }
+u64 cu_thread_pid(void) { return (u64)GetCurrentProcessId(); }
+u64 cu_thread_tid(void) { return (u64)GetCurrentThreadId(); }
 
 #elif CU_THREAD_C_USED
 #  include <threads.h>
 #  include <time.h>
 
-CU_API_SOURCE cu_thread cu_thread_create(cu_thread_func function, void *arg)
+cu_thread cu_thread_create(cu_thread_func function, void *arg)
 {
 	thrd_t thr;
 	if (thrd_create(&thr, function, arg) != thrd_success) return 0;
 	return thr;
 }
-CU_API_SOURCE int cu_thread_join(cu_thread thread) { return thrd_join(thread, NULL) == thrd_success; }
-CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return thrd_detach(thread) == thrd_success; }
+int cu_thread_join(cu_thread thread) { return thrd_join(thread, NULL) == thrd_success; }
+int cu_thread_detach(cu_thread thread) { return thrd_detach(thread) == thrd_success; }
 
-CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
+void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	struct timespec ts;
 	ts.tv_nsec = nsecs % 1000000000;
 	ts.tv_sec = (long)(secs + (nsecs / 1000000000));
 	while (thrd_sleep(&ts, &ts) == -1);
 }
-CU_API_SOURCE int cu_thread_count(void) { return 1; }
+int cu_thread_count(void) { return 1; }
 
-CU_API_SOURCE int cu_thread_mutex_init(cu_thread_mutex *mutex) { return mtx_init(mutex, mtx_plain) == thrd_success; }
-CU_API_SOURCE int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return mtx_lock(mutex) == thrd_success; }
-CU_API_SOURCE int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return mtx_unlock(mutex) == thrd_success; }
-CU_API_SOURCE int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return mtx_trylock(mutex) == thrd_success; }
-CU_API_SOURCE int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { mtx_destroy(mutex); return 1; }
+int cu_thread_mutex_init(cu_thread_mutex *mutex) { return mtx_init(mutex, mtx_plain) == thrd_success; }
+int cu_thread_mutex_lock(cu_thread_mutex *mutex) { return mtx_lock(mutex) == thrd_success; }
+int cu_thread_mutex_unlock(cu_thread_mutex *mutex) { return mtx_unlock(mutex) == thrd_success; }
+int cu_thread_mutex_trylock(cu_thread_mutex *mutex) { return mtx_trylock(mutex) == thrd_success; }
+int cu_thread_mutex_destroy(cu_thread_mutex *mutex) { mtx_destroy(mutex); return 1; }
 
-CU_API_SOURCE int cu_thread_cond_init(cu_thread_cond *cond) { return cnd_init(cond) == thrd_success; }
-CU_API_SOURCE int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return cnd_wait(cond, mutex) == thrd_success; }
-CU_API_SOURCE int cu_thread_cond_signal(cu_thread_cond *cond) { return cnd_signal(cond) == thrd_success; }
-CU_API_SOURCE int cu_thread_cond_broadcast(cu_thread_cond *cond) { return cnd_broadcast(cond) == thrd_success; }
-CU_API_SOURCE int cu_thread_cond_destroy(cu_thread_cond *cond) { return cnd_destroy(cond) == thrd_success; }
+int cu_thread_cond_init(cu_thread_cond *cond) { return cnd_init(cond) == thrd_success; }
+int cu_thread_cond_wait(cu_thread_cond *cond, cu_thread_mutex *mutex) { return cnd_wait(cond, mutex) == thrd_success; }
+int cu_thread_cond_signal(cu_thread_cond *cond) { return cnd_signal(cond) == thrd_success; }
+int cu_thread_cond_broadcast(cu_thread_cond *cond) { return cnd_broadcast(cond) == thrd_success; }
+int cu_thread_cond_destroy(cu_thread_cond *cond) { return cnd_destroy(cond) == thrd_success; }
 
-CU_API_SOURCE cu_thread cu_thread_self(void) { return thrd_current(); }
-CU_API_SOURCE u64 cu_thread_pid(void) { return (u64)0; }
-CU_API_SOURCE u64 cu_thread_tid(void) { return (u64)0; }
+cu_thread cu_thread_self(void) { return thrd_current(); }
+u64 cu_thread_pid(void) { return (u64)0; }
+u64 cu_thread_tid(void) { return (u64)0; }
 
 #endif
 
-CU_API_SOURCE int cu_thread_split(cu_thread_func func, u64 work_count, void **each_thread_arg, int thread_count)
+int cu_thread_split(cu_thread_func func, u64 work_count, void **each_thread_arg, int thread_count)
 {
 	struct cu_split { cu_thread thread; cu_thread_split_arg arg; } *thrs;
 	u64 effective_threads, div, remaining, c, i;
@@ -1997,7 +1995,7 @@ static CU_THREAD_FUNCTION(cu_thread_pool_inner, arg)
 	return CU_THREAD_RETURN_VAL;
 }
 
-CU_API_SOURCE int cu_thread_pool_init(cu_thread_pool *pool, int nthreads)
+int cu_thread_pool_init(cu_thread_pool *pool, int nthreads)
 {
 	int i;
 	memset(pool, 0, sizeof *pool);
@@ -2026,7 +2024,7 @@ fail:
 	return 0;
 }
 
-CU_API_SOURCE int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg)
+int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg)
 {
 	struct cu_thread_pool_job *ljob = (struct cu_thread_pool_job *)malloc(sizeof *ljob);
 	if (!ljob) return 0;
@@ -2044,7 +2042,7 @@ CU_API_SOURCE int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, v
 	return 1;
 }
 
-CU_API_SOURCE void cu_thread_pool_destroy(cu_thread_pool *pool)
+void cu_thread_pool_destroy(cu_thread_pool *pool)
 {
 	int i;
 

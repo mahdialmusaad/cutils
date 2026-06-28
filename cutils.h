@@ -1231,8 +1231,6 @@ extern "C" {
 #  define CU_VISIBILITY_IMPORT extern
 #endif
 
-#define CU_API
-
 #if CU_COMPVER(CLANG, 12, 0) || CU_COMPVER(GNU, 7, 0) || (CU_HAS_ATTRIBUTE(__fallthrough__) && !CU_COMP_CLANG)
 #  define CU_FALLTHROUGH  ((void)(0)); __attribute__ ((__fallthrough__));
 #  define CU_FALLTHROUGH_AVAILABLE 1
@@ -1781,10 +1779,10 @@ CU_WARNING("Threading functions are unavailable.")
 
 #if CU_SETTING_FUNCS
 
-#define A_NNULL(p) CU_API CU_ATTRIB_NONNULL(p)
-#define A_NTH CU_API CU_ATTRIB_NOTHROW
+#define A_NNULL(p) CU_ATTRIB_NONNULL(p)
+#define A_NTH CU_ATTRIB_NOTHROW
 #define A_WUR CU_ATTRIB_WARN_UNUSED_RESULT
-#define A_NTL(p) CU_API CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL(p)
+#define A_NTL(p) CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL(p)
 #define A_RES CU_RESTRICT
 
 /* ========================= String ======================== */
