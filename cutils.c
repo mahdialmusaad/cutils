@@ -1255,6 +1255,9 @@ enum
 	CU_NETMODE_UDPSERVER = 16
 };
 
+#include <string.h>
+#include <stdlib.h>
+
 #if CU_OS_UNIX
 #  include <sys/socket.h>
 #  include <netinet/in.h>
@@ -1925,6 +1928,9 @@ u64 cu_thread_pid(void) { return (u64)0; }
 u64 cu_thread_tid(void) { return (u64)0; }
 
 #endif
+
+#include <stdlib.h>
+#include <string.h>
 
 int cu_thread_split(cu_thread_func func, u64 work_count, void **each_thread_arg, int thread_count)
 {
