@@ -1235,8 +1235,27 @@ CU_API_SOURCE u64 cu_timer_dif(const cu_timer *CU_RESTRICT start, const cu_timer
 
 #if CU_SETTING_NETWORK_FUNCS
 
-static int cu_net_gai_err;
-#define CU_NET_RECVBUF 1023
+#define CU_NN_NT(inds) CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL(inds)
+#define CU_NET_RECVBUF 1024
+
+typedef struct cu_net_queue
+{
+	void *data;
+	uptr bytes;
+} cu_net_queue;
+
+typedef struct cu_net_server
+{
+	cu_net_remote *rems;
+	uptr nclients;
+} cu_net_server;
+
+enum
+{
+	CU_NETMODE_WRITEABLE = 4,
+	CU_NETMODE_CLOSED = 8,
+	CU_NETMODE_UDPSERVER = 16
+};
 
 #if CU_OS_UNIX
 #  include <sys/socket.h>
@@ -1245,423 +1264,120 @@ static int cu_net_gai_err;
 #  include <sys/types.h>
 #  include <ifaddrs.h>
 #  include <unistd.h>
-#  include <signal.h>
 #  include <netdb.h>
+#  include <fcntl.h>
 #  include <errno.h>
 #  include <poll.h>
-
 #  define cu_close close
-#  define cu_sprintf(buf, mlen, fmt, args) sprintf(buf, fmt, args)
-#  define CU_UWSZ(unixsz, winsz) unixsz
-
-#  define CU_INVALID_SOCKET -1
-#  define CU_SOCKET_ERROR -1
-
-#  define CU_ECONNRESET ECONNRESET
-#  define CU_ENOTSOCK ENOTSOCK
+#  define CU_EAGAIN EAGAIN 
+#  define CU_EWOULDBLOCK EWOULDBLOCK 
+#  define CU_EPIPE EPIPE
+#  define CU_ECONNRESET ECONNRESET 
 #  define CU_EINTR EINTR
 #  define CU_EBADF EBADF
-
-#  define CU_POLLHUP POLLHUP
-
-#  define CU_NET_GETERR() errno
-#  define CU_NET_SETERR(e) errno = e
-#  define CU_NETSIG_SETUP() struct sigaction sact; memset(&sact, 0, sizeof sact)
-#  define CU_NETSIG_SETFUNC(f) do { \
-CU_DIAGNOSTICS_PUSH \
-CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS \
-CU_DIAGNOSTICS_DISABLE_MACRO_EXP \
-sact.sa_handler = f; \
-CU_DIAGNOSTICS_POP \
-sigaction(SIGINT, &sact, NULL); \
-} while (0)
-
-typedef ssize_t cu_net_data;
-typedef nfds_t cu_net_pollcnt;
-
+#  define CU_ERRNO_SET(e) errno = e;
+#  define CU_ERRNO errno
+#  define CU_NETERR -1
+#  define CU_NETERRSOCK -1
+typedef ssize_t cu_transfer;
+typedef size_t cu_tbytes;
 #else
 #  if CU_COMP_MSVC
 #    pragma comment(lib, "iphlpapi.lib")
 #    pragma comment(lib, "Ws2_32.lib")
 #  endif
-#  include <winsock2.h>
+#  include <Winsock2.h>
 #  include <ws2tcpip.h>
 #  include <iphlpapi.h>
-#  include <signal.h>
-
-#  define poll WSAPoll
 #  define cu_close closesocket
-#  define cu_sprintf(buf, mlen, fmt, args) sprintf_s(buf, mlen, fmt, args)
-#  define CU_UWSZ(unixsz, winsz) winsz
-
-#  define CU_INVALID_SOCKET INVALID_SOCKET
-#  define CU_SOCKET_ERROR SOCKET_ERROR
-#  define MSG_NOSIGNAL 0
-
-#  define CU_ECONNRESET WSAECONNRESET
-#  define CU_ENOTSOCK WSAENOTSOCK
+#  define CU_EAGAIN WSAEWOULDBLOCK 
+#  define CU_EWOULDBLOCK WSAEWOULDBLOCK 
+#  define CU_EPIPE WSAEHOSTUNREACH
+#  define CU_ECONNRESET WSAECONNRESET 
 #  define CU_EINTR WSAEINTR
-#  define CU_EBADF WSAEBADF
-
-#  define CU_POLLHUP 0
-
-#  define CU_NET_GETERR() WSAGetLastError()
-#  define CU_NET_SETERR(e) WSASetLastError(e)
-#  define CU_NETSIG_SETUP() CU_EMPTY()
-#  define CU_NETSIG_SETFUNC(f) signal(SIGINT, f)
-
-typedef int cu_net_data;
-typedef ULONG cu_net_pollcnt;
-
-static WSADATA cu_net_wsastate;
-static char *cu_net_wsaerrstr;
-
+#  define CU_EBADF WSAENOTSOCK
+#  define CU_ERRNO_SET(e)
+#  define CU_ERRNO WSAGetLastError()
+#  define CU_NETERR SOCKET_ERROR
+#  define CU_NETERRSOCK INVALID_SOCKET
+#  define MSG_NOSIGNAL 0
+typedef int cu_transfer;
+typedef int cu_tbytes;
 #endif
 
-CU_ATTRIB_NOTHROW
-static int cu_net_setsockopt(cu_socket sock, int opt, int val, size_t len)
-{
-#if CU_OS_UNIX
-	return setsockopt(sock, SOL_SOCKET, opt, &val, (socklen_t)len) != CU_SOCKET_ERROR;
+#if CU_HAS_INCLUDE(<sys/epoll.h>)
+#  define CU_EPOLL
+#  include <sys/epoll.h>
+typedef struct epoll_event cu_event;
+#  define CU_NET_EVOF(ev) ((unsigned int)ev->events)
+#  define CU_POLLIN EPOLLIN
+#  define CU_POLLOUT EPOLLOUT
+#  define CU_POLLHUP EPOLLHUP
+#elif CU_OS_UNIX
+typedef struct pollfd cu_event;
+#  define CU_NET_EVOF(ev) ((unsigned int)ev->revents)
+#  define CU_POLLIN POLLIN
+#  define CU_POLLOUT POLLOUT
+#  define CU_POLLHUP POLLHUP
 #else
-	BOOL res = (BOOL)val;
-	return setsockopt(sock, SOL_SOCKET, opt, (char *)&res, (int)len) != CU_SOCKET_ERROR;
+typedef struct pollfd cu_event;
+#  define CU_NET_EVOF(ev) ((unsigned int)ev->revents)
+#  define CU_POLLIN POLLIN
+#  define CU_POLLOUT POLLOUT
+#  define CU_POLLHUP POLLHUP
+#  define poll WSAPoll
 #endif
-}
 
-CU_ATTRIB_NOTHROW static void cu_net_sigint(int unused) { CU_UNUSED(unused); }
+#define CU_NET_DEFEVOF(ev) ((unsigned int)ev->revents)
+static CU_THREAD_LOCAL int cu_net_getaddrinfo_errno;
 
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static int cu_net_closesock(cu_socket *fd)
-{
-	int saved, res;
-	if (*fd == CU_INVALID_SOCKET) return 0;
-	saved = CU_NET_GETERR();
-	res = cu_close(*fd) != CU_SOCKET_ERROR;
-	*fd = CU_INVALID_SOCKET;
-	CU_NET_SETERR(saved);
-	return res;
-}
-
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 2)) static void cu_net_getaddrip(void *CU_RESTRICT ai_addr, char *CU_RESTRICT buf)
-{
-	inet_ntop(
-		((struct sockaddr_storage *)ai_addr)->ss_family,
-		((struct sockaddr_storage *)ai_addr)->ss_family == AF_INET ?
-			(void *)&((struct sockaddr_in *)ai_addr)->sin_addr :
-			(void *)&((struct sockaddr_in6 *)ai_addr)->sin6_addr,
-		buf, (socklen_t)(INET6_ADDRSTRLEN)
-	);
-}
-
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static enum cu_net_error cu_net_getremotesock(cu_net_remote *CU_RESTRICT remote, u16 port, const char *CU_RESTRICT server_addr)
-{
-	struct addrinfo hints, *addr_list, *addr_it;
-	int is_server = server_addr == NULL;
-	char portbuf[6];
-
-	if (port < 1024) return CUERR_ARGS;
-	cu_sprintf(portbuf, 6, "%hu", port);
-
-	memset(&hints, 0, sizeof hints);
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = is_server ? AI_PASSIVE : 0;
-	hints.ai_family = AF_INET;
-
-	remote->fd = CU_INVALID_SOCKET;
-	remote->ext = NULL;
-
-	if ((cu_net_gai_err = getaddrinfo(server_addr, portbuf, &hints, &addr_list)) != 0) return cu_net_gai_err == EAI_MEMORY ? CUERR_MEM : CUERR_ADDR;
-
-	for (addr_it = addr_list; addr_it; addr_it = addr_it->ai_next) {
-		if ((remote->fd = socket(addr_it->ai_family, addr_it->ai_socktype, addr_it->ai_protocol)) == CU_INVALID_SOCKET) continue;
-		if (is_server) {
-			cu_net_setsockopt(remote->fd, SO_REUSEADDR, 1, CU_UWSZ(sizeof(int), sizeof(BOOL)));
-			if ((bind(remote->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
-		} else if ((connect(remote->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen)) == CU_SOCKET_ERROR) goto fail;
-		break;
-	fail:
-		cu_net_closesock(&remote->fd);
-	}
-
-	if (remote->fd != CU_INVALID_SOCKET) cu_net_getaddrip(addr_it->ai_addr, remote->ip);
-	freeaddrinfo(addr_list);
-
-	return remote->fd == CU_INVALID_SOCKET ? CUERR_CONNECT : CUERR_NONE;
-}
-
-
-CU_API_SOURCE enum cu_net_error cu_client_start(cu_net_remote *CU_RESTRICT server_info, const char *CU_RESTRICT address, u16 port)
-{
-	return cu_net_getremotesock(server_info, port, address);
-}
-
-CU_API_SOURCE void cu_client_listen(cu_net_remote *CU_RESTRICT server_info, cu_client_event event_handler, int heartbeat_delay_msec)
-{
-	struct pollfd server_pollfd;
-	void *recvd; uptr bytes;
-	enum cu_net_error err;
-
-	CU_NETSIG_SETUP();
-	CU_NETSIG_SETFUNC(cu_net_sigint);
-
-	server_pollfd.events = POLLIN | CU_POLLHUP;
-	server_pollfd.fd = server_info->fd;
-	server_pollfd.revents = 0;
-
-	while (!cu_net_isclosed(server_info)) {
-		int pollres = poll(&server_pollfd, 1, heartbeat_delay_msec);
-		if (pollres == CU_SOCKET_ERROR) {
-			if (CU_NET_GETERR() == CU_EINTR) goto client_intr;
-			else goto client_msgerr;
-		} else if (pollres == 0) {
-			event_handler(server_info, CUEVT_HEARTBEAT, NULL, 0);
-			continue;
-		}
-
-		err = cu_net_recvmsg(server_info, &recvd, &bytes);
-		if (err == CUERR_NONE) event_handler(server_info, CUEVT_MESSAGE, recvd, bytes);
-		else if (err == CUERR_CONNECT || CU_NET_GETERR() == CU_ENOTSOCK) {
-			if (CU_NET_GETERR() != CU_ENOTSOCK) event_handler(server_info, CUEVT_DISCONNECT, NULL, CU_NET_GETERR() == CU_EBADF);
-			break;
-		} else if (err == CUERR_MEM) event_handler(server_info, CUEVT_ALLOCDMEMERR, NULL, bytes);
-		else if (CU_NET_GETERR() == CU_EINTR) { client_intr: if (!event_handler(server_info, CUEVT_SIGNAL, NULL, 0)) break; }
-		else if (!cu_net_isclosed(server_info)) { client_msgerr: event_handler(server_info, CUEVT_MSGLISTENERR, NULL, 0); }
-	}
-
-	CU_NETSIG_SETFUNC(SIG_DFL);
-}
-
-CU_API_SOURCE void cu_client_close(cu_net_remote *server_info) { cu_net_closesock(&server_info->fd); }
-
-
-CU_API_SOURCE enum cu_net_error cu_server_start(cu_net_server *server, u16 port, int max_clients)
-{
-	enum cu_net_error sockerr;
-	if (max_clients < 1) return CUERR_ARGS;
-	memset(server, 0, sizeof *server);
-
-	if (!(server->remotes = (cu_net_remote *)malloc(sizeof *server->remotes * (size_t)(server->remotes_capacity = 4)))) return CUERR_MEM;
-	if (!(server->pfds = (struct pollfd *)malloc(sizeof *server->pfds * (size_t)server->remotes_capacity))) { free(server->remotes); return CUERR_MEM; }
-	if ((sockerr = cu_net_getremotesock(server->remotes, port, NULL)) != CUERR_NONE) { free(server->remotes); free(server->pfds); return sockerr; }
-	if (listen(server->remotes->fd, SOMAXCONN) == CU_SOCKET_ERROR) { free(server->remotes); free(server->pfds); return CUERR_LISTEN; }
-
-	server->max_clients = max_clients;
-	server->pfds->fd = server->remotes->fd;
-	server->pfds->events = POLLIN;
-	server->pfds->revents = 0;
-
-	return CUERR_NONE;
-}
-
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1))
-static void cu_server_process_connection(cu_net_server *CU_RESTRICT server, cu_server_event event_handler)
-{
-	struct sockaddr_storage saddr;
-	socklen_t addrlen = sizeof saddr;
-	cu_net_remote *client;
-	struct pollfd *cfd;
-	cu_socket csock = CU_INVALID_SOCKET;
-
-	if (server->clients_count >= server->max_clients) {
-		event_handler(server, NULL, CUEVT_REMOTECONERR, NULL, (uptr)server->clients_count);
-		goto decline;
-	} else if (server->clients_count + 1 >= server->remotes_capacity) {
-		size_t rmalloc = sizeof *server->remotes * (size_t)(server->remotes_capacity * 2), pfdalloc = sizeof *server->pfds * (size_t)(server->remotes_capacity * 2);
-		void *nrm = realloc(server->remotes, rmalloc), *npfd = realloc(server->pfds, pfdalloc);
-
-		if (!nrm || !npfd) {
-			event_handler(server, NULL, CUEVT_ALLOCDMEMERR, NULL, !nrm ? rmalloc : pfdalloc);
-			goto decline;
-		}
-
-		server->remotes_capacity *= 2;
-		server->remotes = (cu_net_remote *)nrm;
-		server->pfds = (struct pollfd *)npfd;
-	}
-
-	if ((csock = accept(server->pfds->fd, (struct sockaddr *)&saddr, &addrlen)) == CU_INVALID_SOCKET) {
-		event_handler(server, NULL, CUEVT_REMOTECONERR, NULL, 0);
-		return;
-	}
-
-	++server->clients_count;
-	client = server->remotes + server->clients_count;
-	cfd = server->pfds + server->clients_count;
-
-	cu_net_getaddrip(&saddr, client->ip);
-	client->ext = NULL;
-	client->fd = csock;
-	cfd->events = POLLIN;
-	cfd->revents = 0;
-	cfd->fd = csock;
-
-	event_handler(server, client, CUEVT_CONNECT, NULL, (uptr)server->clients_count);
-	return;
-decline:
-	if (csock == CU_INVALID_SOCKET) csock = accept(server->pfds->fd, (struct sockaddr *)&saddr, &addrlen);
-	if (csock != CU_INVALID_SOCKET) cu_net_closesock(&csock);
-}
-
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1, 3))
-static void cu_server_process_message(cu_net_server *CU_RESTRICT server, cu_server_event event_handler, cu_net_remote *CU_RESTRICT client)
-{
-	void *recvd; uptr bytes;
-	enum cu_net_error err = cu_net_recvmsg(client, &recvd, &bytes);
-
-	if (err == CUERR_NONE) event_handler(server, client, CUEVT_MESSAGE, recvd, bytes);
-	else if (err == CUERR_MEM) event_handler(server, client, CUEVT_ALLOCDMEMERR, NULL, bytes);
-	else if (err == CUERR_CONNECT) cu_server_disconnect_client(server, client);
-	else if (CU_NET_GETERR() == CU_EINTR) event_handler(server, client, CUEVT_SIGNAL, NULL, 0);
-	else event_handler(server, client, CUEVT_MSGLISTENERR, NULL, 0);
-}
-
-CU_API_SOURCE void cu_server_listen(cu_net_server *CU_RESTRICT server, cu_server_event event_handler, int heartbeat_delay_msec)
-{
-	CU_NETSIG_SETUP();
-	CU_NETSIG_SETFUNC(cu_net_sigint);
-
-	while (!cu_net_isclosed(server->remotes)) {
-		int i, pollres = poll(server->pfds, (cu_net_pollcnt)(server->clients_count + 1), heartbeat_delay_msec);
-		if (pollres == 0) event_handler(server, NULL, CUEVT_HEARTBEAT, NULL, 0);
-		else if (pollres == CU_SOCKET_ERROR) {
-			if (!event_handler(server, NULL, CU_NET_GETERR() == CU_EINTR ? CUEVT_SIGNAL : CUEVT_MSGLISTENERR, NULL, 0)) break;
-		} else for (i = 0; i <= server->clients_count; ++i) {
-			if (!(server->pfds[i].revents & (POLLIN | POLLHUP))) continue;
-			if (!i) cu_server_process_connection(server, event_handler);
-			else {
-				cu_server_process_message(server, event_handler, server->remotes + i);
-				if (cu_net_isclosed(server->remotes + i)) {
-					event_handler(server, server->remotes + i, CUEVT_DISCONNECT, NULL, (uptr)(server->clients_count - 1));
-					server->remotes[i] = server->remotes[server->clients_count];
-					server->pfds[i--] = server->pfds[server->clients_count--];
-				}
-			}
-		}
-	}
-
-	free(server->pfds);
-	free(server->remotes);
-	memset(server, 0, sizeof *server);
-
-	CU_NETSIG_SETFUNC(SIG_DFL);
-}
-
-CU_API_SOURCE enum cu_net_error cu_server_broadcast(const cu_net_server *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote *CU_RESTRICT *CU_RESTRICT except, int except_length)
-{
-	int goterr = 0;
-	int i, j;
-
-	for (i = 1; i <= server->clients_count; ++i) {
-		for (j = 0; j < except_length; ++j) {
-			if (except[j] != server->remotes + i) continue;
-			if (except_length > 1) except[0] = except[--except_length];
-			goto outer;
-		}
-		goterr |= (cu_net_sendmsg(server->remotes + i, data, bytes) != CUERR_NONE);
-	outer:
-		continue;
-	}
-
-	return goterr ? CUERR_GENERIC : CUERR_NONE;
-}
-
-CU_API_SOURCE void cu_server_disconnect_client(cu_net_server *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client)
-{
-	CU_UNUSED(server);
-	cu_net_closesock(&client->fd);
-}
-
-CU_API_SOURCE void cu_server_close(cu_net_server *server)
-{
-	int i;
-	if (!server->remotes) return;
-	for (i = 0; i <= server->clients_count; ++i) cu_net_closesock(&server->remotes[i].fd);
-}
-
-
-CU_API_SOURCE int cu_net_init(void)
+int cu_net_init(void)
 {
 #if CU_OS_UNIX
 	return 1;
 #else
-	if (WSAStartup(MAKEWORD(2, 2), &cu_net_wsastate) != 0) return 0;
-	if (!(cu_net_wsaerrstr = (char *)calloc(1, 512))) return 0;
-	if (LOBYTE(cu_net_wsastate.wVersion) == 2 && HIBYTE(cu_net_wsastate.wVersion) == 2) return 1;
+	WSADATA wsa_init;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa_init) != 0) return 0;
+	if (LOBYTE(wsa_init.wVersion) == 2 && HIBYTE(wsa_init.wVersion) == 2) return 1;
 	WSACleanup();
 	return 0;
 #endif
 }
 
-CU_API_SOURCE void cu_net_terminate(void)
+void cu_net_terminate(void)
 {
 #if !CU_OS_UNIX
-	free(cu_net_wsaerrstr); WSACleanup();
+	WSACleanup();
 #endif
 }
 
-CU_API_SOURCE enum cu_net_error cu_net_sendmsg(const cu_net_remote *CU_RESTRICT target, const void *CU_RESTRICT data, uptr bytes)
+CU_NN_NT((1, 2)) static int cu_net_getaddrip(const void *CU_RESTRICT a, char *CU_RESTRICT buf)
 {
-	uptr offset = 0;
-	while (1) {
-		cu_net_data res = send(target->fd, (const char *)(data) + offset, (CU_UWSZ(size_t, int))(bytes - offset), MSG_NOSIGNAL);
-		if (res < 1) return CUERR_GENERIC;
-		else if ((offset += (uptr)res) >= bytes) return CUERR_NONE;
-	}
+	const void *in = ((const struct sockaddr_storage *)a)->ss_family == AF_INET ? (const void *)&((const struct sockaddr_in *)a)->sin_addr : (const void *)&((const struct sockaddr_in6 *)a)->sin6_addr;
+	return inet_ntop(((const struct sockaddr_storage *)a)->ss_family, in, buf, CU_NET_IPADDR_LEN) != NULL;
 }
 
-CU_API_SOURCE enum cu_net_error cu_net_recvmsg(const cu_net_remote *CU_RESTRICT target, void **CU_RESTRICT data, uptr *CU_RESTRICT bytes)
+CU_ATTRIB_NOTHROW static int cu_net_nonblock(cu_socket sock)
 {
-	cu_net_data res;
-	void *rbuf_r;
-	char tmpchr;
-	CU_NET_SETERR(0);
-
-	*bytes = 0;
-	*data = NULL;
-	res = recv(target->fd, &tmpchr, 1, 0);
-
-	#define CU_NET_DISCONN_ERRCHK() (CU_NET_GETERR() == CU_ECONNRESET || CU_NET_GETERR() == CU_EBADF)
-
-	if (res == 0 || CU_NET_DISCONN_ERRCHK()) return CUERR_CONNECT;
-	else if (res == CU_SOCKET_ERROR) return CUERR_GENERIC;
-	if (!(*data = calloc(1, CU_NET_RECVBUF + 1))) goto fail_mem;
-
-	*((char *)*data) = tmpchr;
-	*bytes = 1;
-
-	while (1) {
-		res = recv(target->fd, (char *)(*data) + *bytes, CU_NET_RECVBUF, 0);
-
-		if (CU_NET_DISCONN_ERRCHK()) {
-			if (*data) { free(*data); *data = NULL; }
-			return CUERR_CONNECT;
-		} else if (res == CU_SOCKET_ERROR) {
-			if (*data) { free(*data); *data = NULL; }
-			return CUERR_GENERIC;
-		}
-
-		*bytes += (size_t)res;
-
-		if ((size_t)res < CU_NET_RECVBUF) return CUERR_NONE;
-		else {
-			rbuf_r = realloc(*data, (size_t)*bytes + CU_NET_RECVBUF + 1);
-			if (!rbuf_r) {
-				free(*data);
-			fail_mem:
-				*bytes += CU_NET_RECVBUF + 1;
-				return CUERR_MEM;
-			}
-			*data = rbuf_r;
-			memset((char *)(*data) + *bytes, 0, CU_NET_RECVBUF + 1);
-		}
-	}
+#if CU_OS_UNIX
+	return fcntl(sock, F_SETFL, O_NONBLOCK) != CU_NETERR;
+#else
+	u_long mode = 1;
+	return ioctlsocket(sock, FIONBIO, &mode) == NO_ERROR;
+#endif
 }
+
+CU_API_SOURCE char *cu_net_ipinfo(const cu_net_remote *CU_RESTRICT remote, char *CU_RESTRICT ipbuf)
+{
+	return cu_net_getaddrip(remote->ip_info, ipbuf) ? ipbuf : NULL;
+}
+
 
 CU_API_SOURCE char *cu_net_interfaces(char *ipbuf, int if_fmt, int id)
 {
 #if CU_OS_UNIX
 	struct ifaddrs *ifd, *ifd_it;
-	if (id < 0 || getifaddrs(&ifd) == -1) return NULL;
+	if (id < 0 || getifaddrs(&ifd) == CU_NETERR) return NULL;
 
 	for (ifd_it = ifd; ifd_it; ifd_it = ifd_it->ifa_next) {
 		if (if_fmt == CU_NET_INTERFACE_IPV4 && ifd_it->ifa_addr->sa_family != AF_INET) continue;
@@ -1706,16 +1422,378 @@ end:
 CU_API_SOURCE const char *cu_net_lasterr(void)
 {
 #if CU_OS_UNIX
-	int gai = cu_net_gai_err;
-	cu_net_gai_err = 0;
-	return (gai && gai != EAI_SYSTEM) ? gai_strerror(gai) : strerror(errno);
+	if (cu_net_getaddrinfo_errno && !CU_ERRNO) return gai_strerror(cu_net_getaddrinfo_errno);
+	else return strerror(CU_ERRNO);
 #else
+	static char cu_net_wsaerrstr[512];
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, WSAGetLastError(), 0, cu_net_wsaerrstr, 512, NULL);
 	return cu_net_wsaerrstr;
 #endif
 }
 
-CU_API_SOURCE int cu_net_isclosed(const cu_net_remote *remote) { return remote->fd == CU_INVALID_SOCKET; }
+CU_API_SOURCE int cu_net_sendmsg(cu_net_remote *CU_RESTRICT target, const void *CU_RESTRICT data, uptr n)
+{
+	if (target->mode & CU_NETMODE_CLOSED) return 0;
+
+	if (target->mode & CU_NETMODE_UDPSERVER) {
+		cu_transfer off = 0;
+		while (1) {
+			cu_transfer now = sendto(target->fd, (const char *)data + off, (cu_tbytes)(n - (uptr)off), MSG_NOSIGNAL, (struct sockaddr *)target->ip_info, sizeof target->ip_info);
+			if (now == CU_NETERR) return 0;
+			else if (n == (uptr)(off += now)) return 1;
+		}
+	} else if (!(target->mode & CU_NETMODE_WRITEABLE)) {
+		cu_net_queue *q = (cu_net_queue *)realloc(target->queued, sizeof *q * (size_t)(target->nqueue + 1));
+		void *copy = n ? malloc(n) : NULL;
+		if (!q || (!copy && n)) return 0;
+		target->queued = q;
+		q = (cu_net_queue *)target->queued + target->nqueue++;
+		if (n) memcpy(copy, data, n);
+		q->data = copy;
+		q->bytes = n;
+		return 1;
+	} else if (n != 0) {
+		cu_transfer off = 0;
+		while (1) {
+			cu_transfer now = send(target->fd, (const char *)data + off, (cu_tbytes)(n - (uptr)off), MSG_NOSIGNAL);
+			if (now == CU_NETERR) return 0;
+			else if (n == (uptr)(off += now)) return 1;
+		}
+	} else return 0;
+}
+
+CU_NN_NT((1, 2, 3)) static int cu_net_recvmsg(cu_net_remote *CU_RESTRICT target, void **CU_RESTRICT data, uptr *CU_RESTRICT n)
+{
+	void *rlc;
+
+	if (target->mode & CU_NETMODE_UDPSERVER) {
+		socklen_t sa_len = sizeof target->ip_info;
+		cu_transfer nres;
+
+		if (!(*data = malloc(CU_NET_RECVBUF))) goto fail;
+		nres = recvfrom(target->fd, (char *)*data, CU_NET_RECVBUF, 0, (struct sockaddr *)&target->ip_info, &sa_len);
+		*n = 0;
+
+		while (1) {
+			*n += (uptr)nres;
+
+			if (nres == CU_NETERR) goto fail;
+			else if (nres < CU_NET_RECVBUF) return 1;
+			else if (!(rlc = realloc(*data, *n + CU_NET_RECVBUF))) goto fail;
+			else *data = rlc;
+
+			nres = recvfrom(target->fd, (char *)*data + *n, CU_NET_RECVBUF, 0, NULL, NULL);
+		}
+	} else {
+		char c = '\0';
+		int is_udp = target->mode & CU_NETMODE_UDP;
+		cu_transfer inres = is_udp ? 0 : recv(target->fd, &c, 1, 0);
+
+		if (!is_udp && inres == 0) return CU_NETERR;
+		else if (inres == CU_NETERR || !(*data = malloc(CU_NET_RECVBUF + 1))) goto fail;
+
+		*(char *)*data = c;
+		*n = (uptr)inres;
+
+		while (1) {
+			cu_transfer nres = recv(target->fd, (char *)*data + *n, CU_NET_RECVBUF, 0);
+			*n += (uptr)nres;
+
+			if (nres < CU_NET_RECVBUF) return 1;
+			else if (nres == CU_NETERR) goto fail;
+			else if (!(rlc = realloc(*data, *n + CU_NET_RECVBUF))) goto fail;
+			else *data = rlc;
+		}
+	}
+fail:
+	free(*data);
+	return 0;
+}
+
+CU_NN_NT((1)) static int cu_net_applyqueue(cu_net_remote *target)
+{
+	int i, successful = 0;
+
+	if (target->mode & CU_NETMODE_CLOSED) return CU_NETERR;
+	target->mode |= CU_NETMODE_WRITEABLE;
+	if (!target->nqueue) return CU_NETERR;
+
+	for (i = 0; i < target->nqueue; ++i) {
+		cu_net_queue *cq = (cu_net_queue *)target->queued + i;
+		if (cu_net_sendmsg(target, cq->data, cq->bytes) == 1) {
+			free(cq->data);
+			++successful;
+		} else if (CU_ERRNO == CU_EAGAIN || CU_ERRNO == CU_EWOULDBLOCK) {
+			target->mode &= ~((uptr)CU_NETMODE_WRITEABLE);
+			goto outer;
+		} else if (CU_ERRNO == CU_EBADF || CU_ERRNO == CU_EPIPE || CU_ERRNO == CU_ECONNRESET) goto outer;
+	}
+outer:
+	if (!(target->nqueue -= successful)) {
+		free(target->queued);
+		target->queued = NULL;
+		return 1;
+	} else {
+		memmove(target->queued, (cu_net_queue *)target->queued + successful, sizeof(cu_net_queue) * (size_t)target->nqueue);
+		return 0;
+	}
+}
+
+CU_NN_NT((1, 3)) static int cu_net_generic_socket(cu_net_remote *rem, const char *CU_RESTRICT address, const char *CU_RESTRICT port, void *CU_RESTRICT user, u32 retryval, uptr mode)
+{
+	struct addrinfo hints, *addr_list, *addr_it;
+	int is_server = address == NULL;
+	int udp = mode & CU_NETMODE_UDP;
+
+	memset(rem, 0, sizeof *rem);
+	memset(&hints, 0, sizeof hints);
+	rem->user = user;
+
+	hints.ai_socktype = (mode & CU_NETMODE_UDP) ? SOCK_DGRAM : SOCK_STREAM;
+	hints.ai_family = (mode & CU_NETMODE_IPV6) ? AF_INET6 : AF_INET;
+	hints.ai_flags = is_server ? AI_PASSIVE : 0;
+
+	if ((cu_net_getaddrinfo_errno = getaddrinfo(address, port, &hints, &addr_list)) != 0) {
+		CU_ERRNO_SET(0)
+		return 0;
+	}
+
+	for (addr_it = addr_list; addr_it; addr_it = addr_it->ai_next) {
+		if ((rem->fd = socket(addr_it->ai_family, addr_it->ai_socktype, addr_it->ai_protocol)) == CU_NETERRSOCK) continue;
+		if (is_server) {
+			int optval = 1;
+			setsockopt(rem->fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof optval);
+			if (bind(rem->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen) == CU_NETERR) goto fail;
+			if ((udp && cu_net_nonblock(rem->fd)) || (!udp && listen(rem->fd, SOMAXCONN) != CU_NETERR)) break;
+		} else {
+			while (1) {
+				if (connect(rem->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen) != CU_NETERR) break;
+				if (CU_DWSHIFT(retryval, 16) == 0) goto fail;
+				retryval -= 0x10000;
+				poll(NULL, 0, retryval & 0xFFFF);
+			}
+			if (cu_net_nonblock(rem->fd)) break;
+		}
+	fail:
+		cu_close(rem->fd);
+		rem->fd = CU_NETERRSOCK;
+	}
+
+	if (rem->fd != CU_NETERR) memcpy(rem->ip_info, addr_it->ai_addr, (mode & CU_NETMODE_IPV6) ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in));
+	freeaddrinfo(addr_list);
+	if (rem->fd == CU_NETERR) return 0;
+
+	rem->mode = (mode & (CU_NETMODE_UDP | CU_NETMODE_IPV6)) | (udp && is_server ? CU_NETMODE_UDPSERVER : 0);
+	return 1;
+}
+
+CU_NN_NT((1, 2)) static int cu_net_generic_listen(cu_net_remote *CU_RESTRICT target, cu_event_handler ehandler, int heartbeat_delay_msec)
+{
+	struct pollfd pfd;
+
+	pfd.events = POLLIN | POLLOUT;
+	pfd.fd = target->fd;
+
+	while (!(target->mode & CU_NETMODE_CLOSED)) {
+		int pollres = poll(&pfd, 1, heartbeat_delay_msec);
+		if (pollres == 0) {
+			ehandler(target, NULL, CUEVT_HEARTBEAT, NULL, 0);
+			continue;
+		} else if (pollres != CU_NETERR) {
+			if ((CU_NET_DEFEVOF((&pfd)) & CU_POLLOUT) && cu_net_applyqueue(target) != 0) pfd.events &= ~CU_POLLOUT;
+			else if (target->nqueue) pfd.events |= CU_POLLOUT;
+			if (CU_NET_DEFEVOF((&pfd)) & (CU_POLLIN | CU_POLLHUP)) {
+				void *recvd; uptr bytes;
+				int res = cu_net_recvmsg(target, &recvd, &bytes);
+				if (res == 1) ehandler(target, NULL, CUEVT_MESSAGE, recvd, bytes);
+				else if (res == CU_NETERR) target->mode |= CU_NETMODE_CLOSED;
+			}
+		}
+	}
+
+	free(target->queued);
+	cu_close(target->fd);
+	return CU_ERRNO != CU_EINTR;
+}
+
+CU_API_SOURCE int cu_client_listen(cu_net_remote *CU_RESTRICT srem, const char *CU_RESTRICT address, const char *CU_RESTRICT port, void *CU_RESTRICT user, u32 retryval, uptr mode, cu_event_handler ehandler, int heartbeat_delay_msec)
+{
+	if (!cu_net_generic_socket(srem, address, port, user, retryval, mode)) return 0;
+	if (cu_net_generic_listen(srem, ehandler, heartbeat_delay_msec) && !(mode & CU_NETMODE_UDP)) ehandler(srem, NULL, CUEVT_DISCONNECT, NULL, 0);
+	return 1;
+}
+
+CU_NN_NT((1, 3)) static int cu_net_modev(cu_event *event, int master, cu_net_remote *rem, int is_add, int out)
+{
+#ifdef CU_EPOLL
+	cu_event e;
+	CU_UNUSED(event);
+	e.data.ptr = rem;
+	e.events = EPOLLIN | (out ? EPOLLOUT | EPOLLET : 0);
+	return epoll_ctl(master, is_add ? EPOLL_CTL_ADD : EPOLL_CTL_MOD, rem->fd, &e) != CU_NETERR;
+#else
+	CU_UNUSED(master);
+	CU_UNUSED(is_add);
+	event->fd = rem->fd;
+	event->events = CU_POLLIN | (out ? CU_POLLOUT : 0);
+	event->revents = 0;
+	return 1;
+#endif
+}
+
+int cu_server_listen(cu_net_remote *CU_RESTRICT srem, const char *CU_RESTRICT port, void *CU_RESTRICT user, uptr mode, uptr tcp_maxclients, cu_event_handler ehandler, int heartbeat_delay_msec)
+{
+	int master = CU_NETERRSOCK, nfree = 0, ret = 0, *freelist = NULL;
+	cu_net_server s = { NULL, 0 };
+	cu_event *evs_list = NULL;
+	uptr i, j;
+
+	if ((!(mode & CU_NETMODE_UDP) && tcp_maxclients <= 0) || !cu_net_generic_socket(srem, NULL, port, user, 0, mode)) return 0;
+	if (mode & CU_NETMODE_UDP) {
+		struct pollfd pfd;
+		cu_net_remote udp_tmp;
+		void *recvd; uptr bytes;
+
+		udp_tmp.mode = CU_NETMODE_UDPSERVER;
+		udp_tmp.fd = srem->fd;
+		pfd.events = POLLIN;
+		pfd.fd = srem->fd;
+
+		while (!(srem->mode & CU_NETMODE_CLOSED)) {
+			int pollres = poll(&pfd, 1, heartbeat_delay_msec);
+			if (pollres == 0) ehandler(srem, NULL, CUEVT_HEARTBEAT, NULL, 0);
+			else if (pollres != CU_NETERR && cu_net_recvmsg(&udp_tmp, &recvd, &bytes) == 1) ehandler(srem, &udp_tmp, CUEVT_MESSAGE, recvd, bytes);
+		}
+
+		cu_close(srem->fd);
+		return 1;
+	}
+
+	if (!(evs_list = (cu_event *)calloc((size_t)tcp_maxclients + 1, sizeof *evs_list))) goto fail;
+	if (!(s.rems = (cu_net_remote *)malloc(sizeof *s.rems * (size_t)tcp_maxclients))) goto fail;
+	if (!(freelist = (int *)malloc(sizeof *freelist * (size_t)tcp_maxclients))) goto fail;
+#ifdef CU_EPOLL
+	if ((master = epoll_create1(0)) == CU_NETERRSOCK) goto fail;
+#else
+	for (i = 0; i < tcp_maxclients; ++i) {
+		s.rems->fd = CU_NETERRSOCK;
+		evs_list[i + 1].fd = CU_NETERRSOCK;
+	}
+#endif
+	if (!cu_net_modev(evs_list, master, srem, 1, 0)) goto fail;
+
+	srem->internal = &s;
+
+	while (!(srem->mode & CU_NETMODE_CLOSED)) {
+	#ifdef CU_EPOLL
+		int nevs = epoll_wait(master, evs_list, (int)s.nclients + 1, heartbeat_delay_msec);
+	#else
+		int nevs = poll(evs_list, (unsigned long)(tcp_maxclients + 1), heartbeat_delay_msec);
+	#endif
+		if (nevs == 0) {
+			ehandler(srem, NULL, CUEVT_HEARTBEAT, NULL, 0);
+			continue;
+		} else if (nevs > 0) for (i = 0; nevs; ++i) {
+			cu_event *e = evs_list + i;
+		#ifdef CU_EPOLL
+			cu_net_remote *r = (cu_net_remote *)e->data.ptr;
+			--nevs;
+		#else
+			cu_net_remote *r = NULL;
+			if (e->fd == CU_NETERRSOCK) continue;
+			if (CU_NET_EVOF(e) & (CU_POLLIN | CU_POLLOUT | CU_POLLHUP)) --nevs;
+			else if (e->revents) { CU_ASSERT(0); --nevs; continue; }
+			else continue;
+
+			if (e->fd == srem->fd) r = srem;
+			else for (j = 0; j < tcp_maxclients; ++j) {
+				if (s.rems[j].fd != e->fd) continue;
+				r = s.rems + j;
+				break;
+			}
+		#endif
+
+			if (r == srem) {
+				socklen_t sa_len = sizeof r->ip_info;
+
+				if (nfree) {
+					r = s.rems + freelist[0];
+					freelist[0] = freelist[--nfree];
+				} else r = s.rems + s.nclients;
+				
+				if ((r->fd = accept(srem->fd, (struct sockaddr *)&r->ip_info, &sa_len)) == CU_NETERRSOCK) continue;
+				if (s.nclients == tcp_maxclients) {
+				decline:
+					cu_close(r->fd);
+					continue;
+				}
+
+				if (!cu_net_nonblock(srem->fd)) goto decline;
+				if (!cu_net_modev(evs_list + (r - s.rems) + 1, master, r, 1, 1)) goto decline;
+
+				r->mode = (srem->mode & (CU_NETMODE_UDP | CU_NETMODE_IPV6));
+				r->queued = r->user = r->internal = NULL;
+				r->nqueue = 0;
+
+				++s.nclients;
+				ehandler(srem, r, CUEVT_CONNECT, NULL, (uptr)s.nclients);
+				continue;
+			} else if (!(r->mode & CU_NETMODE_CLOSED)) {
+				if ((CU_NET_EVOF(e) & CU_POLLOUT) && cu_net_applyqueue(r) != 0) cu_net_modev(e, master, r, 0, 0);
+				else if (r->nqueue) cu_net_modev(e, master, r, 0, 1);
+				if (CU_NET_EVOF(e) & (CU_POLLIN | CU_POLLHUP)) {
+					void *recvd; uptr bytes;
+					int res = cu_net_recvmsg(r, &recvd, &bytes);
+					if (res == 1) ehandler(srem, r, CUEVT_MESSAGE, recvd, bytes);
+					else if (res == CU_NETERR) cu_net_close(r);
+				}
+			}
+
+			if (r->mode & CU_NETMODE_CLOSED) {
+				cu_close(r->fd);
+			#ifdef CU_EPOLL
+				epoll_ctl(master, EPOLL_CTL_DEL, r->fd, NULL);
+			#else
+				r->fd = e->fd = CU_NETERRSOCK;
+			#endif
+				ehandler(srem, r, CUEVT_DISCONNECT, NULL, (uptr)--s.nclients);
+				free(r->queued);
+				freelist[nfree++] = (int)(r - s.rems);
+			}
+		}
+	}
+
+	for (j = 0; j < s.nclients; ++j) cu_close(s.rems[j].fd);
+	ret = 1;
+fail:
+	cu_close(srem->fd);
+	free(s.rems);
+	free(freelist);
+	free(evs_list);
+	return ret;
+}
+
+CU_API_SOURCE void cu_server_broadcast(const cu_net_remote *CU_RESTRICT server, const void *CU_RESTRICT data, uptr bytes, cu_net_remote *CU_RESTRICT *CU_RESTRICT except, uptr except_len)
+{
+	const cu_net_server *s = (cu_net_server *)server->internal;
+	uptr i, j;
+	for (i = 0; i < s->nclients; ++i) {
+		for (j = 0; j < except_len; ++j) {
+			if (except[i]->fd != s->rems[i].fd) continue;
+			except[i] = except[--except_len];
+			goto skip;
+		}
+
+		cu_net_sendmsg(s->rems + i, data, bytes);
+	skip:
+		continue;
+	}
+}
+
+void cu_net_close(cu_net_remote *remote)
+{
+	remote->mode |= CU_NETMODE_CLOSED;
+}
 
 #endif
 
@@ -1738,12 +1816,10 @@ CU_API_SOURCE int cu_thread_detach(cu_thread thread) { return pthread_detach(thr
 
 CU_API_SOURCE void cu_thread_sleep(u64 nsecs, u64 secs)
 {
-	struct timespec abstime;
-	pthread_cond_t fcond = PTHREAD_COND_INITIALIZER;
-	pthread_mutex_t fmut = PTHREAD_MUTEX_INITIALIZER;
-	abstime.tv_nsec = nsecs % 1000000000;
-	abstime.tv_sec = (long)(secs + (nsecs / 1000000000));
-	pthread_cond_timedwait(&fcond, &fmut, &abstime);
+	struct timespec rtime;
+	rtime.tv_nsec = (long)(nsecs % 1000000000);
+	rtime.tv_sec = (long)(secs + (nsecs / 1000000000));
+	while (nanosleep(&rtime, &rtime));
 }
 CU_API_SOURCE int cu_thread_count(void) { return (int)sysconf(_SC_NPROCESSORS_ONLN); }
 

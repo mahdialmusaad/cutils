@@ -1782,7 +1782,7 @@ CU_WARNING("Threading functions are unavailable.")
 #if CU_SETTING_FUNCS
 
 #define A_NNULL(p) CU_API CU_ATTRIB_NONNULL(p)
-#define A_NTHRW CU_API CU_ATTRIB_NOTHROW
+#define A_NTH CU_API CU_ATTRIB_NOTHROW
 #define A_WUR CU_ATTRIB_WARN_UNUSED_RESULT
 #define A_NTL(p) CU_API CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL(p)
 #define A_RES CU_RESTRICT
@@ -1938,7 +1938,7 @@ A_NTL((1, 2)) int cu_file_getinfo(const char *A_RES path, cu_file_info *A_RES f_
 /* Determines the current running executable's path.
    Returns allocated string and changes 'len' to allocated bytes.
    On error, NULL is returned and passed length pointer is unaffected. */
-A_NTHRW char *cu_file_exe_path(const char *A_RES argv_first, uptr *A_RES allocated);
+A_NTH char *cu_file_exe_path(const char *A_RES argv_first, uptr *A_RES allocated);
 
 /* Removes the file at the given path. */
 A_NTL((1)) int cu_file_delete(const char *path);
@@ -2003,7 +2003,7 @@ A_NTL((1)) int cu_res_meminfo(cu_res_mem *info);
 
 /* Get CPU usage percentage by this current process.
    Requires consistent calling to provide an accurate percentage. */
-A_NTHRW A_WUR real64 cu_res_cpuusage(void);
+A_NTH A_WUR real64 cu_res_cpuusage(void);
 
 /* Get general CPU information. */
 A_NTL((1)) int cu_res_cpuinfo(cu_res_cpu *info);
@@ -2013,13 +2013,13 @@ A_NTL((1)) int cu_res_cpuinfo(cu_res_cpu *info);
 
 /* Get OS name and place into namebuf if not NULL.
    Returns terminated length of string, or 0 on error. */
-A_NTHRW uptr cu_res_osname(char *namebuf);
+A_NTH uptr cu_res_osname(char *namebuf);
 /* Get host name and place into namebuf if not NULL.
    Returns terminated length of string, or 0 on error. */
-A_NTHRW uptr cu_res_hostname(char *namebuf);
+A_NTH uptr cu_res_hostname(char *namebuf);
 /* Get current user's name and place into namebuf if not NULL.
    Returns terminated length of string, or 0 on error. */
-A_NTHRW uptr cu_res_username(char *namebuf);
+A_NTH uptr cu_res_username(char *namebuf);
 
 #endif
 
@@ -2099,20 +2099,8 @@ A_NNULL((1, 2)) A_WUR u64 cu_timer_dif(const cu_timer *A_RES start, const cu_tim
 #endif
 
 #define CU_NET_IPADDR_LEN 46
-
-/* Error values returned by networking functions. */
-enum cu_net_error
-{
-	CUERR_NONE, /* Successful call. */
-
-	CUERR_ARGS, /* Invalid arguments. */
-	CUERR_MEM, /* Could not allocate memory. */
-
-	CUERR_GENERIC, /* Generic error. */
-	CUERR_ADDR, /* Could not get address info. */
-	CUERR_CONNECT, /* Could not connect to address or the remote was disconnected. */
-	CUERR_LISTEN /* Server could not start listening. */
-};
+/* Create retry value with millisecond delay [0,65535] and retry count [0,65535]. */
+#define CU_NET_RETRYVAL(num_retries, retry_delay_msec) CU_UPSHIFT(num_retries, 16) + retry_delay_msec
 
 /* Identifiers for listen events. */
 enum cu_net_event
@@ -2120,124 +2108,86 @@ enum cu_net_event
 	/* 'data' and 'n' of the remote event function pointer arguments are left as NULL and 0 respectively in the function pointer call unless stated otherwise. */
 
 	/* Data has been recieved from the target remote.
-	   'data' (malloc'd, needs to be free'd) and 'n' are filled with recieved data. */
+	   'data' (malloc'd) and 'n' are filled with recieved data and number of bytes respectively. */
 	CUEVT_MESSAGE,
-	/* Client connected to server.
-	   On a server, 'n' is set to the updated number of connected clients. */
+	/* (TCP and server only) Client connected to server.
+	   'n' is set to the updated number of clients. */
 	CUEVT_CONNECT,
-	/* Target remote disconnected.
-	   On a server, 'n' is set to the updated number of connected clients and there is no need to disconnect the given client manually.
-	   On a client, the listening function returns after this event and 'n' is set to whether it was a client-side disconnection. */
+	/* (TCP only) Target remote disconnected.
+	   On a client, the listening function returns after this event.
+	   On a server, 'n' is set to the updated number of clients. */
 	CUEVT_DISCONNECT,
-
-	/* Listen or recieve was interrupted by a signal.
-	   If a recieve was interrupted, the client is given.
-	   If the event handler returns 0, the listening function returns. */
-	CUEVT_SIGNAL,
-
-	/* This event can be run at a fixed interval by the server and client. */
-	CUEVT_HEARTBEAT,
-
-	/* Could not allocate some data. 'n' is set to the number of bytes that was attempted to be allocated.
-	   If this occurs from a server and a client was given, this means it failed to allocate space for their sent data. */
-	CUEVT_ALLOCDMEMERR,
-	/* A client attempted to connect, but an error occurred while accepting the connection.
-	   n=maxclients (i.e. non-zero) if this is from reaching the client limit. */
-	CUEVT_REMOTECONERR,
-	/* Generic issue from listening for messages. */
-	CUEVT_MSGLISTENERR
+	/* This event can be run at a fixed interval. */
+	CUEVT_HEARTBEAT
 };
 
-/* Information on an open connection. */
+/* Mode bitmask. */
+enum
+{
+	/* These are for the argument 'mode' in both 'listen' functions. */
+
+	/* Use UDP sockets instead of TCP. */
+	CU_NETMODE_UDP = 1,
+	/* Use IPv6 instead of IPv4. */
+	CU_NETMODE_IPV6 = 2
+};
+
+/* Information on an open connection.
+   In a TCP or UDP client setting, you can modify 'user' and it will persist for the next time there is an event involving the remote.
+   You can also store a pointer to this structure for later use (e.g. sending messages and closing outside of events).
+   In a UDP server setting, the remote from CUEVT_MESSAGE is temporary so only the IP can be used to identify the client.
+   It is recommended to use the temporary remote to send messages. If you want to send a message outside of events,
+   you should store a copy of the given remote. */
 typedef struct cu_net_remote
 {
-	/* Can be used to identify this remote in the context of your program. */
-	void *ext;
-	/* Internal value. Do not change or use for identification. */
+	/* (TCP only) Pointer that persists for this remote. */
+	void *user;
+	void *queued, *internal;
+	int nqueue;
 	cu_socket fd;
-	/* IP address of remote. */
-	char ip[CU_NET_IPADDR_LEN + (CU_DM_64BIT * 6) + (CU_DM_32BIT * 2)];
+	/* IP information. Use cu_net_ipinfo to get the IP address as a string. */
+	u16 ip_info[64];
+	uptr mode;
 } cu_net_remote;
 
-struct cu_net_server;
+/* Event handler function type. You should return 1 unless a specific effect for the given event is desired.
+   On a client, 'remote' is always NULL. */
+typedef int (*cu_event_handler)(cu_net_remote *A_RES server, cu_net_remote *A_RES remote, enum cu_net_event event_type, void *A_RES data, uptr n);
 
-/* Client's event handler for listening. You should return 1 unless a specific effect for the given event is desired. */
-typedef int (*cu_client_event)(cu_net_remote *A_RES remote, enum cu_net_event event_type, void *A_RES data, uptr n);
-/* Server's event handler for listening. You should return 1 unless a specific effect for the given event is desired. */
-typedef int (*cu_server_event)(struct cu_net_server *A_RES server, cu_net_remote *A_RES remote, enum cu_net_event event_type, void *A_RES data, uptr n);
+/* Initialize networking functions. */
+A_NTH int cu_net_init(void);
+/* Terminate networking functions. */
+A_NTH void cu_net_terminate(void);
 
-/* Server data. */
-typedef struct cu_net_server
-{
-	/* Connected remotes. First is server's local remote, all others belong to each client. Order is not guaranteed. */
-	cu_net_remote *remotes;
-	/* Number of connected clients. */
-	int clients_count;
-	/* Maximum number of clients allowed at once as determined by user. Can be modified at any time. */
-	int max_clients;
-
-	int remotes_capacity;
-#if CU_DM_64BIT
-	int _pad;
-#endif
-	struct pollfd *pfds;
-} cu_net_server;
-
-/* ------------ Client functions ------------ */
-
-/* Connect to a server at the given port and address.
-   Port must be in the range [1024, 65535].
-   Returns CUERR_NONE on success, otherwise CUERR_ARGS, CUERR_ADDR or CUERR_CONNECT. */
-A_NTL((1, 2)) enum cu_net_error cu_client_start(cu_net_remote *A_RES server_info, const char *A_RES address, u16 port);
-
-/* Listens for network events related to the given server, running the event handler appropriately.
-   The possible events are: CUEVT_MESSAGE, CUEVT_DISCONNECT, CUEVT_SIGNAL, CUEVT_ALLOCDMEMERR, CUEVT_MSGLISTENERR and CUEVT_HEARTBEAT.
+/* Connects to a server and listens for network events.
+   You can retry a specific number times with a specific delay using CU_NET_RETRYVAL.
+   It will return 0 if failed to connect at all and -1 on a different error.
    If the heartbeat event delay is negative, it does not occur.
-   Catches SIGINT signal (set to default handler afterwards) and blocks until 0 is returned on a CUEVT_SIGNAL or the server disconnects. */
-A_NTL((1, 2)) void cu_client_listen(cu_net_remote *A_RES server_info, cu_client_event event_handler, int heartbeat_delay_msec);
+   Returns <1 on error. Otherwise, it blocks until the server disconnects (CUEVT_DISCONNECT). */
+A_NTL((1, 2, 3, 7)) int cu_client_listen(cu_net_remote *A_RES server, const char *A_RES address, const char *A_RES port, void *A_RES user_ptr, u32 retryval, uptr mode, cu_event_handler ehandler, int heartbeat_delay_msec);
 
-/* Closes the connection to the given server. */
-A_NTL((1)) void cu_client_close(cu_net_remote *server_info);
-
-/* ------------ Server functions ------------ */
-
-/* Start a server with the given settings.
-   Port must be in the range [1024, 65535] and maximum clients should be larger than 0.
-   Returns CUERR_NONE on success and CUERR_ARGS, CUERR_LISTEN, CUERR_MEM or CUERR_ADDR otherwise. */
-A_NTL((1)) enum cu_net_error cu_server_start(cu_net_server *server, u16 port, int max_clients);
-
-/* Listens for network events, running the server's event handler function pointer member when one occurs.
-   The possible events are: CUEVT_MESSAGE, CUEVT_CONNECT, CUEVT_DISCONNECT, CUEVT_ALLOCDMEMERR, CUEVT_REMOTECONERR, CUEVT_MSGLISTENERR, CUEVT_SIGNAL and CUEVT_HEARTBEAT.
+/* Starts a server and listens for network events.
    If the heartbeat event delay is negative, it does not occur.
-   Catches SIGINT signal (set to default handler afterwards) and blocks until 0 is returned on a CUEVT_SIGNAL. */
-A_NTL((1, 2)) void cu_server_listen(cu_net_server *A_RES server, cu_server_event event_handler, int heartbeat_delay_msec);
+   Returns 0 if failed to start. Otherwise, it blocks until the server is closed. */
+A_NTL((1, 2, 6)) int cu_server_listen(cu_net_remote *A_RES server, const char *A_RES port, void *A_RES user_ptr, uptr mode, uptr tcp_maxclients, cu_event_handler ehandler, int heartbeat_delay_msec);
 
-/* Broadcast data to all connected clients except for the ones in the given array.
-   Returns CUERR_NONE on success and CUERR_GENERIC otherwise. */
-A_NTL((1, 2)) enum cu_net_error cu_server_broadcast(const cu_net_server *A_RES server, const void *A_RES data, uptr bytes, cu_net_remote *A_RES *A_RES except, int except_length);
+/* (TCP only) Sends a message to all connected clients, excluding those in the 'except' list. */
+A_NTL((1, 2)) void cu_server_broadcast(const cu_net_remote *A_RES server, const void *A_RES data, uptr bytes, cu_net_remote *A_RES *A_RES except, uptr except_len);
 
-/* Disconnect the given client.
-   The CUEVT_DISCONNECT event will occur afterwards. */
-A_NTL((1, 2)) void cu_server_disconnect_client(cu_net_server *A_RES server, cu_net_remote *A_RES client);
+/* Queue a message to send to the given remote.
+   If 'data' is allocated and not needed anymore, remember to free it.
+   Returns 0 on error. */
+A_NTL((1, 2)) int cu_net_sendmsg(cu_net_remote *A_RES target, const void *A_RES data, uptr n);
 
-/* Closes the server and all client connections. */
-A_NTL((1)) void cu_server_close(cu_net_server *server);
+/* Fills 'ipbuf' with the IP address of the given remote.
+   At most CU_NET_IPADDR_LEN bytes are written, including the terminator.
+   Returns NULL on error, otherwise 'ipbuf'. */
+A_NTL((1, 2)) char *cu_net_ipinfo(const cu_net_remote *A_RES remote, char *A_RES ipbuf);
 
-/* ------------ General functions ------------ */
-
-/* Initialize networking libraries. */
-A_NTHRW int cu_net_init(void);
-/* Terminate networking libraries. */
-A_NTHRW void cu_net_terminate(void);
-
-/* Sends n bytes of data to the target remote.
-   Returns CUERR_NONE on success and CUERR_GENERIC otherwise. */
-A_NTL((1, 2)) enum cu_net_error cu_net_sendmsg(const cu_net_remote *A_RES target, const void *A_RES data, uptr n);
-
-/* Waits until data is recieved from the target remote.
-   On a memory error (CUERR_MEM), 'bytes' is set to the number of bytes it attempted to allocate.
-   Returns CUERR_NONE on success and CUERR_MEM, CUERR_CONNECT (target remote disconnected) or CUERR_GENERIC otherwise. */
-A_NTL((1, 2, 3)) enum cu_net_error cu_net_recvmsg(const cu_net_remote *A_RES target, void **A_RES data, uptr *A_RES bytes);
+/* Closes the given remote.
+   The CUEVT_DISCONNECT event will run afterwards, unless running a server and closing the server itself.
+   In this case, all clients will be disconnected without an event and the listening will stop. */
+A_NTL((1)) void cu_net_close(cu_net_remote *remote);
 
 /* Sets the given string to the device's local interfaces.
    At most CU_NET_IPADDR_LEN bytes of string is used, including the terminator.
@@ -2247,10 +2197,7 @@ A_NTL((1, 2, 3)) enum cu_net_error cu_net_recvmsg(const cu_net_remote *A_RES tar
 A_NTL((1)) char *cu_net_interfaces(char *ipbuf, int if_fmt, int id);
 
 /* Returns a string describing the last encountered error. */
-A_NTHRW A_WUR CU_ATTRIB_RETURNS_NONNULL const char *cu_net_lasterr(void);
-
-/* Determine whether a given remote has been closed. */
-A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
+A_NTH A_WUR CU_ATTRIB_RETURNS_NONNULL const char *cu_net_lasterr(void);
 
 #define CU_NET_INTERFACE_ANY 0
 #define CU_NET_INTERFACE_IPV4 1
@@ -2302,15 +2249,15 @@ A_NTL((1)) int cu_net_isclosed(const cu_net_remote *remote);
 /* Creates a thread. Returns 0 if failed. */
 A_NTL((1)) cu_thread cu_thread_create(cu_thread_func function, void *arg);
 /* Waits for the given thread to finish. Returns 0 if failed. */
-A_NTHRW int cu_thread_join(cu_thread thread);
+A_NTH int cu_thread_join(cu_thread thread);
 /* Detaches the given thread. Returns 0 if failed. */
-A_NTHRW int cu_thread_detach(cu_thread thread);
+A_NTH int cu_thread_detach(cu_thread thread);
 
 /* Sleeps for the given number of nanoseconds.
    This does not affect timers. */
-A_NTHRW void cu_thread_sleep(u64 nsecs, u64 secs);
+A_NTH void cu_thread_sleep(u64 nsecs, u64 secs);
 /* Returns the number of CPUs available. */
-A_NTHRW int cu_thread_count(void);
+A_NTH int cu_thread_count(void);
 
 /* Initializes the given mutex. Returns 0 if failed. */
 A_NTL((1)) int cu_thread_mutex_init(cu_thread_mutex *mutex);
@@ -2373,16 +2320,16 @@ A_NTL((1, 2)) int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, v
 A_NTL((1)) void cu_thread_pool_destroy(cu_thread_pool *pool);
 
 /* Returns the current thread. */
-A_NTHRW A_WUR cu_thread cu_thread_self(void);
+A_NTH A_WUR cu_thread cu_thread_self(void);
 /* Returns the current process ID. */
-A_NTHRW A_WUR u64 cu_thread_pid(void);
+A_NTH A_WUR u64 cu_thread_pid(void);
 /* Returns the current thread ID. */
-A_NTHRW A_WUR u64 cu_thread_tid(void);
+A_NTH A_WUR u64 cu_thread_tid(void);
 
 #endif /* CU_SETTING_THREAD_FUNCS */
 
 #undef A_NNULL
-#undef A_NTHRW
+#undef A_NTH
 #undef A_WUR
 #undef A_RES
 

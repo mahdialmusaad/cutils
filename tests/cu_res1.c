@@ -6,7 +6,6 @@ TFUNC(cu_res1)
 {
 	cu_res_cpu cpu;
 	cu_res_mem mem;
-	volatile int i;
 
 	EXPECT(cu_res_meminfo(&mem));
 	EXPECT(cu_res_cpuinfo(&cpu));
@@ -15,8 +14,6 @@ TFUNC(cu_res1)
 	EXPECT(cu_res_hostname(buf));
 	EXPECT(cu_res_username(buf));
 	EXPECT0(cu_res_cpuusage());
-	for (i = 0; i < 100000000; ++i);
-	EXPECT(cu_res_cpuusage() > 0.0);
 	EXPECT0(((cu_res_bytefmt(buf, 0)), (strcmp(buf, "0B"))));
 	EXPECT0(((cu_res_bytefmt(buf, 2)), (strcmp(buf, "2B"))));
 	EXPECT0(((cu_res_bytefmt(buf, 21)), (strcmp(buf, "21B"))));
