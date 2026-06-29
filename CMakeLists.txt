@@ -12,6 +12,7 @@ option(CU_SETTING_FUNCS "Enable main functions" ON)
 
 if(CU_SETTING_FUNCS)
 	option(CU_SETTING_STRING_FUNCS "Build the string functions" ON)
+	option(CU_SETTING_CONTAINER_FUNCS "Build the container functions" ON)
 	option(CU_SETTING_FILE_FUNCS "Build the file management functions" ON)
 	option(CU_SETTING_RESOURCES_FUNCS "Build the hardware functions" ON)
 	option(CU_SETTING_TIME_FUNCS "Build the time functions" ON)
@@ -50,6 +51,7 @@ endif()
 target_compile_definitions(cutils PRIVATE
 	CU_SETTING_FUNCS=$<BOOL:${CU_SETTING_FUNCS}>
 	CU_SETTING_STRING_FUNCS=$<BOOL:${CU_SETTING_STRING_FUNCS}>
+	CU_SETTING_CONTAINER_FUNCS=$<BOOL:${CU_SETTING_CONTAINER_FUNCS}>
 	CU_SETTING_FILE_FUNCS=$<BOOL:${CU_SETTING_FILE_FUNCS}>
 	CU_SETTING_RESOURCES_FUNCS=$<BOOL:${CU_SETTING_RESOURCES_FUNCS}>
 	CU_SETTING_TIME_FUNCS=$<BOOL:${CU_SETTING_TIME_FUNCS}>

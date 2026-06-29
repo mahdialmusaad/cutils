@@ -38,6 +38,9 @@ extern "C" {
 #  ifndef CU_SETTING_STRING_FUNCS
 #    define CU_SETTING_STRING_FUNCS 1
 #  endif
+#  ifndef CU_SETTING_CONTAINER_FUNCS
+#    define CU_SETTING_CONTAINER_FUNCS 1
+#  endif
 #  ifndef CU_SETTING_FILE_FUNCS
 #    define CU_SETTING_FILE_FUNCS 1
 #  endif
@@ -1881,6 +1884,85 @@ A_NTL((1)) void custr_replace(custr *c, uptr c_offset, char target, char replace
 A_NTL((1, 3)) int custr_replacesub(custr *A_RES c, uptr c_offset, const char *A_RES target, const char *A_RES replacement);
 
 #endif
+
+/* ========================= Containers ======================== */
+
+/* Dynamic array object. */
+typedef struct cu_list
+{
+	void *data;
+	uptr len, cap, elem;
+} cu_list;
+
+#define CU_LIST_INIT(sizeof_element) { NULL, 0, 0, sizeof_element }
+
+/* Initializes and returns the given cu_list value. You can also use the static initializer. */
+A_NTL((1)) cu_list *cu_list_init(cu_list *l, uptr sizeof_element);
+/* Reserves the given number of elements int the given cu_list. Returns 1 on success, 0 on failure.
+   No effect if it is smaller than current capacity and returns 1. */
+A_NTL((1)) int cu_list_reserve(cu_list *l, uptr cap);
+/* Deallocates and returns the given cu_list value. The element size is retained. */
+A_NTL((1)) cu_list *cu_list_clear(cu_list *l);
+
+/* Returns the element at the given index in the cu_list. */
+A_NTL((1)) void *cu_list_at(cu_list *l, uptr ind);
+/* Returns the element at the given index in the cu_list.
+   Returns NULL if the index is out-of-bounds. */
+A_NTL((1)) void *cu_list_atsf(cu_list *l, uptr ind);
+
+/* Inserts a number of elements to the cu_list at the specified index. Returns 1 on success, 0 on failure.
+   Also fails if index is past the end of the cu_list (larger than its length). */
+A_NTL((1, 2)) int cu_list_insert(cu_list *A_RES l, void *A_RES elems, uptr nelems, uptr ind);
+/* Appends the given element to the end of the list. Returns 1 on success, 0 on failure. */
+A_NTL((1, 2)) int cu_list_add(cu_list *A_RES l, void *A_RES elem);
+
+/* Remove a specified number of elements from the cu_list starting from the given index.
+   No effect if index is past the end. Count is clamped to the last element. */
+A_NTL((1)) void cu_list_cut(cu_list *l, uptr ind, uptr count);
+
+/* Function pointer for hash map object that returns a hash value from a given key. */
+typedef uptr (*cu_hmap_hashfunc)(const void *key);
+/* Function pointer for hash map object that returns whether two keys are equivalent. */
+typedef int (*cu_hmap_equalfunc)(const void *key_a, const void *key_b);
+
+/* Inner hash map object storing key-value pairs as a linked list. */
+typedef struct cu_hmap_element
+{
+	/* Given key that corresponds to the data. */
+	void *key;
+	/* Actual data associated with the key. */
+	void *data;
+	/* Next linked element, or NULL if this is the last element.
+	   Do not modify this. */
+	struct cu_hmap_element *next;
+} cu_hmap_element;
+
+/* Hash map object. */
+typedef struct cu_hmap
+{
+	cu_hmap_element *buckets[256];
+	cu_hmap_equalfunc equalfunc;
+	cu_hmap_hashfunc hashfunc;
+} cu_hmap;
+
+/* Initializes and returns the given cu_hmap value. */
+A_NTL((1)) cu_hmap *cu_hmap_init(cu_hmap *h, cu_hmap_equalfunc equalfunc, cu_hmap_hashfunc hashfunc);
+/* Deallocates and returns the given cu_hmap value. The equivalence and hash function pointers are retained.
+   You can optionally specify to also deallocate the keys and/or data. */
+A_NTL((1)) cu_hmap *cu_hmap_clear(cu_hmap *A_RES h, int free_keys, int free_data);
+
+/* Add a key-value pair to the given cu_hmap. Returns 1 on success, 0 on failure. */
+A_NTL((1, 2)) int cu_hmap_add(cu_hmap *A_RES h, void *data, void *key);
+/* Find and return the data associated with the key, or NULL if not found. */
+A_NTL((1)) void *cu_hmap_find(cu_hmap *A_RES h, const void *A_RES key);
+/* Remove a key-value pair from the given cu_hmap.
+   The associated data is returned and you can optionally specify to free the internally stored key.
+   If it is not found however, NULL is returned with no other effect. */
+A_NTL((1)) void *cu_hmap_remove(cu_hmap *A_RES h, const void *A_RES key, int free_key);
+
+/* Iterate through all elements in the hash map, running the given function pointer with the key-value pairs.
+   The 'user' pointer will simply be passed to the function as the 'user' argument. */
+A_NTL((1, 3)) cu_hmap *cu_hmap_iterate(cu_hmap *h, void *user, void (*work_func)(const void *key, void *data, void *user));
 
 /* ========================= Filesystem ======================== */
 

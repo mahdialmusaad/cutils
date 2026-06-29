@@ -22,6 +22,7 @@ Version values for compilers are simplified into a major, minor and revision for
 Functions are provided for tasks that simplify development or those that are OS/compiler specific:<br>
 
 - String and path functions
+- Container functions
 - File management functions
 - Cryptographic RNG
 - Hardware and OS information functions

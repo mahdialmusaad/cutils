@@ -5,6 +5,7 @@
 #include "custr2.c"
 #include "custr3.c"
 #include "custr4.c"
+#include "cu_cont1.c"
 #include "cu_file1.c"
 #include "cu_res1.c"
 #include "cu_time1.c"
@@ -40,6 +41,7 @@ int main(int argc, char **argv)
 	TEST(custr2);
 	TEST(custr3);
 	TEST(custr4);
+	TEST(cu_cont1);
 	TEST(cu_file1);
 	TEST(cu_res1);
 	TEST(cu_time1);

@@ -43,6 +43,24 @@ CU_DIAGNOSTICS_POP
 
 #define CU_BITSOF(x, start, end) (CU_DWSHIFT(x, start) & (CU_UPSHIFT(1, (1 + (end - start))) - 1))
 
+CU_ATTRIB_CONST CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
+static uptr cu_npow2(uptr v)
+{
+	v--;
+	v |= CU_DWSHIFT(v, 1);
+	v |= CU_DWSHIFT(v, 2);
+	v |= CU_DWSHIFT(v, 4);
+	v |= CU_DWSHIFT(v, 8);
+#if CU_PTR_BYTES >= 4
+	v |= CU_DWSHIFT(v, 16);
+#endif
+#if CU_PTR_BYTES >= 8
+	v |= CU_DWSHIFT(v, 32);
+#endif
+	v++;
+	return v;
+}
+
 #if CU_SETTING_FUNCS
 
 /* ========================= String ======================== */
@@ -63,27 +81,9 @@ CU_DIAGNOSTICS_POP
 #  include <stdarg.h>
 #endif
 
-CU_ATTRIB_CONST CU_ATTRIB_NOTHROW CU_ATTRIB_WARN_UNUSED_RESULT
-static uptr custr_npow2(uptr v)
-{
-	v--;
-	v |= CU_DWSHIFT(v, 1);
-	v |= CU_DWSHIFT(v, 2);
-	v |= CU_DWSHIFT(v, 4);
-	v |= CU_DWSHIFT(v, 8);
-#if CU_PTR_BYTES >= 4
-	v |= CU_DWSHIFT(v, 16);
-#endif
-#if CU_PTR_BYTES >= 8
-	v |= CU_DWSHIFT(v, 32);
-#endif
-	v++;
-	return v;
-}
-
 int custr_create(custr *CU_RESTRICT c, const char *CU_RESTRICT str)
 {
-	const uptr len = (size_t)strlen(str), allocd = custr_npow2(len + 1);
+	const uptr len = (size_t)strlen(str), allocd = cu_npow2(len + 1);
 	if (!(c->str = (char *)malloc((size_t)allocd))) return 0;
 	memcpy(c->str, str, (size_t)(len + 1));
 	c->len = len;
@@ -103,7 +103,7 @@ int custr_reserve(custr *c, uptr bytes)
 {
 	void *ptr;
 
-	bytes = custr_npow2(bytes);
+	bytes = cu_npow2(bytes);
 	if (CU_LIKELY(bytes < 8)) bytes = 8;
 
 	if (bytes == c->cap) return 1;
@@ -388,6 +388,144 @@ int custr_replacesub(custr *CU_RESTRICT c, uptr c_offset, const char *CU_RESTRIC
 }
 
 #endif
+
+/* ========================= Containers ======================== */
+
+#include <stdlib.h>
+#include <string.h>
+
+cu_list *cu_list_init(cu_list *l, uptr sizeof_element)
+{
+	l->elem = sizeof_element;
+	l->data = NULL;
+	l->cap = 0;
+	l->len = 0;
+	return l;
+}
+int cu_list_reserve(cu_list *l, uptr cap)
+{
+	void *rlc;
+	if (cap < l->cap) return 1;
+	rlc = realloc(l->data, (l->cap = cu_npow2(cap)) * l->elem);
+	if (!rlc) return 0;
+	l->data = rlc;
+	return 1;
+}
+cu_list *cu_list_clear(cu_list *l)
+{
+	free(l->data);
+	l->data = NULL;
+	l->cap = 0;
+	l->len = 0;
+	return l;
+}
+void *cu_list_at(cu_list *l, uptr ind)
+{
+	return ((u8 *)l->data) + (ind * l->elem);
+}
+void *cu_list_atsf(cu_list *l, uptr ind)
+{
+	if (CU_UNLIKELY(ind >= l->len)) return NULL;
+	else return cu_list_at(l, ind);
+}
+int cu_list_insert(cu_list *CU_RESTRICT l, void *CU_RESTRICT elems, uptr nelems, uptr ind)
+{
+	u8 *indp;
+	if (CU_UNLIKELY(ind > l->len)) return 0;
+	if (l->len + nelems > l->cap && !CU_UNLIKELY(cu_list_reserve(l, l->cap + nelems))) return 0;
+
+	indp = ((u8 *)l->data) + (ind * l->elem);
+	memmove(indp + (nelems * l->elem), indp, (l->len - ind) * l->elem);
+	memcpy(indp, elems, nelems * l->elem);
+
+	l->len += nelems;
+
+	return 1;
+}
+int cu_list_add(cu_list *CU_RESTRICT l, void *CU_RESTRICT elem)
+{
+	return cu_list_insert(l, elem, 1, l->len);
+}
+void cu_list_cut(cu_list *l, uptr ind, uptr count)
+{
+	if (CU_UNLIKELY(ind >= l->len)) return;
+	if (CU_UNLIKELY(ind + count > l->len)) count = l->len - ind;
+	memmove(((u8 *)l->data) + (ind * l->elem), ((u8 *)l->data) + ((ind + count) * l->elem), (ind + count) * l->elem);
+	l->len -= count;
+}
+
+cu_hmap *cu_hmap_init(cu_hmap *h, cu_hmap_equalfunc equalfunc, cu_hmap_hashfunc hashfunc)
+{
+	memset(h->buckets, 0, sizeof h->buckets);
+	h->equalfunc = equalfunc;
+	h->hashfunc = hashfunc;
+	return h;
+}
+cu_hmap *cu_hmap_clear(cu_hmap *CU_RESTRICT h, int free_keys, int free_data)
+{
+	size_t i;
+	for (i = 0; i < sizeof h->buckets / sizeof *h->buckets; ++i) {
+		cu_hmap_element *e, *next;
+		for (e = h->buckets[i]; e; e = next) {
+			next = e->next;
+			if (free_data) free(e->data);
+			if (free_keys) free(e->key);
+			free(e);
+		}
+		h->buckets[i] = NULL;
+	}
+	return h;
+}
+
+int cu_hmap_add(cu_hmap *CU_RESTRICT h, void *data, void *key)
+{
+	cu_hmap_element **e, *toadd = (cu_hmap_element *)malloc(sizeof *toadd);
+	if (!toadd) return 0;
+
+	toadd->data = data;
+	toadd->key = key;
+	toadd->next = NULL;
+
+	e = h->buckets + (h->hashfunc(key) % (sizeof h->buckets / sizeof *h->buckets));
+
+	while (*e) e = &(*e)->next;
+	*e = toadd;
+
+	return 1;
+}
+void *cu_hmap_find(cu_hmap *CU_RESTRICT h, const void *CU_RESTRICT key)
+{
+	cu_hmap_element *e;
+	for (e = h->buckets[h->hashfunc(key) % (sizeof h->buckets / sizeof *h->buckets)]; e; e = e->next) {
+		if (h->equalfunc(key, e->key)) return e->data;	
+	}
+	return NULL;
+}
+void *cu_hmap_remove(cu_hmap *CU_RESTRICT h, const void *CU_RESTRICT key, int free_key)
+{
+	cu_hmap_element **e;
+	for (e = h->buckets + (h->hashfunc(key) % (sizeof h->buckets / sizeof *h->buckets)); *e; e = &(*e)->next) {
+		if (h->equalfunc(key, (*e)->key)) {
+			void *saved = (*e)->data;
+			cu_hmap_element *next = (*e)->next;
+			if (free_key) free((*e)->key);
+			free(*e);
+			*e = next;
+			return saved;
+		}
+	}
+	return NULL;
+}
+
+cu_hmap *cu_hmap_iterate(cu_hmap *h, void *user, void (*work_func)(const void *key, void *data, void *user))
+{
+	size_t i;
+	for (i = 0; i < sizeof h->buckets / sizeof *h->buckets; ++i) {
+		cu_hmap_element *e;
+		for (e = h->buckets[i]; e; e = e->next) work_func(e->key, e->data, user);
+	}
+	return h;
+}
 
 /* ========================= Filesystem ======================== */
 
