@@ -2230,9 +2230,8 @@ typedef struct cu_net_remote
 	uptr mode;
 } cu_net_remote;
 
-/* Event handler function type. You should return 1 unless a specific effect for the given event is desired.
-   On a client, 'remote' is always NULL. */
-typedef int (*cu_event_handler)(cu_net_remote *A_RES server, cu_net_remote *A_RES remote, enum cu_net_event event_type, void *A_RES data, uptr n);
+/* Event handler function type. On a client, 'remote' is always NULL. */
+typedef void (*cu_event_handler)(cu_net_remote *A_RES server, cu_net_remote *A_RES remote, enum cu_net_event event_type, void *A_RES data, uptr n);
 
 /* Initialize networking functions. */
 A_NTH int cu_net_init(void);
@@ -2241,14 +2240,13 @@ A_NTH void cu_net_terminate(void);
 
 /* Connects to a server and listens for network events.
    You can retry a specific number times with a specific delay using CU_NET_RETRYVAL.
-   It will return 0 if failed to connect at all and -1 on a different error.
-   If the heartbeat event delay is negative, it does not occur.
-   Returns <1 on error. Otherwise, it blocks until the server disconnects (CUEVT_DISCONNECT). */
+   The following events can occur: CUEVT_DISCONNECT (TCP only), CUEVT_HEARTBEAT (unless delay is negative) and CUEVT_MESSAGE.
+   Returns 0 if failed to connect, -1 on other error. Otherwise, it blocks until the server disconnects (CUEVT_DISCONNECT) then returns 1. */
 A_NTL((1, 2, 3, 7)) int cu_client_listen(cu_net_remote *A_RES server, const char *A_RES address, const char *A_RES port, void *A_RES user_ptr, u32 retryval, uptr mode, cu_event_handler ehandler, int heartbeat_delay_msec);
 
 /* Starts a server and listens for network events.
-   If the heartbeat event delay is negative, it does not occur.
-   Returns 0 if failed to start. Otherwise, it blocks until the server is closed. */
+   The following events can occur: CUEVT_DISCONNECT (TCP only), CUEVT_CONNECT (TCP only), CUEVT_HEARTBEAT (unless delay is negative) and CUEVT_MESSAGE.
+   Returns 0 if failed to start. Otherwise, it blocks until the server is closed then returns 1. */
 A_NTL((1, 2, 6)) int cu_server_listen(cu_net_remote *A_RES server, const char *A_RES port, void *A_RES user_ptr, uptr mode, uptr tcp_maxclients, cu_event_handler ehandler, int heartbeat_delay_msec);
 
 /* (TCP only) Sends a message to all connected clients, excluding those in the 'except' list. */

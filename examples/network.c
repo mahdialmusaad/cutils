@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 
-static int client_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT unused, enum cu_net_event event_type, void *CU_RESTRICT data, uptr n)
+static void client_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT unused, enum cu_net_event event_type, void *CU_RESTRICT data, uptr n)
 {
 	CU_UNUSED(unused);
 	CU_UNUSED(server);
@@ -13,7 +13,6 @@ static int client_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RES
 		printf("%.*s\n", (int)n, (char *)data);
 		free(data);
 	} else if (event_type == CUEVT_DISCONNECT) printf("[ Client ] Disconnected.\n");
-	return 1;
 }
 static CU_THREAD_FUNCTION(client_scanf, server)
 {
@@ -46,7 +45,7 @@ typedef struct client {
 static client *clients;
 static uptr nclients;
 
-static int server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client_rem, enum cu_net_event event_type, void *CU_RESTRICT data, uptr n)
+static void server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client_rem, enum cu_net_event event_type, void *CU_RESTRICT data, uptr n)
 {
 	client *c = client_rem ? (client *)client_rem->user : NULL;
 	char ipbuf[CU_NET_IPADDR_LEN];
@@ -60,7 +59,7 @@ static int server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RES
 			if (strdata[u] && (strdata[u] <= ' ' || strdata[u] > '~')) strdata[u] = ' ';
 			else ++displayable;
 		}
-		if (displayable < 1) return 1;
+		if (displayable < 1) return;
 
 		if (!c->name) {
 			custr notify = CUSTR_EMPTY;
@@ -72,7 +71,7 @@ static int server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RES
 				const char duplicate_msg[] = "[ Server ] That name is already in use.";
 				if (!clients[i].name || strcmp(c->name, strdata)) continue;
 				cu_net_sendmsg(client_rem, duplicate_msg, sizeof duplicate_msg);
-				return 1;
+				return;
 			}
 
 			printf("Client %s says their name is '%s'.\n", ipbuf, strdata);
@@ -121,7 +120,6 @@ static int server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RES
 		}
 		--nclients;
 	}
-	return 1;
 }
 
 static void server_main(const char *port)

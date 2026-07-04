@@ -17,30 +17,28 @@ struct client_counters
 	int hb;
 };
 
-static int server_event_3(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
+static void server_event_3(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {
 	if (ev == CUEVT_HEARTBEAT) {
 		if (nleft == NET3CLIENTS) {
 			cu_net_close(server);
-			return 1;
+			return;
 		}
-		if (server_ready) return 1;
+		if (server_ready) return;
 		EXPECT(server_ready = 1);
 		EXPECT(server);
 		EXPECT0(remote);
 		EXPECT0(d);
 		EXPECT0(n);
-		return 1;
+		return;
 	} else if (ev !=  CUEVT_MESSAGE) EXPECT(0);
 
 	cu_net_sendmsg(remote, server_reply, sizeof server_reply);
 	++server3_msgs;
 	free(d);
-
-	return 1;
 }
 
-static int client_event_3(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT unused, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
+static void client_event_3(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT unused, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {
 	struct client_counters *cc = (struct client_counters *)server->user;
 	CU_UNUSED(unused);
@@ -62,8 +60,6 @@ static int client_event_3(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_R
 		CU_ASSERT(!strcmp((char *)d, server_reply));
 		free(d);
 	} else EXPECT(0);
-
-	return 1;
 }
 
 static CU_THREAD_FUNCTION(client_thread_3, a)

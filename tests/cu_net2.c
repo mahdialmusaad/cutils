@@ -8,7 +8,7 @@ static int err_cnt;
 
 #define NET2CLIENTS 200
 
-static int server_event_2(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
+static void server_event_2(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {
 	CU_UNUSED(d);
 	CU_UNUSED(n);
@@ -22,10 +22,9 @@ static int server_event_2(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_R
 	}
 
 	server_i_2++;
-	return 1;
 }
 
-static int client_event_2(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT unused, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
+static void client_event_2(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT unused, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {
 	CU_UNUSED(unused);
 	CU_UNUSED(d);
@@ -39,8 +38,6 @@ static int client_event_2(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_R
 		++disconns_c;
 		cu_thread_mutex_unlock(&cu_net2_mutex);
 	}
-
-	return 1;
 }
 
 static CU_THREAD_FUNCTION(client_thread_2, a)

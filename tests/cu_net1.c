@@ -4,7 +4,7 @@
 
 static int client_i, server_i;
 
-static int client_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT unused, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
+static void client_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT unused, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {
 	static int hb;
 	char ipbuf[CU_NET_IPADDR_LEN];
@@ -15,7 +15,7 @@ static int client_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RES
 			EXPECT(cu_net_sendmsg(server, "data", 5) == 1);
 		}
 		++hb;
-		return 1;
+		return;
 	}
 
 	if (client_i == 0) {
@@ -33,9 +33,8 @@ static int client_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RES
 	}
 
 	++client_i;
-	return 1;
 }
-static int server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
+static void server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT client, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {
 	static cu_net_remote *saved_client = NULL;
 	char ipbuf[CU_NET_IPADDR_LEN];
@@ -69,7 +68,6 @@ static int server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RES
 	} else EXPECT(0);
 
 	++server_i;
-	return 1;
 }
 
 static CU_THREAD_FUNCTION(client_thread, a)
