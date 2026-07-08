@@ -772,7 +772,6 @@ char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_RESTRICT allocd)
 	fail_readlink:
 		free(buf);
 		buf = NULL;
-		len = 0;
 	} else if (cu_strchr(argv, '/')) {
 		uptr cwdlen = 0, argvlenterm = strlen(argv) + 1;
 		len = CU_PATH_MAX * 2;
@@ -784,9 +783,15 @@ char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_RESTRICT allocd)
 			free(buf);
 			buf = NULL;
 		}
+	} else if ((buf = getenv(argv))) {
+		char *svenv = buf;
+		len = strlen(buf) + 1;
+		buf = (char *)malloc(len);
+		if (!buf) return NULL;
+		memcpy(buf, svenv, len);
 	} else return NULL;
 
-	if (allocd) *allocd = (uptr)len;
+	if (allocd && buf) *allocd = (uptr)len;
 	return buf;
 #else
 	size_t len = strlen(argv) + 1;
