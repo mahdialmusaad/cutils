@@ -19,10 +19,10 @@ TFUNC(cu_res1)
 	EXPECT0(((cu_res_bytefmt(buf, 21)), (strcmp(buf, "21B"))));
 	EXPECT0(((cu_res_bytefmt(buf, 214)), (strcmp(buf, "214B"))));
 	EXPECT0(((cu_res_bytefmt(buf, 2147)), (strcmp(buf, "2.1KB"))));
-	EXPECT0(((cu_res_bytefmt(buf, 21474)), (strcmp(buf, "21.4KB"))));
+	EXPECT0(((cu_res_bytefmt(buf, 21474)), (strcmp(buf, "21.5KB"))));
 	EXPECT0(((cu_res_bytefmt(buf, 214748)), (strcmp(buf, "214.7KB"))));
 	EXPECT0(((cu_res_bytefmt(buf, 2147483)), (strcmp(buf, "2.1MB"))));
-	EXPECT0(((cu_res_bytefmt(buf, 21474836)), (strcmp(buf, "21.4MB"))));
+	EXPECT0(((cu_res_bytefmt(buf, 21474836)), (strcmp(buf, "21.5MB"))));
 	EXPECT0(((cu_res_bytefmt(buf, 214748364)), (strcmp(buf, "214.7MB"))));
 	EXPECT0(((cu_res_bytefmt(buf, 2147483647)), (strcmp(buf, "2.1GB"))));
 	EXPECT0(((cu_res_bytefmt(buf, 1000)), (strcmp(buf, "1.0KB"))));

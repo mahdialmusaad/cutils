@@ -37,7 +37,7 @@ build/libcutils.a: build/cutils.o
 	ar rcs $@ $<
 	strip -x $@
 
-build/cutils.o: | build
+build/cutils.o: cutils.c | build
 	$(CC) $(CFLAGS) $(DEFS) cutils.c -c -o $@
 
 build:

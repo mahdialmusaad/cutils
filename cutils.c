@@ -905,26 +905,14 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3)) static u32 cu_res_cpuid(u32 id, u32 cou
 
 char *cu_res_bytefmt(char *str, u64 bytes)
 {
-	static const char bytefmt_suffix[6] = { 'K', 'M', 'G', 'T', 'P', 'E' };
-	int small = bytes < 1000, suffix = -1, prev = 0;
+	static const char fmt_suffix[6] = { 'K', 'M', 'G', 'T', 'P', 'E' };
+	int ndown = 0;
 	char *start = str;
-
-	while (bytes >= 1000) {
-		++suffix;
-		prev = (int)(bytes % 1000);
-		bytes /= 1000;
-	}
-
-	if (bytes >= 100) *str++ = '0' + (char)((bytes / 100) % 10);
-	if (bytes >= 10) *str++ = '0' + (char)((bytes / 10) % 10);
-	*str++ = '0' + (char)(bytes % 10);
-
-	if (!small) {
-		*str++ = '.';
-		*str++ = '0' + (char)((prev / 100) % 10);
-		*str++ = bytefmt_suffix[suffix];
-	}
-
+	double res = (double)bytes;
+	while (res >= 1000 || ndown % 3) { res /= 10; ++ndown; }
+	str += sprintf(str, "%.1f", res);
+	if (ndown) *str++ = fmt_suffix[(ndown - 3) / 3];
+	else str -= 2;
 	*str++ = 'B';
 	*str++ = '\0';
 	return start;
