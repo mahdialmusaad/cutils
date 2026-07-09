@@ -834,6 +834,7 @@ int cu_dir_delete(const char *path, int rm_contents)
 #if CU_SETTING_RESOURCES_FUNCS
 
 #include <string.h>
+#include <stdio.h>
 
 #if CU_ARCH_X86
 #  include <time.h>
@@ -856,18 +857,18 @@ int cu_dir_delete(const char *path, int rm_contents)
 #  include <sys/times.h>
 #  include <string.h>
 #  include <unistd.h>
-#  include <stdio.h>
 #  include <pwd.h>
 #elif CU_OS_WINDOWS
 #  include <psapi.h>
-#  include <stdio.h>
 #  include <ntsecapi.h>
 #endif
 
 #if !CU_COMP_MSVC
 #  define cu_sscanf(str, fmt, a1) sscanf(str, fmt, a1)
+#  define cu_sprintf(str, max, fmt, a1) sprintf(str, fmt, a1)
 #else
 #  define cu_sscanf(str, fmt, a1) sscanf_s(str, fmt, a1)
+#  define cu_sprintf(str, max, fmt, a1) sprintf_s(str, max, fmt, a1)
 #endif
 
 #if CU_COMP_MSVC && CU_ARCH_X86
@@ -910,7 +911,7 @@ char *cu_res_bytefmt(char *str, u64 bytes)
 	char *start = str;
 	double res = (double)bytes;
 	while (res >= 1000 || ndown % 3) { res /= 10; ++ndown; }
-	str += sprintf(str, "%.1f", res);
+	str += cu_sprintf(str, 6, "%.1f", res);
 	if (ndown) *str++ = fmt_suffix[(ndown - 3) / 3];
 	else str -= 2;
 	*str++ = 'B';
