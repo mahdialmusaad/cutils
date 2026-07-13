@@ -428,6 +428,12 @@ void *cu_list_atsf(cu_list *l, uptr ind)
 	if (CU_UNLIKELY(ind >= l->len)) return NULL;
 	else return cu_list_at(l, ind);
 }
+int cu_list_has(cu_list *CU_RESTRICT l, void *CU_RESTRICT tomatch)
+{
+	uptr i;
+	for (i = 0; i < l->len; ++i) if (!memcmp(cu_list_at(l, i), tomatch, l->elem)) return 1;
+	return 0;
+}
 int cu_list_insert(cu_list *CU_RESTRICT l, void *CU_RESTRICT elems, uptr nelems, uptr ind)
 {
 	u8 *indp;
@@ -476,7 +482,6 @@ cu_hmap *cu_hmap_clear(cu_hmap *CU_RESTRICT h, int free_keys, int free_data)
 	}
 	return h;
 }
-
 int cu_hmap_add(cu_hmap *CU_RESTRICT h, void *data, void *key)
 {
 	cu_hmap_element **e, *toadd = (cu_hmap_element *)malloc(sizeof *toadd);
@@ -486,9 +491,7 @@ int cu_hmap_add(cu_hmap *CU_RESTRICT h, void *data, void *key)
 	toadd->key = key;
 	toadd->next = NULL;
 
-	e = h->buckets + (h->hashfunc(key) % (sizeof h->buckets / sizeof *h->buckets));
-
-	while (*e) e = &(*e)->next;
+	for (e = h->buckets + (h->hashfunc(key) % (sizeof h->buckets / sizeof *h->buckets)); *e; e = &(*e)->next);
 	*e = toadd;
 
 	return 1;
@@ -496,27 +499,36 @@ int cu_hmap_add(cu_hmap *CU_RESTRICT h, void *data, void *key)
 void *cu_hmap_find(cu_hmap *CU_RESTRICT h, const void *CU_RESTRICT key)
 {
 	cu_hmap_element *e;
-	for (e = h->buckets[h->hashfunc(key) % (sizeof h->buckets / sizeof *h->buckets)]; e; e = e->next) {
-		if (h->equalfunc(key, e->key)) return e->data;	
-	}
+	for (e = h->buckets[h->hashfunc(key) % (sizeof h->buckets / sizeof *h->buckets)]; e; e = e->next) if (h->equalfunc(key, e->key)) return e->data;
 	return NULL;
 }
 void *cu_hmap_remove(cu_hmap *CU_RESTRICT h, const void *CU_RESTRICT key, int free_key)
 {
-	cu_hmap_element **e;
+	cu_hmap_element *next, **e;
 	for (e = h->buckets + (h->hashfunc(key) % (sizeof h->buckets / sizeof *h->buckets)); *e; e = &(*e)->next) {
-		if (h->equalfunc(key, (*e)->key)) {
-			void *saved = (*e)->data;
-			cu_hmap_element *next = (*e)->next;
-			if (free_key) free((*e)->key);
-			free(*e);
-			*e = next;
-			return saved;
-		}
+		void *saved;
+		if (!h->equalfunc(key, (*e)->key)) continue;
+		saved = (*e)->data;
+		next = (*e)->next;
+		if (free_key) free((*e)->key);
+		free(*e);
+		*e = next;
+		return saved;
 	}
 	return NULL;
 }
-
+void cu_hmap_combine(cu_hmap *CU_RESTRICT a, cu_hmap *CU_RESTRICT b)
+{
+	size_t i;
+	for (i = 0; i < sizeof a->buckets / sizeof *a->buckets; ++i) {
+		cu_hmap_element *copy_end = b->buckets[i];
+		if (!copy_end) continue;
+		for (; copy_end->next; copy_end = copy_end->next);
+		copy_end->next = a->buckets[i];
+		a->buckets[i] = b->buckets[i];
+		b->buckets[i] = NULL;
+	}
+}
 cu_hmap *cu_hmap_iterate(cu_hmap *h, void *user, void (*work_func)(const void *key, void *data, void *user))
 {
 	size_t i;

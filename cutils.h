@@ -1903,6 +1903,8 @@ A_NTL((1)) void *cu_list_at(cu_list *l, uptr ind);
 /* Returns the element at the given index in the cu_list.
    Returns NULL if the index is out-of-bounds. */
 A_NTL((1)) void *cu_list_atsf(cu_list *l, uptr ind);
+/* Returns whether any item in the array matches the given item. */
+A_NTL((1, 2)) int cu_list_has(cu_list *A_RES l, void *A_RES tomatch);
 
 /* Inserts a number of elements to the cu_list at the specified index. Returns 1 on success, 0 on failure.
    Also fails if index is past the end of the cu_list (larger than its length). */
@@ -1953,6 +1955,12 @@ A_NTL((1)) void *cu_hmap_find(cu_hmap *A_RES h, const void *A_RES key);
    The associated data is returned and you can optionally specify to free the internally stored key.
    If it is not found however, NULL is returned with no other effect. */
 A_NTL((1)) void *cu_hmap_remove(cu_hmap *A_RES h, const void *A_RES key, int free_key);
+
+/* Destructively adds all key-value data from hash map 'b' into hash map 'a'.
+   This directly uses pointers from hash map 'b' for performance, so to
+   prevent confusion from containing references to another hash map,
+   all pointers in 'b' are cleared (this does not deallocate them). */
+A_NTL((1, 2)) void cu_hmap_combine(cu_hmap *A_RES a, cu_hmap *A_RES b);
 
 /* Iterate through all elements in the hash map, running the given function pointer with the key-value pairs.
    The 'user' pointer will simply be passed to the function as the 'user' argument. */
