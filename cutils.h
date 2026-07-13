@@ -1756,12 +1756,6 @@ CU_WARNING("File functions are unavailable.")
 #  define CU_SETTING_FILE_FUNCS 0
 #endif
 
-#if CU_SETTING_RESOURCES_FUNCS && !CU_ARCH_X86
-#if !CU_SETTING_QUIET
-CU_WARNING("cpuid instruction not supported; cu_res_cpuinfo will be limited.")
-#  endif
-#endif
-
 #if CU_SETTING_NETWORK_FUNCS && !CU_OS_WINDOWS && !CU_OS_UNIX
 #  if !CU_SETTING_QUIET
 CU_WARNING("Networking functions are unavailable.")
@@ -2046,24 +2040,193 @@ typedef struct cu_res_mem
 
 struct cu_res_cpu_cache
 {
-	u32 line, assoc, size;
+	/* Cache line size in bytes. */
+	u32 line;
+	/* Ways of associativity. If it is fully associative, it will be -1.
+	   Like with all other values, it will be 0 if it was unable to be determined. */
+	i32 assoc;
+	/* Cache size in bytes. */
+	u32 size;
 };
 
-/* CPU general information. */
+/* CPU feature test macros.
+   You only need to pass in the cu_res_cpu structure.
+   If it is a pointer, simply dereference it in the parameter. */
+#define CU_RES_C1(i,b) ((i).fx86_ecx1 & (CU_UPSHIFT(1, b)))
+#define CU_RES_D1(i,b) ((i).fx86_edx1 & (CU_UPSHIFT(1, b)))
+#define CU_RES_B7(i,b) ((i).fx86_ebx7 & (CU_UPSHIFT(1, b)))
+#define CU_RES_B7I(i,b) (CU_RES_B7(i,b) && (i).vendor_id == 1)
+#define CU_RES_C7(i,b) ((i).fx86_ecx7 & (CU_UPSHIFT(1, b)))
+#define CU_RES_C8(i,b) ((i).fx86_ecx81 & (CU_UPSHIFT(1, b)))
+#define CU_RES_C8A(i,b) (CU_RES_C8(i,b) && (i).vendor_id == 2)
+#define CU_RES_D8(i,b) ((i).fx86_edx81 & (CU_UPSHIFT(1, b)))
+#define CU_RES_D8A(i,b) (CU_RES_D8(i,b) && (i).vendor_id == 2)
+
+/* See the Wikipedia page on the CPUID instruction for more information on each feature. */
+
+#define CU_RES_SSE3(i) CU_RES_C1(i,0)
+#define CU_RES_PCLMUL(i) CU_RES_C1(i,1)
+#define CU_RES_DTES64(i) CU_RES_C1(i,2)
+#define CU_RES_MNTR(i) CU_RES_C1(i,3)
+#define CU_RES_DSCPL(i) CU_RES_C1(i,4)
+#define CU_RES_VMX(i) CU_RES_C1(i,5)
+#define CU_RES_SMX(i) CU_RES_C1(i,6)
+#define CU_RES_EIST(i) CU_RES_C1(i,7)
+#define CU_RES_TM2(i) CU_RES_C1(i,8)
+#define CU_RES_SSSE3(i) CU_RES_C1(i,9)
+#define CU_RES_CNXTID(i) CU_RES_C1(i,10)
+#define CU_RES_SDBG(i) CU_RES_C1(i,11)
+#define CU_RES_FMA(i) CU_RES_C1(i,12)
+#define CU_RES_CX16(i) CU_RES_C1(i,13)
+#define CU_RES_XTPR(i) CU_RES_C1(i,14)
+#define CU_RES_PDCM(i) CU_RES_C1(i,15)
+#define CU_RES_PCID(i) CU_RES_C1(i,17)
+#define CU_RES_DCA(i) CU_RES_C1(i,18)
+#define CU_RES_SSE41(i) CU_RES_C1(i,19)
+#define CU_RES_SSE42(i) CU_RES_C1(i,20)
+#define CU_RES_X2APIC(i) CU_RES_C1(i,21)
+#define CU_RES_MOVBE(i) CU_RES_C1(i,22)
+#define CU_RES_POPCNT(i) CU_RES_C1(i,23)
+#define CU_RES_TSCDL(i) CU_RES_C1(i,24)
+#define CU_RES_AESNI(i) CU_RES_C1(i,25)
+#define CU_RES_XSAVE(i) CU_RES_C1(i,26)
+#define CU_RES_OXS(i) CU_RES_C1(i,27)
+#define CU_RES_AVX(i) CU_RES_C1(i,28)
+#define CU_RES_F16C(i) CU_RES_C1(i,29)
+#define CU_RES_RDRND(i) CU_RES_C1(i,30)
+#define CU_RES_HVISOR(i) CU_RES_C1(i,31)
+#define CU_RES_FPU(i) CU_RES_D1(i,0)
+#define CU_RES_VME(i) CU_RES_D1(i,1)
+#define CU_RES_DE(i) CU_RES_D1(i,2)
+#define CU_RES_PSE(i) CU_RES_D1(i,3)
+#define CU_RES_TSC(i) CU_RES_D1(i,4)
+#define CU_RES_MSR(i) CU_RES_D1(i,5)
+#define CU_RES_PAE(i) CU_RES_D1(i,6)
+#define CU_RES_MCE(i) CU_RES_D1(i,7)
+#define CU_RES_CX8(i) CU_RES_D1(i,8)
+#define CU_RES_APIC(i) CU_RES_D1(i,9)
+#define CU_RES_SEP(i) CU_RES_D1(i,11)
+#define CU_RES_MTRR(i) CU_RES_D1(i,12)
+#define CU_RES_PGE(i) CU_RES_D1(i,13)
+#define CU_RES_MCA(i) CU_RES_D1(i,14)
+#define CU_RES_CMOV(i) CU_RES_D1(i,15)
+#define CU_RES_PAT(i) CU_RES_D1(i,16)
+#define CU_RES_PSE36(i) CU_RES_D1(i,17)
+#define CU_RES_CLFSH(i) CU_RES_D1(i,19)
+#define CU_RES_DS(i) CU_RES_D1(i,21)
+#define CU_RES_ACPI(i) CU_RES_D1(i,22)
+#define CU_RES_MMX(i) CU_RES_D1(i,23)
+#define CU_RES_FXSR(i) CU_RES_D1(i,24)
+#define CU_RES_SSE(i) CU_RES_D1(i,25)
+#define CU_RES_SSE2(i) CU_RES_D1(i,26)
+#define CU_RES_SS(i) CU_RES_D1(i,27)
+#define CU_RES_HTT(i) CU_RES_D1(i,28)
+#define CU_RES_TM(i) CU_RES_D1(i,29)
+#define CU_RES_PBE(i) CU_RES_D1(i,31)
+#define CU_RES_FSGSBASE(i) CU_RES_B7(i,0)
+#define CU_RES_SGX(i) CU_RES_B7(i,2)
+#define CU_RES_BMI1(i) CU_RES_B7(i,3)
+#define CU_RES_HLE(i) CU_RES_B7I(i,4)
+#define CU_RES_AVX2(i) CU_RES_B7(i,5)
+#define CU_RES_SMEP(i) CU_RES_B7(i,7)
+#define CU_RES_BMI2(i) CU_RES_B7(i,8)
+#define CU_RES_ERMS(i) CU_RES_B7(i,9)
+#define CU_RES_INVPCID(i) CU_RES_B7(i,10)
+#define CU_RES_RTM(i) CU_RES_B7I(i,11)
+#define CU_RES_MPX(i) CU_RES_B7(i,14)
+#define CU_RES_AVX512F(i) CU_RES_B7(i,16)
+#define CU_RES_AVX512DQ(i) CU_RES_B7(i,17)
+#define CU_RES_RDSEED(i) CU_RES_B7(i,18)
+#define CU_RES_ADX(i) CU_RES_B7(i,19)
+#define CU_RES_AVX512IFMA(i) CU_RES_B7(i,21)
+#define CU_RES_CLFLUSHOPT(i) CU_RES_B7(i,23)
+#define CU_RES_CLWB(i) CU_RES_B7(i,24)
+#define CU_RES_AVX512PF(i) CU_RES_B7(i,26)
+#define CU_RES_AVX512ER(i) CU_RES_B7(i,27)
+#define CU_RES_AVX512CD(i) CU_RES_B7(i,28)
+#define CU_RES_SHA(i) CU_RES_B7(i,29)
+#define CU_RES_AVX512BW(i) CU_RES_B7(i,30)
+#define CU_RES_AVX512VL(i) CU_RES_B7(i,31)
+#define CU_RES_PREFTCHWT1(i) CU_RES_C7(i,0)
+#define CU_RES_AVX512VBMI(i) CU_RES_C7(i,1)
+#define CU_RES_PKU(i) CU_RES_C7(i,3)
+#define CU_RES_OSPKE(i) CU_RES_C7(i,4)
+#define CU_RES_WAITPKG(i) CU_RES_C7(i,5)
+#define CU_RES_AVX512VBMI2(i) CU_RES_C7(i,6)
+#define CU_RES_SHSTK(i) CU_RES_C7(i,7)
+#define CU_RES_GFNI(i) CU_RES_C7(i,8)
+#define CU_RES_VAES(i) CU_RES_C7(i,9)
+#define CU_RES_VPCLMULQDQ(i) CU_RES_C7(i,10)
+#define CU_RES_AVX512VNNI(i) CU_RES_C7(i,11)
+#define CU_RES_AVX512BITALG(i) CU_RES_C7(i,12)
+#define CU_RES_AVX512VPOPCNTDQ(i) CU_RES_C7(i,14)
+#define CU_RES_RDPID(i) CU_RES_C7(i,22)
+#define CU_RES_CLDEMOTE(i) CU_RES_C7(i,25)
+#define CU_RES_MOVDIRI(i) CU_RES_C7(i,27)
+#define CU_RES_MOVDIR64B(i) CU_RES_C7(i,28)
+#define CU_RES_ENQCMD(i) CU_RES_C7(i,29)
+#define CU_RES_LAHF(i) CU_RES_C8(i,0)
+#define CU_RES_ABM(i) CU_RES_C8A(i,5)
+#define CU_RES_SSE4A(i) CU_RES_C8A(i,6)
+#define CU_RES_PRFCHW(i) CU_RES_C8(i,8)
+#define CU_RES_XOP(i) CU_RES_C8A(i,11)
+#define CU_RES_LWP(i) CU_RES_C8(i,15)
+#define CU_RES_FMA4(i) CU_RES_C8(i,16)
+#define CU_RES_TBM(i) CU_RES_C8A(i,21)
+#define CU_RES_MWAITX(i) CU_RES_C8(i,29)
+#define CU_RES_MMXEXT(i) CU_RES_D8(i,22)
+#define CU_RES_LM(i) CU_RES_D8(i,29)
+#define CU_RES_3DNOWEXT(i) CU_RES_D8A(i,30)
+#define CU_RES_3DNOW(i) CU_RES_D8A(i,31)
+
+/* CPU general information.
+   Use the cu_res_cpuinfo function to retrieve specific information.
+   If any information is unable to be retrieved, it will be left as 0. */
 typedef struct cu_res_cpu
 {
-	char name[49];
-	char vendor[13];
-	char padding[2];
+	char name[52];
 
-	u32 stepping_id;
-	u32 cpuid_level;
-	u32 family_id;
-	u32 model_id;
+	/* Start of x86-specific data. */
 
-	u64 base_freq_hz;
+	/* Vendor string as determined from the CPUID instruction.
+	   Common examples include "GenuineIntel" and "AuthenticAMD". */
+	char vendor[16];
+	/* CPU identification IDs. */
+	u32 stepping_id, family_id, model_id;
+	/* Maximum CPUID supported leaf values. */
+	u32 cpuid_base_max, cpuid_ext_max;
 
-	struct cu_res_cpu_cache l1d, l1i, l2, l3;
+	/* CPU features bitfield. You can use the provided macros above for simplicity. */
+	u32 fx86_ecx1, fx86_edx1;
+	u32 fx86_ebx7, fx86_ecx7;
+	u32 fx86_ecx81, fx86_edx81;
+
+	/* Simple ID value for x86 'vendor'. 0 = Unknown/other, 1 = GenuineIntel, 2 = AuthenticAMD. */
+	u32 vendor_id;
+
+	/* End of x86-specific data. */
+
+#if CU_DM_64BIT
+	u32 _padding;
+#endif
+
+	/* Clock speeds. */
+	u64 base_freq_hz; /* The base frequency, measured in Hertz. */
+	u64 cur_freq_hz; /* The current frequency, measured in Hertz. */
+	u64 min_freq_hz; /* The minimum frequency, measured in Hertz. */
+	u64 max_freq_hz; /* The maximum frequency, measured in Hertz. */
+
+	/* Processor counts. */
+	u32 processor_cores; /* The number of physical cores. */
+	u32 logical_processors; /* The number of logical cores. This could be higher than the physical core count, such as from hyperthreading. */
+
+	/* Cache information for each level/type.
+	   If level 1 cache is not split up into instruction and data cache (e.g. unified),
+	   or it could not determine which l1 cache to use, then l1i will be filled with the cache data. */
+	struct cu_res_cpu_cache l1i, l1d, l2, l3, l4;
+
+	/* 0 = unknown, 1 = x86, 2 = ARM. */
+	u32 arch;
 } cu_res_cpu;
 
 /* Maximum size (including terminator) of string needed by byte formatting. */
@@ -2085,8 +2248,15 @@ A_NTL((1)) int cu_res_meminfo(cu_res_mem *info);
    Requires consistent calling to provide an accurate percentage. */
 A_NTH A_WUR real64 cu_res_cpuusage(void);
 
-/* Get general CPU information. */
-A_NTL((1)) int cu_res_cpuinfo(cu_res_cpu *info);
+/* Get general CPU information.
+   You can selectively choose which information to retrieve (set feature int argument to non-zero).
+   'idfeatures' = Identification values (name, x86 vendor, revision, etc) and features supported (use macros provided).
+   'corecache' = Size, line and associativity of each cache level/type present, as well as processor core counts.
+   'speed' = Clock speed information, all measured in Hz.
+   All other members will be cleared via memset.
+   If it is unable to retrieve some information, it will remain cleared.
+   The 'arch' member will always be set appropriately after calling this. */
+A_NTL((1)) void cu_res_cpuinfo(cu_res_cpu *info, int idfeatures, int corecache, int speed);
 
 /* Maximum size (including terminator) of string needed for OS, computer or user name. */
 #define CU_RES_NAME_MAXSIZE 257

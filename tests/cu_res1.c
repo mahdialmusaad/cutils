@@ -8,7 +8,11 @@ TFUNC(cu_res1)
 	cu_res_mem mem;
 
 	EXPECT(cu_res_meminfo(&mem));
-	EXPECT(cu_res_cpuinfo(&cpu));
+	cu_res_cpuinfo(&cpu, 1, 1, 1);
+	EXPECT(*cpu.name);
+	EXPECT(cpu.max_freq_hz || cpu.min_freq_hz);
+	EXPECT(cpu.logical_processors >= cpu.processor_cores && cpu.processor_cores > 0);
+	EXPECT(cpu.l1d.size && cpu.l1d.line && cpu.l1d.assoc);
 	EXPECT(cu_res_crypto(buf, sizeof buf) == sizeof buf);
 	EXPECT(cu_res_osname(buf));
 	EXPECT(cu_res_hostname(buf));

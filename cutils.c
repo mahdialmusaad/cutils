@@ -835,19 +835,23 @@ int cu_dir_delete(const char *path, int rm_contents)
 
 #include <string.h>
 #include <stdio.h>
-
-#if CU_ARCH_X86
-#  include <time.h>
-#endif
+#include <time.h>
 
 #if CU_OS_MAC
-#  include <mach/mach.h>
-#  include <sys/types.h>
-#  include <sys/sysctl.h>
 #  include <mach/vm_statistics.h>
 #  include <mach/mach_types.h>
 #  include <mach/mach_init.h>
 #  include <mach/mach_host.h>
+#  include <mach/mach.h>
+#  include <sys/sysctl.h>
+#  include <sys/types.h>
+
+int sysctlbyname(const char *, void *, size_t *, void *, size_t);
+
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_sysctl(const char *name, void *buf, size_t bufsz)
+{
+	sysctlbyname(name, buf, &bufsz, NULL, 0);
+}
 #elif CU_OS_UNIX && CU_HAS_INCLUDE(<sys/sysinfo.h>)
 #  include <sys/sysinfo.h>
 #endif
@@ -857,10 +861,92 @@ int cu_dir_delete(const char *path, int rm_contents)
 #  include <sys/times.h>
 #  include <string.h>
 #  include <unistd.h>
+#  include <errno.h>
 #  include <pwd.h>
+#  if !CU_OS_MAC
+#    define CPUDIR "/sys/devices/system/cpu/"
+CU_ATTRIB_NOTHROW static u64 cu_res_cpuinfo_numfile(const char *fname)
+{
+	u64 res = 0;
+	FILE *f = fopen(fname, "r");
+	if (!f) return 0;
+	fscanf(f, "%" CU_U64_FMT, &res);
+	fclose(f);
+	return res;
+}
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_dircache(struct cu_res_cpu_cache *target, int index)
+{
+	#define CPUCACHE CPUDIR "cpu0/cache/index0/"
+	#define CPUASSOC CPUCACHE "ways_of_associativity"
+	#define CPULINE "coherency_line_size"
+	#define CPUSIZE "size"
+
+	char cachedir[sizeof CPUASSOC];
+	memcpy(cachedir, CPUASSOC, sizeof CPUASSOC);
+	cachedir[sizeof CPUCACHE - 3] = '0' + (char)index;
+
+	target->assoc = (i32)cu_res_cpuinfo_numfile(cachedir);
+	memcpy(cachedir + sizeof CPUCACHE - 1, CPULINE, sizeof CPULINE);
+	target->line = (u32)cu_res_cpuinfo_numfile(cachedir);
+	memcpy(cachedir + sizeof CPUCACHE - 1, CPUSIZE, sizeof CPUSIZE);
+	target->size = (u32)cu_res_cpuinfo_numfile(cachedir) * 1024;
+}
+CU_ATTRIB_NOTHROW static i64 cu_res_cpuinfo_sysconf(int n)
+{
+	long res = sysconf(n);
+	return n == -1 ? 0 : res;
+}
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_syscache(struct cu_res_cpu_cache *target, int size_nproc, int index)
+{
+	cu_res_cpuinfo_dircache(target, index);
+	if (!target->size) target->size = (u32)cu_res_cpuinfo_sysconf(size_nproc);
+	errno = 0;
+	if (!target->assoc) target->assoc = (i32)cu_res_cpuinfo_sysconf(size_nproc + 1);
+	if (errno || !target->size) target->assoc = 0;
+	if (!target->line) target->line = (u32)cu_res_cpuinfo_sysconf(size_nproc + 2);
+}
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2)) static void cu_res_cpuinfo_fsearch(FILE *f, const char *fmt, u32 *target, char *starget, int highest)
+{
+	char lnbuf[384], *getres;
+	u32 targetex = 0;
+	int scanres;
+	if (!f) return;
+	if (target) *target = 0;
+
+	while (1) {
+		getres = fgets(lnbuf, sizeof lnbuf, f);
+		if (!getres) return;
+
+	CU_DIAGNOSTICS_PUSH
+	CU_DIAGNOSTICS_DISABLE_UNKNOWN_PRAGMAS
+	CU_PRAGMA(GCC diagnostic ignored "-Wformat-nonliteral")
+		scanres = sscanf(lnbuf, fmt, starget ? (void *)starget : (void *)&targetex);
+	CU_DIAGNOSTICS_POP
+		if (scanres == EOF) return;
+		else if (scanres != 1) continue;
+
+		if (highest) {
+			if (targetex > *target) *target = targetex;
+			continue;
+		} else if (target) *target = targetex;
+
+		return;
+	}
+}
+#  endif
 #elif CU_OS_WINDOWS
-#  include <psapi.h>
 #  include <ntsecapi.h>
+#  include <windows.h>
+#  include <psapi.h>
+typedef struct _PROCESSOR_POWER_INFORMATION {
+	ULONG Number, MaxMhz, CurrentMhz, MhzLimit, MaxIdleState, CurrentIdleState;
+} PROCESSOR_POWER_INFORMATION, *PPROCESSOR_POWER_INFORMATION;
+CU_ATTRIB_NOTHROW static CU_ATTRIB_CONST u32 cu_res_winpopcnt(ULONG_PTR v)
+{
+	u32 n;
+	for (n = 0; v; ++n, v &= v - 1);
+	return n;
+}
 #endif
 
 #if !CU_COMP_MSVC
@@ -869,39 +955,9 @@ int cu_dir_delete(const char *path, int rm_contents)
 #else
 #  define cu_sscanf(str, fmt, a1) sscanf_s(str, fmt, a1)
 #  define cu_sprintf(str, max, fmt, a1) sprintf_s(str, max, fmt, a1)
-#endif
-
-#if CU_COMP_MSVC && CU_ARCH_X86
-#  include <intrin.h>
-#  define cu_res_rdtsc() __rdtsc()
 #  pragma comment(lib, "Psapi.lib")
 #  pragma comment(lib, "Advapi32.lib")
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2)) static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
-{
-	__cpuidex((int *)regs, id, count);
-	return *regs;
-}
-#elif CU_ARCH_X86
-CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NOTHROW static u64 cu_res_rdtsc(void)
-{
-	u32 low, high;
-	CU_ASM volatile ("rdtsc" : "=a" (low), "=d" (high));
-	return CU_UPSHIFT((u64)high, 32) | low;
-}
-CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((3)) static u32 cu_res_cpuid(u32 id, u32 count, u32 *regs)
-{
-	CU_ASM(
-		"  xchg{q|} {%%|}rbx,%q1\n"
-		"  cpuid\n"
-		"  xchg{q|} {%%|}rbx,%q1"
-		: "=a"(regs[0]), "=r"(regs[1]), "=c"(regs[2]), "=d"(regs[3])
-		: "0"(id), "2"(count)
-	);
-	return *regs;
-}
-#else
-#  define cu_res_rdtsc() 0
-#  define cu_res_cpuid(id, count, regs) 0
+#  pragma comment(lib, "PowrProf.lib")
 #endif
 
 char *cu_res_bytefmt(char *str, u64 bytes)
@@ -1078,61 +1134,348 @@ real64 cu_res_cpuusage(void)
 #endif
 }
 
-int cu_res_cpuinfo(cu_res_cpu *info)
+#if CU_ARCH_X86
+#  define CU_RES_CPUINFO_REGS { 0, 0, 0, 0 }
+#  if CU_COMP_MSVC
+#    include <intrin.h>
+#    define cu_rdtsc() __rdtsc()
+#  else
+#    include <cpuid.h>
+CU_ATTRIB_WARN_UNUSED_RESULT CU_ATTRIB_NOTHROW static u64 cu_rdtsc(void)
 {
-	u32 regs[4] = { 0, 0, 0, 0 }, cpu_family, level, i = 1;
-	struct cu_res_cpu_cache *target;
+	u32 low, high;
+	CU_ASM volatile ("rdtsc" : "=a" (low), "=d" (high));
+	return CU_UPSHIFT((u64)high, 32) | low;
+}
+#  endif
+#  define cu_cpuid(leaf, subleaf) __cpuidex((int *)regs, (int)(leaf), (int)(subleaf))
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_cpuid0(cu_res_cpu* info, int base, int vendor)
+{
+	u32 regs[4] = CU_RES_CPUINFO_REGS;
+	cu_cpuid(0x0, 0);
 
-	memset(info, 0, sizeof *info);
+	if (base) info->cpuid_base_max = regs[0];
+	if (vendor) {
+		memcpy(info->vendor + 0, regs + 1, 4);
+		memcpy(info->vendor + 4, regs + 3, 4);
+		memcpy(info->vendor + 8, regs + 2, 4);
+		info->vendor_id = !strcmp(info->vendor, "GenuineIntel") ? 1 : (!strcmp(info->vendor, "AuthenticAMD") ? 2 : 0);
+	}
+}
+#endif
 
-	info->cpuid_level = cu_res_cpuid(0x0, 0, regs);
-	memcpy(info->vendor + 0, regs + 1, 4);
-	memcpy(info->vendor + 4, regs + 3, 4);
-	memcpy(info->vendor + 8, regs + 2, 4);
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_idfeatures(cu_res_cpu *info, FILE *cpuf)
+{
+#if CU_ARCH_X86
+	u32 regs[4] = CU_RES_CPUINFO_REGS, i;
+#endif
 
-	for (i = 0; i < 3; ++i) {
-		CU_UNUSED(cu_res_cpuid(0x80000002 + i, 0, regs));
-		memcpy(info->name + i * 16, regs, 16);
+#if CU_OS_MAC
+	cu_res_cpuinfo_sysctl("machdep.cpu.brand_string", info->name, sizeof info->name);
+	CU_UNUSED(cpuf);
+#elif CU_OS_UNIX
+#  if CU_ARCH_X86
+	cu_res_cpuinfo_fsearch(cpuf, "model name : %51[^\n]", NULL, info->name, 0);
+#  else
+	cu_res_cpuinfo_fsearch(cpuf, "Model : %51[^\n]", NULL, info->name, 0);
+	if (!info->name) cu_res_cpuinfo_fsearch(cpuf, "Processor : %51[^\n]", NULL, info->name, 0);
+	if (!info->name) cu_res_cpuinfo_fsearch(cpuf, "model name : %51[^\n]", NULL, info->name, 0);
+	if (!info->name) {
+		FILE *devtree = fopen("/sys/firmware/devicetree/base/model", "r");
+		if (devtree) {
+			cu_res_cpuinfo_fsearch(devtree, "%51s", NULL, info->name, 0);
+			fclose(devtree);
+		}
+	}
+#  endif
+#elif CU_OS_WINDOWS
+	HKEY hkey;
+	LONG result = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hkey);
+	if (result == ERROR_SUCCESS) {
+		DWORD namebytes = sizeof info->name;
+		result = RegQueryValueExA(hkey, "ProcessorNameString", NULL, NULL, (LPBYTE)info->name, &namebytes);
+		RegCloseKey(hkey);
+	}
+	CU_UNUSED(cpuf);
+#else
+	CU_UNUSED(cpuf);
+#endif
+
+#if CU_ARCH_X86
+	cu_res_cpuinfo_cpuid0(info, 1, 1);
+	if (info->cpuid_base_max >= 1) {
+		cu_cpuid(0x1, 0);
+		info->stepping_id = (u32)(CU_BITSOF(regs[0], 0, 3));
+		info->family_id = (u32)(CU_BITSOF(regs[0], 8, 11));
+		info->model_id = (u32)(CU_BITSOF(regs[0], 4, 7) + ((info->family_id == 6 || info->family_id == 15) * CU_UPSHIFT(CU_BITSOF(regs[0], 16, 19), 4)));
+		info->family_id = (u32)(info->family_id + (CU_BITSOF(regs[0], 20, 27) * (u32)(info->family_id == 15)));
+		info->fx86_ecx1 = regs[2];
+		info->fx86_edx1 = regs[3];
 	}
 
-	CU_UNUSED(cu_res_cpuid(0x1, 0, regs));
-	info->stepping_id = (u32)(CU_BITSOF(regs[0], 0, 3));
-	cpu_family = (u32)(CU_BITSOF(regs[0], 8, 11));
-	info->model_id = (u32)(CU_BITSOF(regs[0], 4, 7) + ((cpu_family == 6 || cpu_family == 15) * CU_UPSHIFT(CU_BITSOF(regs[0], 16, 19), 4)));
-	info->family_id = (u32)(cpu_family + (CU_BITSOF(regs[0], 20, 27) * (u32)(cpu_family == 15)));
+	if (info->cpuid_base_max >= 1) {
+		cu_cpuid(0x7, 0);
+		info->fx86_ebx7 = regs[1];
+		info->fx86_ecx7 = regs[2];
+	}
+
+	cu_cpuid(0x80000000u, 0);
+	info->cpuid_ext_max = regs[0];
+
+	if (info->cpuid_ext_max >= 0x80000001) {
+		cu_cpuid(0x80000001u, 0);
+		info->fx86_ecx81 = regs[2];
+		info->fx86_edx81 = regs[3];
+	}
+
+	if (info->cpuid_ext_max >= 0x80000004) {
+		for (i = 0; i < 3; ++i) {
+			cu_cpuid(0x80000002u + i, 0);
+			memcpy(info->name + i * 16, regs, 16);
+		}
+	}
+#else
+	CU_UNUSED(info);
+#endif
+}
+
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_corecache(cu_res_cpu *info, FILE *cpuf)
+{
+#if CU_ARCH_X86
+	u32 regs[4] = CU_RES_CPUINFO_REGS, i;
+#endif
+
+#if CU_OS_MAC
+	int64_t res;
+	cu_res_cpuinfo_sysctl("hw.cachelinesize", &res, sizeof res);
+	info->l1i.line = info->l1d.line = info->l2.line = info->l3.line = (u32)res;
+	cu_res_cpuinfo_sysctl("hw.physicalcpu", &res, sizeof res);
+	info->processor_cores = (u32)res;
+	cu_res_cpuinfo_sysctl("hw.logicalcpu", &res, sizeof res);
+	info->logical_processors = (u32)res;
+	cu_res_cpuinfo_sysctl("hw.l1dcachesize", &res, sizeof res);
+	info->l1d.size = (u32)res;
+	cu_res_cpuinfo_sysctl("hw.l1icachesize", &res, sizeof res);
+	info->l1i.size = (u32)res;
+	cu_res_cpuinfo_sysctl("hw.l2cachesize", &res, sizeof res);
+	info->l2.size = (u32)res;
+	cu_res_cpuinfo_sysctl("hw.l3cachesize", &res, sizeof res);
+	info->l3.size = (u32)res;
+	CU_UNUSED(cpuf);
+#elif CU_OS_UNIX
+	int smt, firstdata, duall1, onln = (int)sysconf(_SC_NPROCESSORS_ONLN);
+	FILE *typef;
+
+	errno = 0;
+	smt = (int)cu_res_cpuinfo_numfile(CPUDIR "smt/active");
+	if (errno == ENOENT) smt = -1;
+
+	if ((typef = fopen(CPUDIR "cpu0/cache/index0/type", "r"))) {
+		firstdata = fgetc(typef) == 'D';
+		fclose(typef);
+	} else firstdata = 0;
+	duall1 = cu_res_cpuinfo_numfile(CPUDIR "cpu0/cache/index1/level") == 1;
+
+	cu_res_cpuinfo_syscache(&info->l1i, _SC_LEVEL1_ICACHE_SIZE, !firstdata);
+	if (duall1) cu_res_cpuinfo_syscache(&info->l1d, _SC_LEVEL1_DCACHE_SIZE, firstdata);
+	cu_res_cpuinfo_syscache(&info->l2, _SC_LEVEL2_CACHE_SIZE, 1 + duall1);
+	cu_res_cpuinfo_syscache(&info->l3, _SC_LEVEL3_CACHE_SIZE, 2 + duall1);
+	cu_res_cpuinfo_syscache(&info->l4, _SC_LEVEL4_CACHE_SIZE, 3 + duall1);
+
+	if (smt != -1 && onln != -1) {
+		info->processor_cores = (u32)(onln / (smt ? 2 : 1));
+		info->logical_processors = (u32)onln;
+	} else if (cpuf) {
+		cu_res_cpuinfo_fsearch(cpuf, "cpu cores : %u", &info->processor_cores, NULL, 0);
+		rewind(cpuf);
+		cu_res_cpuinfo_fsearch(cpuf, "siblings : %u", &info->logical_processors, NULL, 0);
+
+		if (!info->processor_cores && !info->logical_processors) {
+			rewind(cpuf);
+			cu_res_cpuinfo_fsearch(cpuf, "processor : %u", &info->logical_processors, NULL, 1);
+			info->processor_cores = ++info->logical_processors / (smt == 1 ? 2 : 1);
+		}
+	}
+#elif CU_OS_WINDOWS
+	PSYSTEM_LOGICAL_PROCESSOR_INFORMATION buf, ptr;
+	DWORD buflen = 0, bufcnt, c;
+	CU_UNUSED(cpuf);
+
+	GetLogicalProcessorInformation(NULL, &buflen);
+	if (!(buf = malloc((size_t)buflen))) goto win_fail;
+	if (GetLogicalProcessorInformation(buf, &buflen) == FALSE) goto win_fail;
+
+	for (c = 0, ptr = buf, bufcnt = buflen / sizeof *buf; c < bufcnt; ++c, ++ptr) {
+		PCACHE_DESCRIPTOR cache;
+		struct cu_res_cpu_cache* target;
+		switch (ptr->Relationship) {
+		case RelationProcessorCore:
+			++info->processor_cores;
+			info->logical_processors += cu_res_winpopcnt(ptr->ProcessorMask);
+			break;
+		case RelationCache:
+			cache = &ptr->Cache;
+			target = NULL;
+			switch (cache->Level) {
+			case 1:
+				if (cache->Type == CacheData) target = &info->l1d;
+				else target = &info->l1i;
+				break;
+			case 2:
+				target = &info->l2;
+				break;
+			case 3:
+				target = &info->l3;
+				break;
+			}
+
+			if (target) {
+				target->line = (u32)cache->LineSize;
+				target->assoc = cache->Associativity == CACHE_FULLY_ASSOCIATIVE ? -1 : (i32)cache->Associativity;
+				target->size = (u32)cache->Size;
+			}
+
+			break;
+		default:
+			break;
+		}
+	}
+win_fail:
+	free(buf);
+#else
+	CU_UNUSED(cpuf);
+	CU_UNUSED(info);
+#endif
+
+#if CU_ARCH_X86
+	cu_res_cpuinfo_cpuid0(info, 0, 1);
+
+	if (info->vendor_id == 2) {
+		cu_cpuid(0x80000000u, 0);
+		if (regs[0] < 0x8000001Du) return;
+	} else if (regs[0] < 0x4) return;
 
 	for (i = 0; ; ++i) {
-		level = (cu_res_cpuid(0x04, i, regs) >> 5) & 0x7;
+		u32 level = ((cu_cpuid(info->vendor_id == 2 ? 0x8000001Du : 0x4u, i)), ((regs[0] >> 5) & 0x7));
+		struct cu_res_cpu_cache *target;
 		if (level == 1) target = ((regs[0] & 0x1F) == 1) ? &info->l1d : &info->l1i;
 		else if (level == 2) target = &info->l2;
 		else if (level == 3) target = &info->l3;
+		else if (level == 4) target = &info->l4;
 		else break;
 
-		target->assoc = (regs[1] >> 22) + 1;
-		target->line = (regs[1] & 0xFFF) + 1;
-		target->size = (((regs[1] >> 22) & 0x3FF) + 1) * (((regs[1] >> 12) & 0x3FF) + 1) * target->line * (regs[2] + 1);
+		if (!target->assoc) target->assoc = (regs[1] >> 22) + 1;
+		if (!target->line) target->line = (regs[1] & 0xFFF) + 1;
+		if (!target->size) target->size = (((regs[1] >> 22) & 0x3FF) + 1) * (((regs[1] >> 12) & 0x3FF) + 1) * target->line * (regs[2] + 1);
+	}
+#endif
+}
+
+CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_speed(cu_res_cpu *info)
+{
+#if CU_ARCH_X86
+	u32 regs[4] = CU_RES_CPUINFO_REGS;
+#endif
+
+#if CU_OS_MAC
+	i64 freq;
+	cu_res_cpuinfo_sysctl("hw.cpufrequency", &freq, sizeof freq);
+	info->cur_freq_hz = freq;
+	cu_res_cpuinfo_sysctl("hw.cpufrequency_max", &freq, sizeof freq);
+	info->max_freq_hz = freq;
+	cu_res_cpuinfo_sysctl("hw.cpufrequency_min", &freq, sizeof freq);
+	info->min_freq_hz = freq;
+#elif CU_OS_UNIX
+	int i;
+	struct { const char *fname; u64 *hzp; } cpuinfo_fs[3] = {
+		{ "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", NULL },
+		{ "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", NULL },
+		{ "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq", NULL },
+	};
+	cpuinfo_fs[0].hzp = &info->cur_freq_hz;
+	cpuinfo_fs[1].hzp = &info->max_freq_hz;
+	cpuinfo_fs[2].hzp = &info->min_freq_hz;
+	for (i = 0; i < 3; ++i) if (!*cpuinfo_fs[i].hzp) *cpuinfo_fs[i].hzp = cu_res_cpuinfo_numfile(cpuinfo_fs[i].fname) * 1000;
+#elif CU_OS_WINDOWS
+	PROCESSOR_POWER_INFORMATION *ppi = NULL;
+	SYSTEM_INFO si;
+	size_t nbytes;
+	LONG keyres;
+	HKEY hkey;
+
+	GetSystemInfo(&si);
+	ppi = (PROCESSOR_POWER_INFORMATION *)malloc((nbytes = sizeof *ppi * (size_t)si.dwNumberOfProcessors));
+	if (ppi && CallNtPowerInformation(ProcessorInformation, NULL, 0, ppi, nbytes) == 0) info->max_freq_hz = (u64)ppi[0].MaxMhz * 1000 * 1000;
+	free(ppi);
+
+	keyres = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hkey);
+	if (keyres == ERROR_SUCCESS) {
+		DWORD bootmhz = 0, mhzbytes = sizeof bootmhz;
+		keyres = RegQueryValueExA(hkey, "~MHz", NULL, NULL, (LPBYTE)&bootmhz, &mhzbytes);
+		if (keyres == ERROR_SUCCESS) info->base_freq_hz = bootmhz * 1000 * 1000;
+		RegCloseKey(hkey);
+	}
+#endif
+
+#if CU_ARCH_X86
+	cu_cpuid(0x0, 0);
+	info->cpuid_base_max = *regs;
+
+	if (info->cpuid_base_max >= 0x16) {
+		cu_cpuid(0x16, 0);
+		info->base_freq_hz = regs[0] * 1000 * 1000;
+		info->max_freq_hz = regs[1] * 1000 * 1000;
 	}
 
-	if (info->cpuid_level >= 0x16 && cu_res_cpuid(0x16, 0, regs)) info->base_freq_hz = regs[0] * 1000 * 1000;
-	else {
+	if (!info->base_freq_hz) {
 		float base_ghz = 0.0f;
 		char *base_ghz_parser = cu_strchr(info->name, '@');
 		if (base_ghz_parser) {
 			CU_UNUSED(cu_sscanf(base_ghz_parser, "%*s%f", &base_ghz));
 			info->base_freq_hz = (u64)(base_ghz * 1000.0f) * 1000 * 1000;
 		}
-	#if CU_ARCH_X86
-		else {
-			u64 start = cu_res_rdtsc();
-			double elapsed;
-			clock_t ts_start = clock();
-			do elapsed = (double)(clock() - ts_start) / CLOCKS_PER_SEC; while (elapsed < 0.01);
-			info->base_freq_hz = (u64)((double)(cu_res_rdtsc() - start) / elapsed);
-		}
-	#endif
 	}
 
-	return info->name[0] && info->vendor[0] && i >= 4 &&  info->base_freq_hz;
+	if (!info->max_freq_hz) {
+		double elapsed;
+		clock_t ts_start = clock();
+		u64 start = cu_rdtsc();
+		do elapsed = (double)(clock() - ts_start) / CLOCKS_PER_SEC; while (elapsed < 0.01);
+		info->max_freq_hz = (u64)((double)(cu_rdtsc() - start) / elapsed);
+	}
+#elif CU_SETTING_TIME_FUNCS
+	if (!info->max_freq_hz) {
+		double elapsed;
+		clock_t ts_start = clock();
+		cu_timer start, end;
+		cu_timer_fill(&start);
+		do elapsed = (double)(clock() - ts_start) / CLOCKS_PER_SEC; while (elapsed < 0.01);
+		cu_timer_fill(&end);
+		info->max_freq_hz = (u64)((double)(cu_timer_dif(&start, &end)) / elapsed);
+	}
+#endif
+}
+
+void cu_res_cpuinfo(cu_res_cpu *info, int idfeatures, int corecache, int speed)
+{
+	FILE *cpuf = NULL;
+#if CU_OS_UNIX && !CU_OS_MAC
+	cpuf = fopen("/proc/cpuinfo", "r");
+#endif
+	memset(info, 0, sizeof *info);
+#if CU_ARCH_X86
+	info->arch = 1;
+#elif CU_ARCH_ARM
+	info->arch = 2;
+#else
+	info->arch = 0;
+#endif
+
+	if (idfeatures) cu_res_cpuinfo_idfeatures(info, cpuf);
+	if (corecache) cu_res_cpuinfo_corecache(info, cpuf);
+	if (speed) cu_res_cpuinfo_speed(info);
+
+	if (cpuf) fclose(cpuf);
 }
 
 uptr cu_res_osname(char *namebuf)
