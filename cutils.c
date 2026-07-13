@@ -746,8 +746,8 @@ char *cu_file_exe_path(const char *CU_RESTRICT argv, uptr *CU_RESTRICT allocd)
 	return buf;
 #elif CU_OS_UNIX
 	struct stat s;
-	char *buf;
-	size_t len;
+	char *buf = NULL;
+	size_t len = 0;
 
 	if (argv[0] == '/') {
 		len = strlen(argv) + 1;
@@ -1179,9 +1179,9 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_idfeatures(c
 	cu_res_cpuinfo_fsearch(cpuf, "model name : %51[^\n]", NULL, info->name, 0);
 #  else
 	cu_res_cpuinfo_fsearch(cpuf, "Model : %51[^\n]", NULL, info->name, 0);
-	if (!info->name) cu_res_cpuinfo_fsearch(cpuf, "Processor : %51[^\n]", NULL, info->name, 0);
-	if (!info->name) cu_res_cpuinfo_fsearch(cpuf, "model name : %51[^\n]", NULL, info->name, 0);
-	if (!info->name) {
+	if (!*info->name) cu_res_cpuinfo_fsearch(cpuf, "Processor : %51[^\n]", NULL, info->name, 0);
+	if (!*info->name) cu_res_cpuinfo_fsearch(cpuf, "model name : %51[^\n]", NULL, info->name, 0);
+	if (!*info->name) {
 		FILE *devtree = fopen("/sys/firmware/devicetree/base/model", "r");
 		if (devtree) {
 			cu_res_cpuinfo_fsearch(devtree, "%51s", NULL, info->name, 0);

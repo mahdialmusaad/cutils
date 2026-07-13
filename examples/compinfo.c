@@ -1,6 +1,7 @@
 #include "../cutils.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 
 static const struct { const char *flag, *desc; } options[] = {
@@ -55,6 +56,8 @@ int main(int argc, char **argv)
 	}
 
 	err = 0;
+
+	memset(&meminfo, 0, sizeof meminfo);
 
 	if ((active[1] || active[2]) && !cu_res_meminfo(&meminfo)) {
 		fprintf(stderr, "Failed to retrieve memory info.\n");
