@@ -936,6 +936,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2)) static void cu_res_cpuinfo_fsearch(FILE
 #  endif
 #elif CU_OS_WINDOWS
 #  include <ntsecapi.h>
+#  include <powrprof.h>
 #  include <windows.h>
 #  include <psapi.h>
 typedef struct _PROCESSOR_POWER_INFORMATION {
@@ -1399,12 +1400,12 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_speed(cu_res
 #elif CU_OS_WINDOWS
 	PROCESSOR_POWER_INFORMATION *ppi = NULL;
 	SYSTEM_INFO si;
-	size_t nbytes;
+	ULONG nbytes;
 	LONG keyres;
 	HKEY hkey;
 
 	GetSystemInfo(&si);
-	ppi = (PROCESSOR_POWER_INFORMATION *)malloc((nbytes = sizeof *ppi * (size_t)si.dwNumberOfProcessors));
+	ppi = (PROCESSOR_POWER_INFORMATION *)malloc((size_t)(nbytes = (ULONG)(sizeof *ppi * (size_t)si.dwNumberOfProcessors)));
 	if (ppi && CallNtPowerInformation(ProcessorInformation, NULL, 0, ppi, nbytes) == 0) info->max_freq_hz = (u64)ppi[0].MaxMhz * 1000 * 1000;
 	free(ppi);
 
