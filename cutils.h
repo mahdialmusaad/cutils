@@ -1933,10 +1933,12 @@ typedef struct cu_hmap_element
 	struct cu_hmap_element *next;
 } cu_hmap_element;
 
+#define CU_HMAP_NBUCKETS 256
+
 /* Hash map object. */
 typedef struct cu_hmap
 {
-	cu_hmap_element *buckets[256];
+	cu_hmap_element *buckets[CU_HMAP_NBUCKETS];
 	cu_hmap_equalfunc equalfunc;
 	cu_hmap_hashfunc hashfunc;
 } cu_hmap;
