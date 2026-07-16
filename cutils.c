@@ -456,7 +456,7 @@ void cu_list_cut(cu_list *l, uptr ind, uptr count)
 {
 	if (CU_UNLIKELY(ind >= l->len)) return;
 	if (CU_UNLIKELY(ind + count > l->len)) count = l->len - ind;
-	memmove(((u8 *)l->data) + (ind * l->elem), ((u8 *)l->data) + ((ind + count) * l->elem), (ind + count) * l->elem);
+	memmove(((u8 *)l->data) + (ind * l->elem), ((u8 *)l->data) + ((ind + count) * l->elem), (l->len - (ind + count)) * l->elem);
 	l->len -= count;
 }
 

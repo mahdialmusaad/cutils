@@ -4,7 +4,7 @@
 
 TFUNC(cu_cont1)
 {
-	int to_add = 1, to_add2 = 2, c = 0;
+	int to_add = 1, to_add2 = 2, to_add3 = 3, to_add4 = 4, c = 0;
 	cu_list l;
 
 	EXPECT(cu_list_init(&l, sizeof(int)) == &l);
@@ -22,9 +22,23 @@ TFUNC(cu_cont1)
 	EXPECT(l.cap >= l.len);
 	EXPECT(*(int *)cu_list_at(&l, 0) == to_add2);
 	EXPECT(*(int *)cu_list_at(&l, 1) == to_add);
+	EXPECT(cu_list_add(&l, &to_add3));
+	EXPECT(cu_list_add(&l, &to_add4));
+	EXPECT(l.len == 4);
+	EXPECT(l.cap == 4);
+	cu_list_cut(&l, 1, 2);
+	EXPECT(l.len == 2);
+	EXPECT(l.cap == 4);
+	EXPECT(*(int *)cu_list_at(&l, 0) == to_add2);
+	EXPECT(*(int *)cu_list_at(&l, 1) == to_add4);
+	EXPECT0(cu_list_has(&l, &to_add));
+	EXPECT0(cu_list_has(&l, &to_add3));
 	EXPECT(cu_list_has(&l, &to_add2));
 	EXPECT0(cu_list_has(&l, &c));
 	cu_list_clear(&l);
+	EXPECT0(l.len);
+	EXPECT0(l.cap);
+	EXPECT0(l.data);
 }
 
 #else
