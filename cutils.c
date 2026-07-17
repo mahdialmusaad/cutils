@@ -51,10 +51,8 @@ static uptr cu_npow2(uptr v)
 	v |= CU_DWSHIFT(v, 2);
 	v |= CU_DWSHIFT(v, 4);
 	v |= CU_DWSHIFT(v, 8);
-#if CU_PTR_BYTES >= 4
 	v |= CU_DWSHIFT(v, 16);
-#endif
-#if CU_PTR_BYTES >= 8
+#if CU_DM_64BIT
 	v |= CU_DWSHIFT(v, 32);
 #endif
 	v++;
@@ -2209,7 +2207,7 @@ int cu_server_listen(cu_net_remote *CU_RESTRICT srem, const char *CU_RESTRICT po
 					r = s.rems + freelist[0];
 					freelist[0] = freelist[--nfree];
 				} else r = s.rems + s.nclients;
-				
+
 				if ((r->fd = accept(srem->fd, (struct sockaddr *)&r->ip_info, &sa_len)) == CU_NETERRSOCK) continue;
 				if (s.nclients == tcp_maxclients) {
 				decline:

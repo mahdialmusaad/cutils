@@ -722,6 +722,50 @@ extern "C" {
 #  define CU_PLAT_UWP 0
 #endif
 
+/* ========================= Data model ======================== */
+
+#if (defined(__fourbyteints__) && !(__fourbyteints__ - 0))
+#  define CU_DM_LP32 1
+#else
+#  define CU_DM_LP32 0
+#endif
+
+#if (CU_COMP_MSVC && CU_OS_WIN32) || defined(_ILP32) || defined(__ILP32__) || (defined(__fourbyteints__) && __fourbyteints__)
+#  define CU_DM_ILP32 1
+#else
+#  define CU_DM_ILP32 0
+#endif
+
+#if defined(_LP64) || defined(__LP64__)
+#  define CU_DM_LP64 1
+#else
+#  define CU_DM_LP64 0
+#endif
+
+#if defined(__LLP64__) || (CU_COMP_MSVC && CU_OS_WIN64) || CU_PLAT_MINGW || (CU_COMP_CLANG && CU_OS_MAC)
+#  define CU_DM_LLP64 1
+#else
+#  define CU_DM_LLP64 0
+#endif
+
+#if CU_DM_LLP64 || CU_DM_LP64 || CU_ARCH_64BIT || CU_OS_64BIT
+#  define CU_DM_64BIT 1
+#  define CU_DM_32BIT 0
+#else
+#  define CU_DM_64BIT 0
+#  define CU_DM_32BIT 1
+#endif
+
+#if CU_DM_LLP64 || CU_DM_32BIT
+#  define CU_DM_LONGSUF ll
+#  define CU_DM_LONGSUF_CAP LL
+#  define CU_DM_LL 1
+#else
+#  define CU_DM_LONGSUF l
+#  define CU_DM_LONGSUF_CAP L
+#  define CU_DM_LL 0
+#endif
+
 /* ========================= Language features ======================== */
 
 #define CU_LANG_C23 202311L
@@ -783,12 +827,12 @@ extern "C" {
 #  define CU_THREAD_POSIX_AVAILABLE 0
 #endif
 
-#define CU_CONCAT3_DETAIL(a, b, c) a ## b ## c
-#define CU_CONCAT_DETAIL(a, b) a ## b
+#define CU_CONCAT3_DETAIL(a,b,c) a ## b ## c
+#define CU_CONCAT_DETAIL(a,b) a ## b
 #define CU_STRINGIFY_DETAIL(a) #a
 
-#define CU_CONCAT3(a, b, c) CU_CONCAT3_DETAIL(a, b, c)
-#define CU_CONCAT(a, b) CU_CONCAT_DETAIL(a, b)
+#define CU_CONCAT3(a,b,c) CU_CONCAT3_DETAIL(a,b,c)
+#define CU_CONCAT(a,b) CU_CONCAT_DETAIL(a,b)
 #define CU_STRINGIFY(a) CU_STRINGIFY_DETAIL(a)
 #define CU_EVAL(a) a
 
@@ -893,6 +937,7 @@ extern "C" {
 #  define CU_LINE 0
 #  define CU_LINE_AVAILABLE 0
 #endif
+
 #ifdef __COUNTER__
 #  define CU_COUNTER __COUNTER__
 #  define CU_COUNTER_AVAILABLE 1
@@ -938,7 +983,7 @@ extern "C" {
 
 #if !defined(CU_ENDIAN_BIG) && !defined(CU_ENDIAN_LITTLE)
 #  define CU_ENDIAN_LITTLE 1
-#  define CU_ENDIAN_BIG 1
+#  define CU_ENDIAN_BIG 0
 #endif
 
 #if defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && __FLOAT_WORD_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -948,13 +993,8 @@ extern "C" {
 #  define CU_ENDIAN_FLT_LITTLE 1
 #  define CU_ENDIAN_FLT_BIG 0
 #else
-#  if CU_ENDIAN_BIG
-#    define CU_ENDIAN_FLT_LITTLE 0
-#    define CU_ENDIAN_FLT_BIG 1
-#  else
-#    define CU_ENDIAN_FLT_LITTLE 1
-#    define CU_ENDIAN_FLT_BIG 0
-#  endif
+#  define CU_ENDIAN_FLT_LITTLE CU_ENDIAN_LITTLE
+#  define CU_ENDIAN_FLT_BIG CU_ENDIAN_BIG
 #endif
 
 #if CU_ENDIAN_LITTLE
@@ -1001,18 +1041,25 @@ extern "C" {
 #  define CU_RESTRICT_AVAILABLE 0
 #endif
 
-#if CU_LANG_C >= CU_LANG_C11
-#  if CU_LANG_C >= CU_LANG_C23
-#    define CU_ALIGNAS(x) alignas(x)
-#    define CU_ALIGNOF(x) alignof(x)
-#  else
-#    define CU_ALIGNAS(x) _Alignas(x)
-#    define CU_ALIGNOF(x) _Alignof(x)
-#  endif
+#if CU_COMPVER(GNU, 4, 0) || (CU_COMP_CLANG && !defined(__EMSCRIPTEN__))
+#  define CU_OFFSETOF(s,m) (__builtin_offsetof(s,m))
+#elif CU_DM_LL
+#  define CU_OFFSETOF(s,m) ((unsigned long long)&(((s *)0)->m))
+#else
+#  define CU_OFFSETOF(s,m)  ((unsigned long)&(((s *)0)->m))
+#endif
+
+#if CU_LANG_C >= CU_LANG_C23
+#  define CU_ALIGNAS(x) alignas(x)
+#  define CU_ALIGNOF(x) alignof(x)
+#  define CU_ALIGNMENT_AVAILABLE 1
+#elif CU_LANG_C >= CU_LANG_C11
+#  define CU_ALIGNAS(x) _Alignas(x)
+#  define CU_ALIGNOF(x) _Alignof(x)
 #  define CU_ALIGNMENT_AVAILABLE 1
 #else
 #  define CU_ALIGNAS(x)
-#  define CU_ALIGNOF(x) CU_PTR_BYTES
+#  define CU_ALIGNOF(x) CU_OFFSETOF(struct{char c;x m;},m)
 #  define CU_ALIGNMENT_AVAILABLE 0
 #endif
 
@@ -1058,9 +1105,7 @@ extern "C" {
 #endif
 
 #if CU_LANG_C >= CU_LANG_C11 && !defined(__STDC_NO_ATOMICS__) && CU_HAS_INCLUDE(<stdatomic.h>)
-#  if CU_ARCH_RISCV && CU_COMP_CLANG
-#    include <stdint.h>
-#  endif
+#  include <stdint.h>
 #  include <stdatomic.h>
 #  define CU_ATOMIC _Atomic
 #  define CU_ATOMIC_AVAILABLE 1
@@ -1294,7 +1339,6 @@ _Pragma("GCC diagnostic ignored \"-Wreserved-id-macro\"")
 #  define CU_DIAGNOSTICS_DISABLE_RESERVED
 #endif
 
-
 #if CU_HAS_WARNING("-Wdisabled-macro-expansion")
 #  define CU_DIAGNOSTICS_DISABLE_MACRO_EXP _Pragma("GCC diagnostic ignored \"-Wdisabled-macro-expansion\"")
 #else
@@ -1441,7 +1485,7 @@ CU_DIAGNOSTICS_POP
 #elif CU_HAS_INCLUDE(<stdlib.h>) && CU_HAS_INCLUDE(<stdio.h>)
 #  include <stdio.h>
 #  include <stdlib.h>
-CU_ATTRIB_NORETURN CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2, 3, 4)) CU_ATTRIB_USED CU_ATTRIB_COLD
+CU_ATTRIB_NORETURN CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2,3,4)) CU_ATTRIB_USED CU_ATTRIB_COLD
 static void __cu_assert_fail(int line, const char *func, const char *file, const char *cond)
 {
 	printf("%s:%d: %s: Assertion '%s' failed.\n", file, line, func, cond);
@@ -1454,58 +1498,6 @@ static void __cu_assert_fail(int line, const char *func, const char *file, const
 
 #define CU_UNUSED(var) ((void)(var))
 #define CU_EMPTY() ((void)(0))
-
-/* ========================= Data model ======================== */
-
-#if (defined(__fourbyteints__) && !(__fourbyteints__ - 0))
-#  define CU_DM_LP32 1
-#else
-#  define CU_DM_LP32 0
-#endif
-
-#if (CU_COMP_MSVC && CU_OS_WIN32) || defined(_ILP32) || defined(__ILP32__) || (defined(__fourbyteints__) && __fourbyteints__)
-#  define CU_DM_ILP32 1
-#else
-#  define CU_DM_ILP32 0
-#endif
-
-#if defined(_LP64) || defined(__LP64__)
-#  define CU_DM_LP64 1
-#else
-#  define CU_DM_LP64 0
-#endif
-
-#if defined(__LLP64__) || (CU_COMP_MSVC && CU_OS_WIN64) || CU_PLAT_MINGW || (CU_COMP_CLANG && CU_OS_MAC)
-#  define CU_DM_LLP64 1
-#else
-#  define CU_DM_LLP64 0
-#endif
-
-#if CU_DM_LLP64 || CU_DM_LP64 || CU_ARCH_64BIT || CU_OS_64BIT
-#  define CU_DM_64BIT 1
-#  define CU_DM_32BIT 0
-#else
-#  define CU_DM_64BIT 0
-#  define CU_DM_32BIT 1
-#endif
-
-#if CU_DM_LLP64 || CU_DM_32BIT
-#  define CU_DM_LONGSUF ll
-#  define CU_DM_LONGSUF_CAP LL
-#  define CU_DM_LL 1
-#else
-#  define CU_DM_LONGSUF l
-#  define CU_DM_LONGSUF_CAP L
-#  define CU_DM_LL 0
-#endif
-
-#ifdef CHAR_BIT
-#  define CU_DM_BYTESIZE CHAR_BIT
-#elif defined(__CHAR_BIT__)
-#  define CU_DM_BYTESIZE __CHAR_BIT__
-#else
-#  define CU_DM_BYTESIZE 8
-#endif
 
 /* ========================= Types ======================== */
 
@@ -1537,11 +1529,9 @@ typedef unsigned short u16;
 #if CU_DM_64BIT
    typedef i64 iptr;
    typedef u64 uptr;
-#  define CU_PTR_BYTES 8
 #else
    typedef i32 iptr;
    typedef u32 uptr;
-#  define CU_PTR_BYTES 4
 #endif
 
 typedef i64 imax;
@@ -1572,10 +1562,6 @@ typedef u64 umax;
 #    define CU_DECIMAL128_AVAILABLE 0
 #  endif
 #endif
-
-CU_STATIC_ASSERT(sizeof(i32) == 4, "Invalid type size (i32)")
-CU_STATIC_ASSERT(sizeof(i64) == 8, "Invalid type size (i64)")
-CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
 
 #endif
 
@@ -1660,7 +1646,7 @@ CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
 #  define CU_UNREACHABLE()
 #endif
 #ifndef CU_ASSUME
-#  define CU_ASSUME(expr) ((void)((expr) ? 1 : (CU_UNREACHABLE(), 1)))
+#  define CU_ASSUME(expr) ((void)((expr) ? 1 : (CU_UNREACHABLE(),1)))
 #endif
 
 #if (CU_HAS_BUILTIN(__builtin_expect_with_probability)) || CU_COMPVER(GNU, 9, 0)
@@ -1714,7 +1700,7 @@ CU_STATIC_ASSERT(sizeof(iptr) >= sizeof(void *), "Invalid type size (iptr)")
 #  define CU_ULLONGMAX CU_U64MAX
 #endif
 
-#if CU_PTR_BYTES == 8
+#if CU_DM_64BIT
 #  define CU_UPTRMAX CU_U64MAX
 #  define CU_IPTRMAX CU_U64MAX
 #else
@@ -1796,19 +1782,19 @@ typedef struct custr
 
 /* Creates a custr from a normal string.
    The given custr pointer should be uninitialized, empty or (if it contains allocated text) cleared with custr_clear. */
-A_NTL((1, 2)) int custr_create(custr *A_RES c, const char *A_RES str);
+A_NTL((1,2)) int custr_create(custr *A_RES c, const char *A_RES str);
 /* Creates a custr using an already allocated string and returns the given custr.
    You can provide the allocated size or 0 to assume it is strlen + 1.
    The given custr pointer should be uninitialized, empty or (if it contains allocated text) cleared with custr_clear.
    The given allocated string should not be modified directly afterwards. */
-A_NTL((1, 2)) custr *custr_allocd(custr *A_RES c, char *A_RES allocdstr, uptr allocd_bytes);
+A_NTL((1,2)) custr *custr_allocd(custr *A_RES c, char *A_RES allocdstr, uptr allocd_bytes);
 
 /* Changes reserved space of custr and returns whether it succeeded.
    Setting the reserved space lower than or equal to the string length will truncate it and will always succeed.
    0 bytes deallocates it and will always succeed. */
 A_NTL((1)) int custr_reserve(custr *c, uptr bytes);
 /* Copies a custr to another. */
-A_NTL((1, 2)) int custr_copy(const custr *A_RES copy, custr *A_RES paste);
+A_NTL((1,2)) int custr_copy(const custr *A_RES copy, custr *A_RES paste);
 
 /* Sets custr length and moves terminator.
    No effect if given length is is larger than or equal to the string length. */
@@ -1821,13 +1807,13 @@ A_NTL((1)) int custr_optimize(custr *c);
 /* Inserts 'to_insert' into 'c' at their respective offsets.
    Fails if c_offset is larger than c's length or on allocation failure.
    Does nothing successfully if to_insert is empty (i.e. only a terminator). */
-A_NTL((1, 3)) int custr_insert(custr *A_RES c, uptr c_offset, const char *A_RES to_insert);
+A_NTL((1,3)) int custr_insert(custr *A_RES c, uptr c_offset, const char *A_RES to_insert);
 /* Same as custr_insert but 'c_offset' is the length of 'c'. */
-A_NTL((1, 2)) int custr_append(custr *A_RES c, const char *A_RES to_append);
+A_NTL((1,2)) int custr_append(custr *A_RES c, const char *A_RES to_append);
 
 /* Gets a substring of a given custr (inclusive indices). The ending index is clamped to the last character.
    The substring should not be allocated beforehand. */
-A_NTL((1, 2)) int custr_sub(const custr *A_RES c, custr *A_RES subresult, uptr start_ind, uptr end_ind);
+A_NTL((1,2)) int custr_sub(const custr *A_RES c, custr *A_RES subresult, uptr start_ind, uptr end_ind);
 /* Sets the given custr to a substring of itself.
    Both indices are inclusive.
    The ending index is clamped to the last character.
@@ -1843,12 +1829,12 @@ A_NTL((1)) void custr_cut(custr *c, uptr start_ind, uptr count);
 A_NTL((1)) int custr_count(const custr *c, char target);
 /* Returns the number of occurrences of a substring in a custr.
    The null terminator at the end of the string is excluded from counting. */
-A_NTL((1, 2)) int custr_countsub(const custr *A_RES c, const char *A_RES target);
+A_NTL((1,2)) int custr_countsub(const custr *A_RES c, const char *A_RES target);
 
 /* Sets the given custr to describe a variadically formatted string.
    The given custr pointer should be uninitialized, empty or (if it contains allocated text) cleared with custr_clear.
    Support for va_copy and snprintf is required. */
-A_NTL((1, 2)) CU_ATTRIB_FORMAT((printf, 2, 3)) int custr_fmt(custr *A_RES c, char *A_RES fmt, ...);
+A_NTL((1,2)) CU_ATTRIB_FORMAT((printf, 2, 3)) int custr_fmt(custr *A_RES c, char *A_RES fmt, ...);
 
 /* Appends the given file or directory name to 'c' (assuming it is a path).
    If given name is NULL, 'c' will be changed to describe the parent directory instead. */
@@ -1867,7 +1853,7 @@ A_NTL((1)) uptr custr_find(const custr *c, uptr c_offset, char target, int n);
 A_NTL((1)) uptr custr_findnot(const custr *c, uptr c_offset, char target, int n);
 
 /* Same as custr_find, but for substrings instead of single characters. */
-A_NTL((1, 3)) uptr custr_findsub(const custr *A_RES c, uptr c_offset, const char *A_RES target_substr, int n);
+A_NTL((1,3)) uptr custr_findsub(const custr *A_RES c, uptr c_offset, const char *A_RES target_substr, int n);
 
 /* Replaces a character with another. Null terminator replacement removes all occurrences.
    No effect if target character is a null terminator. */
@@ -1875,7 +1861,7 @@ A_NTL((1)) void custr_replace(custr *c, uptr c_offset, char target, char replace
 
 /* Replaces a substring with another. A replacement of a null pointer or null custr removes all occurrences.
    No effect if target substring is empty. */
-A_NTL((1, 3)) int custr_replacesub(custr *A_RES c, uptr c_offset, const char *A_RES target, const char *A_RES replacement);
+A_NTL((1,3)) int custr_replacesub(custr *A_RES c, uptr c_offset, const char *A_RES target, const char *A_RES replacement);
 
 #endif
 
@@ -1904,13 +1890,13 @@ A_NTL((1)) void *cu_list_at(cu_list *l, uptr ind);
    Returns NULL if the index is out-of-bounds. */
 A_NTL((1)) void *cu_list_atsf(cu_list *l, uptr ind);
 /* Returns whether any item in the array matches the given item. */
-A_NTL((1, 2)) int cu_list_has(cu_list *A_RES l, void *A_RES tomatch);
+A_NTL((1,2)) int cu_list_has(cu_list *A_RES l, void *A_RES tomatch);
 
 /* Inserts a number of elements to the cu_list at the specified index. Returns 1 on success, 0 on failure.
    Also fails if index is past the end of the cu_list (larger than its length). */
-A_NTL((1, 2)) int cu_list_insert(cu_list *A_RES l, void *A_RES elems, uptr nelems, uptr ind);
+A_NTL((1,2)) int cu_list_insert(cu_list *A_RES l, void *A_RES elems, uptr nelems, uptr ind);
 /* Appends the given element to the end of the list. Returns 1 on success, 0 on failure. */
-A_NTL((1, 2)) int cu_list_add(cu_list *A_RES l, void *A_RES elem);
+A_NTL((1,2)) int cu_list_add(cu_list *A_RES l, void *A_RES elem);
 
 /* Remove a specified number of elements from the cu_list starting from the given index.
    No effect if index is past the end. Count is clamped to the last element. */
@@ -1950,7 +1936,7 @@ A_NTL((1)) cu_hmap *cu_hmap_init(cu_hmap *h, cu_hmap_equalfunc equalfunc, cu_hma
 A_NTL((1)) cu_hmap *cu_hmap_clear(cu_hmap *A_RES h, int free_keys, int free_data);
 
 /* Add a key-value pair to the given cu_hmap. Returns 1 on success, 0 on failure. */
-A_NTL((1, 2)) int cu_hmap_add(cu_hmap *A_RES h, void *data, void *key);
+A_NTL((1,2)) int cu_hmap_add(cu_hmap *A_RES h, void *data, void *key);
 /* Find and return the data associated with the key, or NULL if not found. */
 A_NTL((1)) void *cu_hmap_find(cu_hmap *A_RES h, const void *A_RES key);
 /* Remove a key-value pair from the given cu_hmap.
@@ -1962,11 +1948,11 @@ A_NTL((1)) void *cu_hmap_remove(cu_hmap *A_RES h, const void *A_RES key, int fre
    This directly uses pointers from hash map 'b' for performance, so to
    prevent confusion from containing references to another hash map,
    all pointers in 'b' are cleared (this does not deallocate them). */
-A_NTL((1, 2)) void cu_hmap_combine(cu_hmap *A_RES a, cu_hmap *A_RES b);
+A_NTL((1,2)) void cu_hmap_combine(cu_hmap *A_RES a, cu_hmap *A_RES b);
 
 /* Iterate through all elements in the hash map, running the given function pointer with the key-value pairs.
    The 'user' pointer will simply be passed to the function as the 'user' argument. */
-A_NTL((1, 3)) cu_hmap *cu_hmap_iterate(cu_hmap *h, void *user, void (*work_func)(const void *key, void *data, void *user));
+A_NTL((1,3)) cu_hmap *cu_hmap_iterate(cu_hmap *h, void *user, void (*work_func)(const void *key, void *data, void *user));
 
 /* ========================= Filesystem ======================== */
 
@@ -1992,7 +1978,7 @@ A_NTL((1)) int cu_dir_create(const char *path);
    If 'fullname' is non-zero, the object's name is prefixed with the given directory path, otherwise, only the object's name is stored.
    The 'count' pointer will store how many objects there are.
    Returns NULL on allocation error or if the directory is inaccessible/does not exist. */
-A_NTL((1, 3)) char **cu_dir_list(const char *path, int fullname, int *count);
+A_NTL((1,3)) char **cu_dir_list(const char *path, int fullname, int *count);
 
 /* Deallocate a directory list. */
 A_NTL((1)) void cu_dir_close(char **dirlist, int count);
@@ -2009,7 +1995,7 @@ A_NTL((1)) void *cu_file_read(const char *A_RES path, void *A_RES result, int bi
 /* Write or append a number of bytes of 'content' into a file.
    Valid modes can be found in the macros CU_FILE_WRITETXT, CU_FILE_WRITEBIN, CU_FILE_APPENDTXT and CU_FILE_APPENDBIN.
    Returns 0 on error, which can be from failing to write to/open the file or an invalid mode value. */
-A_NTL((1, 2)) int cu_file_write(const char *A_RES path, const void *A_RES content, unsigned int mode, uptr bytes);
+A_NTL((1,2)) int cu_file_write(const char *A_RES path, const void *A_RES content, unsigned int mode, uptr bytes);
 
 #define CU_FILE_WRITETXT 0
 #define CU_FILE_WRITEBIN 1
@@ -2017,7 +2003,7 @@ A_NTL((1, 2)) int cu_file_write(const char *A_RES path, const void *A_RES conten
 #define CU_FILE_APPENDBIN 3
 
 /* Gets file information. Returns 0 if the file does not exist. */
-A_NTL((1, 2)) int cu_file_getinfo(const char *A_RES path, cu_file_info *A_RES f_info);
+A_NTL((1,2)) int cu_file_getinfo(const char *A_RES path, cu_file_info *A_RES f_info);
 
 /* Determines the current running executable's path.
    Returns allocated string and changes 'len' to allocated bytes.
@@ -2062,14 +2048,14 @@ struct cu_res_cpu_cache
 /* CPU feature test macros.
    You only need to pass in the cu_res_cpu structure.
    If it is a pointer, simply dereference it in the parameter. */
-#define CU_RES_C1(i,b) ((i).fx86_ecx1 & (CU_UPSHIFT(1, b)))
-#define CU_RES_D1(i,b) ((i).fx86_edx1 & (CU_UPSHIFT(1, b)))
-#define CU_RES_B7(i,b) ((i).fx86_ebx7 & (CU_UPSHIFT(1, b)))
+#define CU_RES_C1(i,b) ((i).fx86_ecx1 & (CU_UPSHIFT(1,b)))
+#define CU_RES_D1(i,b) ((i).fx86_edx1 & (CU_UPSHIFT(1,b)))
+#define CU_RES_B7(i,b) ((i).fx86_ebx7 & (CU_UPSHIFT(1,b)))
 #define CU_RES_B7I(i,b) (CU_RES_B7(i,b) && (i).vendor_id == 1)
-#define CU_RES_C7(i,b) ((i).fx86_ecx7 & (CU_UPSHIFT(1, b)))
-#define CU_RES_C8(i,b) ((i).fx86_ecx81 & (CU_UPSHIFT(1, b)))
+#define CU_RES_C7(i,b) ((i).fx86_ecx7 & (CU_UPSHIFT(1,b)))
+#define CU_RES_C8(i,b) ((i).fx86_ecx81 & (CU_UPSHIFT(1,b)))
 #define CU_RES_C8A(i,b) (CU_RES_C8(i,b) && (i).vendor_id == 2)
-#define CU_RES_D8(i,b) ((i).fx86_edx81 & (CU_UPSHIFT(1, b)))
+#define CU_RES_D8(i,b) ((i).fx86_edx81 & (CU_UPSHIFT(1,b)))
 #define CU_RES_D8A(i,b) (CU_RES_D8(i,b) && (i).vendor_id == 2)
 
 /* See the Wikipedia page on the CPUID instruction for more information on each feature. */
@@ -2329,7 +2315,7 @@ A_NTL((1)) void cu_time_subsec(cu_ctime *tm);
 A_NTL((1)) void cu_timer_fill(cu_timer *tm);
 
 /* Get the number of nanoseconds passed between two timers. */
-A_NNULL((1, 2)) A_WUR u64 cu_timer_dif(const cu_timer *A_RES start, const cu_timer *A_RES end);
+A_NNULL((1,2)) A_WUR u64 cu_timer_dif(const cu_timer *A_RES start, const cu_timer *A_RES end);
 
 /* Convert cu_timer_dif's nanoseconds result to different units of time. */
 #define CU_TIMEDIF_CONV(dif, unit) ((real64)(dif) / (real64)(unit))
@@ -2422,25 +2408,25 @@ A_NTH void cu_net_terminate(void);
    You can retry a specific number times with a specific delay using CU_NET_RETRYVAL.
    The following events can occur: CUEVT_DISCONNECT (TCP only), CUEVT_HEARTBEAT (unless delay is negative) and CUEVT_MESSAGE.
    Returns 0 if failed to connect, -1 on other error. Otherwise, it blocks until the server disconnects (CUEVT_DISCONNECT) then returns 1. */
-A_NTL((1, 2, 3, 7)) int cu_client_listen(cu_net_remote *A_RES server, const char *A_RES address, const char *A_RES port, void *A_RES user_ptr, u32 retryval, uptr mode, cu_event_handler ehandler, int heartbeat_delay_msec);
+A_NTL((1,2,3,7)) int cu_client_listen(cu_net_remote *A_RES server, const char *A_RES address, const char *A_RES port, void *A_RES user_ptr, u32 retryval, uptr mode, cu_event_handler ehandler, int heartbeat_delay_msec);
 
 /* Starts a server and listens for network events.
    The following events can occur: CUEVT_DISCONNECT (TCP only), CUEVT_CONNECT (TCP only), CUEVT_HEARTBEAT (unless delay is negative) and CUEVT_MESSAGE.
    Returns 0 if failed to start. Otherwise, it blocks until the server is closed then returns 1. */
-A_NTL((1, 2, 6)) int cu_server_listen(cu_net_remote *A_RES server, const char *A_RES port, void *A_RES user_ptr, uptr mode, uptr tcp_maxclients, cu_event_handler ehandler, int heartbeat_delay_msec);
+A_NTL((1,2,6)) int cu_server_listen(cu_net_remote *A_RES server, const char *A_RES port, void *A_RES user_ptr, uptr mode, uptr tcp_maxclients, cu_event_handler ehandler, int heartbeat_delay_msec);
 
 /* (TCP only) Sends a message to all connected clients, excluding those in the 'except' list. */
-A_NTL((1, 2)) void cu_server_broadcast(const cu_net_remote *A_RES server, const void *A_RES data, uptr bytes, cu_net_remote *A_RES *A_RES except, uptr except_len);
+A_NTL((1,2)) void cu_server_broadcast(const cu_net_remote *A_RES server, const void *A_RES data, uptr bytes, cu_net_remote *A_RES *A_RES except, uptr except_len);
 
 /* Queue a message to send to the given remote.
    If 'data' is allocated and not needed anymore, remember to free it.
    Returns 0 on error. */
-A_NTL((1, 2)) int cu_net_sendmsg(cu_net_remote *A_RES target, const void *A_RES data, uptr n);
+A_NTL((1,2)) int cu_net_sendmsg(cu_net_remote *A_RES target, const void *A_RES data, uptr n);
 
 /* Fills 'ipbuf' with the IP address of the given remote.
    At most CU_NET_IPADDR_LEN bytes are written, including the terminator.
    Returns NULL on error, otherwise 'ipbuf'. */
-A_NTL((1, 2)) char *cu_net_ipinfo(const cu_net_remote *A_RES remote, char *A_RES ipbuf);
+A_NTL((1,2)) char *cu_net_ipinfo(const cu_net_remote *A_RES remote, char *A_RES ipbuf);
 
 /* Closes the given remote.
    The CUEVT_DISCONNECT event will run afterwards, unless running a server and closing the server itself.
@@ -2573,7 +2559,7 @@ typedef struct cu_thread_pool
 A_NTL((1)) int cu_thread_pool_init(cu_thread_pool *pool, int nthreads);
 /* Adds a job to the thread pool.
    A thread will execute the function with the provided argument. */
-A_NTL((1, 2)) int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg);
+A_NTL((1,2)) int cu_thread_pool_add(cu_thread_pool *pool, cu_thread_func job, void *arg);
 /* Waits for all threads to join and destroys the thread pool. */
 A_NTL((1)) void cu_thread_pool_destroy(cu_thread_pool *pool);
 
@@ -2589,6 +2575,7 @@ A_NTH A_WUR u64 cu_thread_tid(void);
 #undef A_NNULL
 #undef A_NTH
 #undef A_WUR
+#undef A_NTL
 #undef A_RES
 
 #endif /* CU_SETTING_FUNCS */
