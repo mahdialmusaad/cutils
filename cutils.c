@@ -877,12 +877,12 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_sysctl(const
 #    define CPUDIR "/sys/devices/system/cpu/"
 CU_ATTRIB_NOTHROW static u64 cu_res_cpuinfo_numfile(const char *fname)
 {
-	u64 res = 0;
+	unsigned long res = 0;
 	FILE *f = fopen(fname, "r");
 	if (!f) return 0;
-	fscanf(f, "%" CU_U64_FMT, &res);
+	fscanf(f, "%lu", &res);
 	fclose(f);
-	return res;
+	return (u64)res;
 }
 CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_dircache(struct cu_res_cpu_cache *target, int index)
 {
@@ -1044,6 +1044,7 @@ int cu_res_meminfo(cu_res_mem *info)
 
 	return success;
 #elif CU_OS_UNIX && CU_HAS_INCLUDE(<sys/sysinfo.h>)
+	unsigned long tmp_virt_used, tmp_phys_used;
 	struct sysinfo si;
 	int success = 1;
 	FILE *f;
@@ -1058,7 +1059,9 @@ int cu_res_meminfo(cu_res_mem *info)
 	} else success = 0;
 
 	if (CU_LIKELY((f = fopen("/proc/self/statm", "r")))) {
-		fscanf(f, "%" CU_U64_FMT " %" CU_U64_FMT, &info->virtual_used, &info->physical_used);
+		fscanf(f, "%lu %lu", &tmp_virt_used, &tmp_phys_used);
+		info->virtual_used = (u64)tmp_virt_used;
+		info->physical_used = (u64)tmp_phys_used;
 		fclose(f);
 	} else success = 0;
 
@@ -1710,7 +1713,7 @@ void cu_timer_fill(cu_timer *tm)
 
 u64 cu_timer_dif(const cu_timer *CU_RESTRICT start, const cu_timer *CU_RESTRICT end)
 {
-	return ((end->secs - start->secs) * CU_U64_C(1000000000)) + (end->nsecs - start->nsecs);
+	return ((end->secs - start->secs) * 1000u * 1000u * 1000u) + (end->nsecs - start->nsecs);
 }
 
 #endif
