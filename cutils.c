@@ -1758,6 +1758,7 @@ enum
 #  include <fcntl.h>
 #  include <errno.h>
 #  include <poll.h>
+#  include <time.h>
 #  define cu_close close
 #  define CU_EAGAIN EAGAIN
 #  define CU_EWOULDBLOCK EWOULDBLOCK
@@ -2056,11 +2057,21 @@ CU_NN_NT((1, 3)) static int cu_net_generic_socket(cu_net_remote *rem, const char
 			if (bind(rem->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen) == CU_NETERR) goto fail;
 			if ((udp && cu_net_nonblock(rem->fd)) || (!udp && listen(rem->fd, SOMAXCONN) != CU_NETERR)) break;
 		} else {
+			#if CU_OS_UNIX
+				struct timespec tw;
+				tw.tv_sec = (retryval & 0xFFFF) / 1000;
+				tw.tv_nsec = ((retryval & 0xFFFF) % 1000) * 1000000;
+			#endif
+
 			while (1) {
 				if (connect(rem->fd, addr_it->ai_addr, (socklen_t)addr_it->ai_addrlen) != CU_NETERR) break;
-				if (CU_DWSHIFT(retryval, 16) == 0) goto fail;
+				if (retryval < 0x10000) goto fail;
 				retryval -= 0x10000;
-				poll(NULL, 0, retryval & 0xFFFF);
+			#if CU_OS_UNIX
+				CU_UNUSED(nanosleep(&tw, NULL));
+			#else
+				Sleep((DWORD)(retryval & 0xFFFF));
+			#endif
 			}
 			if (cu_net_nonblock(rem->fd)) break;
 		}

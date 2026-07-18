@@ -69,7 +69,7 @@ static void server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RE
 
 			for (i = 0; i < nclients; ++i) {
 				const char duplicate_msg[] = "[ Server ] That name is already in use.";
-				if (!clients[i].name || strcmp(c->name, strdata)) continue;
+				if (!clients[i].name || strcmp(clients[i].name, strdata)) continue;
 				cu_net_sendmsg(client_rem, duplicate_msg, sizeof duplicate_msg);
 				return;
 			}
@@ -80,9 +80,9 @@ static void server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RE
 			if (nclients == 1) custr_create(&notify, "[ Server ] Welcome, you are the only person connected.");
 			else {
 				custr_create(&notify, "[ Server ] Welcome, the other active user(s) are:");
-				for (i = 0; i < nclients - 1; ++i) {
+				for (i = 0; i < nclients; ++i) {
 					custr addfmt = CUSTR_EMPTY;
-					if (!clients[i].name) continue;
+					if (!clients[i].name || clients + i == c) continue;
 					custr_fmt(&addfmt, " '%s'", clients[i].name);
 					custr_append(&notify, addfmt.str);
 					custr_clear(&addfmt);
@@ -97,7 +97,7 @@ static void server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RE
 		} else {
 			custr msg = CUSTR_EMPTY;
 			custr_fmt(&msg, "%s: %s", c->name, strdata);
-			printf("Broadcasting %s's %uB message to %d others: \"%.50s\"%s\n", c->name, (unsigned)n, (int)nclients - 1, strdata, n > 50 ? "..." : "");
+			printf("Broadcasting %s's %uB message to %d other(s): \"%.50s\"%s\n", c->name, (unsigned)n, (int)nclients - 1, strdata, n > 50 ? "..." : "");
 			free(strdata);
 			cu_server_broadcast(server, msg.str, msg.len + 1, &client_rem, 1);
 			custr_clear(&msg);
@@ -105,6 +105,8 @@ static void server_event(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RE
 	} else if (event_type == CUEVT_CONNECT) {
 		const char name_msg[] = "[ Server ] Enter a username to be identified by.";
 		clients = (client *)realloc(clients, sizeof *clients * (nclients + 1));
+		if (!clients) abort();
+		client_rem->user = clients + nclients;
 		clients[nclients++].name = NULL;
 		printf("Client %s has joined. There are now %d client(s).\n", ipbuf, (int)nclients);
 		cu_net_sendmsg(client_rem, name_msg, sizeof name_msg);
