@@ -620,11 +620,11 @@ char **cu_dir_list(const char *path, int fullname, int *count)
 		if (dbufcnt >= dbufcap) {
 			void *rbuf = realloc(dbuf, (dbufcap *= 2) * sizeof *dbuf);
 			if (!rbuf) goto fail;
-			dbuf = rbuf;
+			dbuf = (char **)rbuf;
 		}
 
 		entrylen = strlen(fd.cFileName) + 1;
-		if (!(cbuf = dbuf[dbufcnt++] = malloc(entrylen + (size_t)(fullname ? pathlen : 0) + nosep))) goto fail;
+		if (!(cbuf = dbuf[dbufcnt++] = (char *)malloc(entrylen + (size_t)(fullname ? pathlen : 0) + nosep))) goto fail;
 
 		if (fullname) {
 			memcpy(cbuf, findpat, pathlen + 1);
@@ -1316,7 +1316,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_corecache(cu
 	CU_UNUSED(cpuf);
 
 	GetLogicalProcessorInformation(NULL, &buflen);
-	if (!(buf = malloc((size_t)buflen))) goto win_fail;
+	if (!(buf = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)malloc((size_t)buflen))) goto win_fail;
 	if (GetLogicalProcessorInformation(buf, &buflen) == FALSE) goto win_fail;
 
 	for (c = 0, ptr = buf, bufcnt = buflen / sizeof *buf; c < bufcnt; ++c, ++ptr) {
@@ -1411,14 +1411,14 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_speed(cu_res
 	cpuinfo_fs[2].hzp = &info->min_freq_hz;
 	for (i = 0; i < 3; ++i) if (!*cpuinfo_fs[i].hzp) *cpuinfo_fs[i].hzp = cu_res_cpuinfo_numfile(cpuinfo_fs[i].fname) * 1000;
 #elif CU_OS_WINDOWS
-	PROCESSOR_POWER_INFORMATION *ppi = NULL;
+	PPROCESSOR_POWER_INFORMATION ppi;
 	SYSTEM_INFO si;
 	ULONG nbytes;
 	LONG keyres;
 	HKEY hkey;
 
 	GetSystemInfo(&si);
-	ppi = (PROCESSOR_POWER_INFORMATION *)malloc((size_t)(nbytes = (ULONG)(sizeof *ppi * (size_t)si.dwNumberOfProcessors)));
+	ppi = (PPROCESSOR_POWER_INFORMATION)malloc((size_t)(nbytes = (ULONG)(sizeof *ppi * (size_t)si.dwNumberOfProcessors)));
 	if (ppi && CallNtPowerInformation(ProcessorInformation, NULL, 0, ppi, nbytes) == 0) info->max_freq_hz = (u64)ppi[0].MaxMhz * 1000 * 1000;
 	free(ppi);
 
@@ -1883,7 +1883,7 @@ char *cu_net_interfaces(char *ipbuf, int if_fmt, int id)
 	return ifd_it ? ipbuf : NULL;
 #else
 	PIP_ADAPTER_UNICAST_ADDRESS unicast;
-	PIP_ADAPTER_ADDRESSES paddr, cur_it = NULL;
+	PIP_ADAPTER_ADDRESSES paddr, cur_it;
 	ULONG buflen = 16384;
 
 	if (id < 0 || !(paddr = (PIP_ADAPTER_ADDRESSES)malloc((size_t)buflen))) return NULL;
