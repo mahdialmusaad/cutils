@@ -1572,14 +1572,6 @@ uptr cu_res_username(char *namebuf)
 #  include <stdlib.h>
 #endif
 
-#if CU_LANG_C >= CU_LANG_C23
-#  if CU_COMP_MSVC
-#    define cu_tzset() _tzset()
-#  else
-#    define cu_tzset() tzset()
-#  endif
-#endif
-
 void cu_time_now(cu_ctime *tm)
 {
 	cu_time_date(tm, (i64)time(NULL));
@@ -1597,9 +1589,13 @@ void cu_time_date(cu_ctime *tm, i64 timestamp)
 	size_t i;
 #endif
 
-#if CU_LANG_C >= CU_LANG_C23
+#if CU_LANG_C >= CU_LANG_C23 && !CU_PLAT_MINGW
 	struct tm now_st;
-	cu_tzset();
+#if CU_COMP_MSVC
+	_tzset();
+#else
+	tzset();
+#endif
 	localtime_r(&now_val, &now_st);
 	now = &now_st;
 #elif CU_COMP_MSVC
@@ -1775,9 +1771,9 @@ typedef size_t cu_tbytes;
 #else
 #  if CU_COMP_MSVC
 #    pragma comment(lib, "iphlpapi.lib")
-#    pragma comment(lib, "Ws2_32.lib")
+#    pragma comment(lib, "ws2_32.lib")
 #  endif
-#  include <Winsock2.h>
+#  include <winsock2.h>
 #  include <ws2tcpip.h>
 #  include <iphlpapi.h>
 #  define cu_close closesocket
@@ -1883,7 +1879,7 @@ char *cu_net_interfaces(char *ipbuf, int if_fmt, int id)
 	return ifd_it ? ipbuf : NULL;
 #else
 	PIP_ADAPTER_UNICAST_ADDRESS unicast;
-	PIP_ADAPTER_ADDRESSES paddr, cur_it;
+	PIP_ADAPTER_ADDRESSES paddr, cur_it = NULL;
 	ULONG buflen = 16384;
 
 	if (id < 0 || !(paddr = (PIP_ADAPTER_ADDRESSES)malloc((size_t)buflen))) return NULL;
@@ -2080,9 +2076,9 @@ CU_NN_NT((1, 3)) static int cu_net_generic_socket(cu_net_remote *rem, const char
 		rem->fd = CU_NETERRSOCK;
 	}
 
-	if (rem->fd != CU_NETERR) memcpy(rem->ip_info, addr_it->ai_addr, (mode & CU_NETMODE_IPV6) ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in));
+	if (rem->fd != CU_NETERRSOCK) memcpy(rem->ip_info, addr_it->ai_addr, (mode & CU_NETMODE_IPV6) ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in));
 	freeaddrinfo(addr_list);
-	if (rem->fd == CU_NETERR) return 0;
+	if (rem->fd == CU_NETERRSOCK) return 0;
 
 	rem->mode = (mode & (CU_NETMODE_UDP | CU_NETMODE_IPV6)) | (udp && is_server ? CU_NETMODE_UDPSERVER : 0);
 	return 1;
@@ -2124,7 +2120,7 @@ int cu_client_listen(cu_net_remote *CU_RESTRICT srem, const char *CU_RESTRICT ad
 	return 1;
 }
 
-CU_NN_NT((1, 3)) static int cu_net_modev(cu_event *event, int master, cu_net_remote *rem, int is_add, int out)
+CU_NN_NT((1, 3)) static int cu_net_modev(cu_event *event, cu_socket master, cu_net_remote *rem, int is_add, int out)
 {
 #ifdef CU_EPOLL
 	cu_event e;
@@ -2144,7 +2140,8 @@ CU_NN_NT((1, 3)) static int cu_net_modev(cu_event *event, int master, cu_net_rem
 
 int cu_server_listen(cu_net_remote *CU_RESTRICT srem, const char *CU_RESTRICT port, void *CU_RESTRICT user, uptr mode, uptr tcp_maxclients, cu_event_handler ehandler, int heartbeat_delay_msec)
 {
-	int master = CU_NETERRSOCK, nfree = 0, ret = 0, *freelist = NULL;
+	cu_socket master = CU_NETERRSOCK;
+	int nfree = 0, ret = 0, *freelist = NULL;
 	cu_net_server s = { NULL, 0 };
 	cu_event *evs_list = NULL;
 	uptr i, j;

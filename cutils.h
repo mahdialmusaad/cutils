@@ -730,7 +730,7 @@ extern "C" {
 #  define CU_DM_LP32 0
 #endif
 
-#if (CU_COMP_MSVC && CU_OS_WIN32) || defined(_ILP32) || defined(__ILP32__) || (defined(__fourbyteints__) && __fourbyteints__)
+#if (CU_COMP_MSVC && CU_OS_WIN32) || CU_PLAT_MINGW32 || defined(_ILP32) || defined(__ILP32__) || (defined(__fourbyteints__) && (__fourbyteints__ - 0))
 #  define CU_DM_ILP32 1
 #else
 #  define CU_DM_ILP32 0
@@ -742,7 +742,7 @@ extern "C" {
 #  define CU_DM_LP64 0
 #endif
 
-#if defined(__LLP64__) || (CU_COMP_MSVC && CU_OS_WIN64) || CU_PLAT_MINGW || (CU_COMP_CLANG && CU_OS_MAC)
+#if defined(__LLP64__) || (CU_COMP_MSVC && CU_OS_WIN64) || CU_PLAT_MINGW64 || (CU_COMP_CLANG && CU_OS_MAC)
 #  define CU_DM_LLP64 1
 #else
 #  define CU_DM_LLP64 0
@@ -1681,10 +1681,10 @@ typedef u64 umax;
 #define CU_U16MAX 0xFFFF
 #define CU_I32MAX 0x7FFFFFFF
 #define CU_U32MAX 0xFFFFFFFF
+#define CU_U64MAX ((u64)(-1))
+#define CU_I64MAX ((i64)CU_DWSHIFT(CU_U64MAX, 1))
 
 #if CU_DM_LL
-#  define CU_I64MAX 0x7FFFFFFFFFFFFFFFULL
-#  define CU_U64MAX 0xFFFFFFFFFFFFFFFFULL
 #  define CU_INTMAX CU_I32MAX
 #  define CU_UINTMAX CU_U32MAX
 #  define CU_LONGMAX CU_I32MAX
@@ -1692,8 +1692,6 @@ typedef u64 umax;
 #  define CU_LLONGMAX CU_I64MAX
 #  define CU_ULLONGMAX CU_U64MAX
 #else
-#  define CU_I64MAX 0x7FFFFFFFFFFFFFFFUL
-#  define CU_U64MAX 0xFFFFFFFFFFFFFFFFUL
 #  define CU_INTMAX CU_I32MAX
 #  define CU_UINTMAX CU_U32MAX
 #  define CU_LONGMAX CU_I64MAX
@@ -1704,7 +1702,7 @@ typedef u64 umax;
 
 #if CU_DM_64BIT
 #  define CU_UPTRMAX CU_U64MAX
-#  define CU_IPTRMAX CU_U64MAX
+#  define CU_IPTRMAX CU_I64MAX
 #else
 #  define CU_UPTRMAX CU_U32MAX
 #  define CU_IPTRMAX CU_I32MAX
