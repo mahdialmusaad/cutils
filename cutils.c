@@ -923,6 +923,8 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2)) static void cu_res_cpuinfo_fsearch(FILE
 	if (!f) return;
 	if (target) *target = 0;
 
+	rewind(f);
+
 	while (1) {
 		getres = fgets(lnbuf, sizeof lnbuf, f);
 		if (!getres) return;
@@ -1297,17 +1299,15 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_corecache(cu
 	cu_res_cpuinfo_syscache(&info->l4, _SC_LEVEL4_CACHE_SIZE, 3 + duall1);
 
 	if (smt != -1 && onln != -1) {
-		info->processor_cores = (u32)(onln / (smt ? 2 : 1));
-		info->logical_processors = (u32)onln;
+		info->phyiscal_cores = (u32)(onln / (smt ? 2 : 1));
+		info->logical_cores = (u32)onln;
 	} else if (cpuf) {
-		cu_res_cpuinfo_fsearch(cpuf, "cpu cores : %u", &info->processor_cores, NULL, 0);
-		rewind(cpuf);
-		cu_res_cpuinfo_fsearch(cpuf, "siblings : %u", &info->logical_processors, NULL, 0);
+		cu_res_cpuinfo_fsearch(cpuf, "cpu cores : %u", &info->phyiscal_cores, NULL, 0);
+		cu_res_cpuinfo_fsearch(cpuf, "siblings : %u", &info->logical_cores, NULL, 0);
 
-		if (!info->processor_cores && !info->logical_processors) {
-			rewind(cpuf);
-			cu_res_cpuinfo_fsearch(cpuf, "processor : %u", &info->logical_processors, NULL, 1);
-			info->processor_cores = ++info->logical_processors / (smt == 1 ? 2 : 1);
+		if (!info->phyiscal_cores && !info->logical_cores) {
+			cu_res_cpuinfo_fsearch(cpuf, "processor : %u", &info->logical_cores, NULL, 1);
+			info->phyiscal_cores = ++info->logical_cores / (smt == 1 ? 2 : 1);
 		}
 	}
 #elif CU_OS_WINDOWS

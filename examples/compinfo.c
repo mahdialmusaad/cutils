@@ -10,7 +10,7 @@ static const struct { const char *flag, *desc; } options[] = {
 	{ "m", "available amount of memory" },
 	{ "n", "CPU name and vendor" },
 	{ "c", "CPU cache and core information" },
-	{ "f", "CPU ID values" },
+	{ "f", "CPU ID values and features (x86 only)" },
 	{ "s", "CPU clock speed" },
 	{ "h", "hostname" },
 	{ "u", "current username" },
@@ -56,15 +56,14 @@ int main(int argc, char **argv)
 	}
 
 	err = 0;
-
 	memset(&meminfo, 0, sizeof meminfo);
 
 	if ((active[1] || active[2]) && !cu_res_meminfo(&meminfo)) {
 		fprintf(stderr, "Failed to retrieve memory info.\n");
 		err = 1;
 	} else if (active[1] || active[2]) {
-		if (active[1]) printf("%" CU_U64_FMT "B phys + %" CU_U64_FMT "B swap\n", meminfo.physical_present, meminfo.virtual_present - meminfo.physical_present);
-		if (active[2]) printf("%" CU_U64_FMT "B phys free + %" CU_U64_FMT "B swap free\n", meminfo.physical_free, meminfo.virtual_free - meminfo.physical_free);
+		if (active[1]) printf("Avail: %" CU_U64_FMT "B phys + %" CU_U64_FMT "B swap\n", meminfo.physical_present, meminfo.virtual_present - meminfo.physical_present);
+		if (active[2]) printf("Free:  %" CU_U64_FMT "B phys + %" CU_U64_FMT "B swap\n", meminfo.physical_free, meminfo.virtual_free - meminfo.physical_free);
 	}
 
 	if (active[3] || active[4] || active[5] || active[6]) {
@@ -72,15 +71,28 @@ int main(int argc, char **argv)
 		if (active[3]) printf("Name: %s\nVendor: %s\nArchitecture: %s\n", cpuinfo.name, cpuinfo.vendor, arch_names[cpuinfo.arch]);
 		if (active[4]) {
 			printf(
-				"L1i: %uB (assoc=%d, %uB line)\nL1d: %uB (assoc=%d, %uB line)\nL2: %uB (assoc=%d, %uB line)\nL3: %uB (assoc=%d, %uB line)\nLogical cores: %u\nProcessors: %u\n",
+				"L1i: %uB (assoc=%d, %uB line)\nL1d: %uB (assoc=%d, %uB line)\nL2: %uB (assoc=%d, %uB line)\nL3: %uB (assoc=%d, %uB line)\nCores: %u\nThreads: %u\n",
 				cpuinfo.l1i.size, cpuinfo.l1i.assoc, cpuinfo.l1i.line,
 				cpuinfo.l1d.size, cpuinfo.l1d.assoc, cpuinfo.l1d.line,
 				cpuinfo.l2.size, cpuinfo.l2.assoc, cpuinfo.l2.line,
 				cpuinfo.l3.size, cpuinfo.l3.assoc, cpuinfo.l3.line,
-				cpuinfo.logical_processors, cpuinfo.processor_cores
+				cpuinfo.phyiscal_cores, cpuinfo.logical_cores
 			);
 		}
-		if (active[5]) printf("Family: %u\nModel: %u\nStepping: %u\n", cpuinfo.family_id, cpuinfo.model_id, cpuinfo.stepping_id);
+		if (active[5]) {
+			#define F(name) CU_RES_##name(cpuinfo) ? #name : NULL
+			const char *features[] = {
+				F(FPU),F(VME),F(DE),F(PSE),F(TSC),F(MSR),F(PAE),F(MCE),F(CX8),F(APIC),F(SEP),F(MTRR),F(PGE),F(MCA),F(CMOV),F(PAT),F(PSE_36),F(CLFSH),F(DS),F(ACPI),F(MMX),F(FXSR),F(SSE),F(SSE2),F(SS),F(HTT),F(TM),F(PBE),
+				F(SSE3),F(PCLMULQDQ),F(DTES64),F(MONITOR),F(DS_CPL),F(VMX),F(SMX),F(EST),F(TM2),F(SSSE3),F(CNXTID),F(SDBG),F(FMA),F(CX16),F(XTPR),F(PDCM),F(PCID),F(DCA),F(SSE4_1),F(SSE4_2),F(X2APIC),F(MOVBE),F(POPCNT),F(TSC_DEADLINE),F(AES_NI),F(XSAVE),F(AVX),F(F16C),F(RDRND),
+				F(FSGSBASE),F(SGX),F(BMI1),F(HLE),F(AVX2),F(SMEP),F(BMI2),F(ERMS),F(INVPCID),F(RTM),F(RDSEED),
+				F(LAHF_LM),F(ABM),F(SSE4A),F(3DNOWPREFETCH),F(XOP),F(LWP),F(FMA4),F(TBM),F(MONITORX),F(MMXEXT),F(LM),F(3DNOWEXT),F(3DNOW)
+			};
+			#undef F
+			printf("Family: %u\nModel: %u\nStepping: %u\n", cpuinfo.family_id, cpuinfo.model_id, cpuinfo.stepping_id);
+			printf("Features: ");
+			for (i = 0; i < (int)(sizeof features / sizeof *features); ++i) if (features[i]) printf("%s ", features[i]);
+			printf("\n");
+		}
 		if (active[6]) {
 			printf(
 				"Max: %" CU_U64_FMT "MHz, Min: %" CU_U64_FMT "MHz, Base: %" CU_U64_FMT "MHz, Now: %" CU_U64_FMT "MHz\n",
