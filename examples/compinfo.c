@@ -80,14 +80,13 @@ int main(int argc, char **argv)
 			);
 		}
 		if (active[5]) {
-			#define F(name) CU_RES_##name(cpuinfo) ? #name : NULL
-			const char *features[] = {
-				F(FPU),F(VME),F(DE),F(PSE),F(TSC),F(MSR),F(PAE),F(MCE),F(CX8),F(APIC),F(SEP),F(MTRR),F(PGE),F(MCA),F(CMOV),F(PAT),F(PSE_36),F(CLFSH),F(DS),F(ACPI),F(MMX),F(FXSR),F(SSE),F(SSE2),F(SS),F(HTT),F(TM),F(PBE),
-				F(SSE3),F(PCLMULQDQ),F(DTES64),F(MONITOR),F(DS_CPL),F(VMX),F(SMX),F(EST),F(TM2),F(SSSE3),F(CNXTID),F(SDBG),F(FMA),F(CX16),F(XTPR),F(PDCM),F(PCID),F(DCA),F(SSE4_1),F(SSE4_2),F(X2APIC),F(MOVBE),F(POPCNT),F(TSC_DEADLINE),F(AES_NI),F(XSAVE),F(AVX),F(F16C),F(RDRND),
-				F(FSGSBASE),F(SGX),F(BMI1),F(HLE),F(AVX2),F(SMEP),F(BMI2),F(ERMS),F(INVPCID),F(RTM),F(RDSEED),
-				F(LAHF_LM),F(ABM),F(SSE4A),F(3DNOWPREFETCH),F(XOP),F(LWP),F(FMA4),F(TBM),F(MONITORX),F(MMXEXT),F(LM),F(3DNOWEXT),F(3DNOW)
-			};
-			#undef F
+			const char *features[81];
+			i = 0;
+			#define F(name) features[i++] = CU_RES_##name(cpuinfo) ? #name : (void *)0
+			F(FPU);F(VME);F(DE);F(PSE);F(TSC);F(MSR);F(PAE);F(MCE);F(CX8);F(APIC);F(SEP);F(MTRR);F(PGE);F(MCA);F(CMOV);F(PAT);F(PSE_36);F(CLFSH);F(DS);F(ACPI);F(MMX);F(FXSR);F(SSE);F(SSE2);F(SS);F(HTT);F(TM);F(PBE);
+			F(SSE3);F(PCLMULQDQ);F(DTES64);F(MONITOR);F(DS_CPL);F(VMX);F(SMX);F(EST);F(TM2);F(SSSE3);F(CNXTID);F(SDBG);F(FMA);F(CX16);F(XTPR);F(PDCM);F(PCID);F(DCA);F(SSE4_1);F(SSE4_2);F(X2APIC);F(MOVBE);F(POPCNT);F(TSC_DEADLINE);F(AES_NI);F(XSAVE);F(AVX);F(F16C);F(RDRND);
+			F(FSGSBASE);F(SGX);F(BMI1);F(HLE);F(AVX2);F(SMEP);F(BMI2);F(ERMS);F(INVPCID);F(RTM);F(RDSEED);
+			F(LAHF_LM);F(ABM);F(SSE4A);F(3DNOWPREFETCH);F(XOP);F(LWP);F(FMA4);F(TBM);F(MONITORX);F(MMXEXT);F(LM);F(3DNOWEXT);F(3DNOW);
 			printf("Family: %u\nModel: %u\nStepping: %u\n", cpuinfo.family_id, cpuinfo.model_id, cpuinfo.stepping_id);
 			printf("Features: ");
 			for (i = 0; i < (int)(sizeof features / sizeof *features); ++i) if (features[i]) printf("%s ", features[i]);

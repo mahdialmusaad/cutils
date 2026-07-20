@@ -1266,9 +1266,9 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_corecache(cu
 	cu_res_cpuinfo_sysctl("hw.cachelinesize", &res, sizeof res);
 	info->l1i.line = info->l1d.line = info->l2.line = info->l3.line = (u32)res;
 	cu_res_cpuinfo_sysctl("hw.physicalcpu", &res, sizeof res);
-	info->processor_cores = (u32)res;
+	info->phyiscal_cores = (u32)res;
 	cu_res_cpuinfo_sysctl("hw.logicalcpu", &res, sizeof res);
-	info->logical_processors = (u32)res;
+	info->logical_cores = (u32)res;
 	cu_res_cpuinfo_sysctl("hw.l1dcachesize", &res, sizeof res);
 	info->l1d.size = (u32)res;
 	cu_res_cpuinfo_sysctl("hw.l1icachesize", &res, sizeof res);
@@ -1324,8 +1324,8 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_corecache(cu
 		struct cu_res_cpu_cache* target;
 		switch (ptr->Relationship) {
 		case RelationProcessorCore:
-			++info->processor_cores;
-			info->logical_processors += cu_res_winpopcnt(ptr->ProcessorMask);
+			++info->phyiscal_cores;
+			info->logical_cores += cu_res_winpopcnt(ptr->ProcessorMask);
 			break;
 		case RelationCache:
 			cache = &ptr->Cache;
