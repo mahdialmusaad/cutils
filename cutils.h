@@ -963,10 +963,12 @@ extern "C" {
 
 /* ========================= Endianness ======================== */
 
-#if CU_HAS_INCLUDE(<endian.h>)
-#  include <endian.h>
-#elif CU_HAS_INCLUDE(<sys/param.h>)
-#  include <sys/param.h>
+#if !CU_ARCH_X86
+#  if CU_HAS_INCLUDE(<endian.h>)
+#    include <endian.h>
+#  elif CU_HAS_INCLUDE(<sys/param.h>)
+#    include <sys/param.h>
+#  endif
 #endif
 
 #if defined(__BIG_ENDIAN__) || defined(__ARMEB__) || defined(__THUMBEB__) || defined(__AARCH64EB__) || \
@@ -974,9 +976,8 @@ extern "C" {
      __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
 #  define CU_ENDIAN_BIG 1
 #  define CU_ENDIAN_LITTLE 0
-#elif defined(__LITTLE_ENDIAN__) || defined(__ARMEL__) || defined(__THUMBEL__) || defined(__AARCH64EL__) || defined(_MIPSEL) || \
-      defined(__MIPSEL) || defined(__MIPSEL__) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
-       __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+#elif defined(__LITTLE_ENDIAN__) || defined(__ARMEL__) || defined(__THUMBEL__) || defined(__AARCH64EL__) || defined(_MIPSEL) || CU_ARCH_X86 || \
+      defined(__MIPSEL) || defined(__MIPSEL__) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #  define CU_ENDIAN_BIG 0
 #  define CU_ENDIAN_LITTLE 1
 #endif
@@ -1105,8 +1106,6 @@ extern "C" {
 #endif
 
 #if CU_LANG_C >= CU_LANG_C11 && !defined(__STDC_NO_ATOMICS__) && CU_HAS_INCLUDE(<stdatomic.h>)
-#  include <stdint.h>
-#  include <stdatomic.h>
 #  define CU_ATOMIC _Atomic
 #  define CU_ATOMIC_AVAILABLE 1
 #else
@@ -1508,7 +1507,7 @@ typedef signed short i16;
 typedef unsigned char u8;
 typedef unsigned short u16;
 
-#if CU_HAS_INCLUDE(<stdint.h>) || CU_COMPVER(GNU, 4, 5) || defined(_STDINT) || defined(_STDINT_H) || defined(_STDINT_H_) || defined(_STDINT_H_INCLUDED)
+#if CU_HAS_INCLUDE(<stdint.h>) || CU_COMPVER(GNU, 4, 5)
 #  include <stdint.h>
    typedef int32_t i32;
    typedef int64_t i64;
@@ -1587,38 +1586,6 @@ typedef u64 umax;
 #  define CU_UPTR_FMT "u"
 #  define CU_IPTR_C(a) a
 #  define CU_IPTR_FMT "d"
-#endif
-
-#if CU_LANG_C >= CU_LANG_C23
-#  include <limits.h>
-#  define CU_BITINT_MAX BITINT_MAXWIDTH
-#  define CU_BITINT(bits) _BitInt(bits)
-#  define CU_UBITINT(bits) unsigned _BitInt(bits)
-#  define CU_BITINT_AVAILABLE 1
-#else
-#  define CU_BITINT_MAX 64
-#  define CU_BITINT(bits) imax
-#  define CU_UBITINT(bits) umax
-#  define CU_BITINT_AVAILABLE 0
-#endif
-
-#if (CU_LANG_C >= CU_LANG_C99) && !defined(__STDC_NO_COMPLEX__) && (defined(__STDC_IEC_559_COMPLEX__) || \
-     defined(__STDC_IEC_60559_COMPLEX__) || defined(_Imaginary_I))
-#  include <complex.h>
-#  define CU_IMAGINARY_OF(x) (cimag(x))
-#  define CU_REAL_OF(x) (creal(x))
-#  define CU_COMPLEX complex
-#  define CU_COMPLEX_AVAILABLE 1
-#elif defined(__GNUC__)
-#  define CU_COMPLEX __complex__
-#  define CU_IMAGINARY_OF(x) (__imag__ x)
-#  define CU_REAL_OF(x) (__real__ x)
-#  define CU_COMPLEX_AVAILABLE 1
-#else
-#  define CU_COMPLEX
-#  define CU_IMAGINARY_OF(x)
-#  define CU_REAL_OF(x)
-#  define CU_COMPLEX_AVAILABLE 0
 #endif
 
 /* ========================= Optimization ======================== */
@@ -1710,10 +1677,14 @@ typedef u64 umax;
 
 #ifdef PATH_MAX
 #  define CU_PATH_MAX PATH_MAX
+#elif defined (MAX_PATH)
+#  define CU_PATH_MAX MAX_PATH
 #elif CU_OS_WINDOWS
 #  define CU_PATH_MAX 520
 #elif CU_OS_MAC || CU_OS_BSD
 #  define CU_PATH_MAX 1024
+#elif CU_OS_UNIX
+#  define CU_PATH_MAX 4096
 #else
 #  define CU_PATH_MAX 512
 #endif
@@ -1837,7 +1808,7 @@ A_NTL((1,2)) int custr_countsub(const custr *A_RES c, const char *A_RES target);
 A_NTL((1,2)) CU_ATTRIB_FORMAT((printf, 2, 3)) int custr_fmt(custr *A_RES c, char *A_RES fmt, ...);
 
 /* Appends the given file or directory name to 'c' (assuming it is a path).
-   If given name is NULL, 'c' will be changed to describe the parent directory instead. */
+   If given name is NULL or "..", 'c' will be changed to describe the parent directory instead. */
 A_NTL((1)) int custr_cd(custr *A_RES c, const char *A_RES name);
 /* Simplify the given path, assuming 'c' describes one. */
 A_NTL((1)) void custr_simplify(custr *c);
@@ -2048,14 +2019,14 @@ struct cu_res_cpu_cache
 /* CPU feature test macros.
    You only need to pass in the cu_res_cpu structure.
    If it is a pointer, simply dereference it in the parameter. */
-#define CU_RES_C1(i,b) ((i).fx86_ecx1 & (CU_UPSHIFT(1,b)))
-#define CU_RES_D1(i,b) ((i).fx86_edx1 & (CU_UPSHIFT(1,b)))
-#define CU_RES_B7(i,b) ((i).fx86_ebx7 & (CU_UPSHIFT(1,b)))
+#define CU_RES_C1(i,b) ((i).fx86_ecx1 & (CU_UPSHIFT(1u,b)))
+#define CU_RES_D1(i,b) ((i).fx86_edx1 & (CU_UPSHIFT(1u,b)))
+#define CU_RES_B7(i,b) ((i).fx86_ebx7 & (CU_UPSHIFT(1u,b)))
 #define CU_RES_B7I(i,b) (CU_RES_B7(i,b) && (i).vendor_id == 1)
-#define CU_RES_C7(i,b) ((i).fx86_ecx7 & (CU_UPSHIFT(1,b)))
-#define CU_RES_C8(i,b) ((i).fx86_ecx81 & (CU_UPSHIFT(1,b)))
+#define CU_RES_C7(i,b) ((i).fx86_ecx7 & (CU_UPSHIFT(1u,b)))
+#define CU_RES_C8(i,b) ((i).fx86_ecx81 & (CU_UPSHIFT(1u,b)))
 #define CU_RES_C8A(i,b) (CU_RES_C8(i,b) && (i).vendor_id == 2)
-#define CU_RES_D8(i,b) ((i).fx86_edx81 & (CU_UPSHIFT(1,b)))
+#define CU_RES_D8(i,b) ((i).fx86_edx81 & (CU_UPSHIFT(1u,b)))
 #define CU_RES_D8A(i,b) (CU_RES_D8(i,b) && (i).vendor_id == 2)
 
 /* See the Wikipedia page on the CPUID instruction for more information on each feature. */
@@ -2275,28 +2246,19 @@ A_NTH uptr cu_res_username(char *namebuf);
 
 #if CU_SETTING_TIME_FUNCS
 
+#include <time.h>
+
 /* Current date & time data structure. */
 typedef struct cu_ctime
 {
+	struct tm m; /* Main time structure. */
+
+	const char *tznm; /* Abbreviated timezone name. */
+	int utcdif;    /* Seconds after UTC. */
+
 	int nanosec;   /* [0-1K) */
 	int microsec;  /* [0-1K) */
 	int millisec;  /* [0-1K) */
-
-	int second;    /* [0-60] */
-	int minute;    /* [0-59] */
-	int hour;      /* [0-23] */
-	int month_day; /* [1-31] */
-	int month;     /* [0-11] */
-	int year;      /* [year] */
-	int week_day;  /* [0-6]  */
-	int year_day;  /* [0-365] */
-
-	int isdst;     /* -1 = unknown, 0 = not in effect, 1 = in effect. */
-	int utcdif;    /* Seconds after UTC. */
-#if CU_DM_64BIT
-	int _padding;
-#endif
-	const char *tznm; /* Abbreviated timezone name. */
 } cu_ctime;
 
 typedef struct cu_timer

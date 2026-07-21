@@ -3,11 +3,11 @@
 #if CU_SETTING_THREAD_FUNCS
 
 static int *poolwork;
-static char *splitwork;
+static int *splitwork;
 static cu_thread_mutex poolmutex;
 static int pooldone;
 
-#define WORKMULT 1
+#define WORKMULT 10
 
 static CU_THREAD_FUNCTION(pooljob, arg)
 {
@@ -22,8 +22,7 @@ static CU_THREAD_FUNCTION(pooljob, arg)
 static CU_THREAD_FUNCTION(splitjob, arg)
 {
 	cu_thread_split_arg *a = (cu_thread_split_arg *)arg;
-	EXPECT(a->thread_arg == (void *)0x2);
-	for (; a->start_index < a->end_index; ++a->start_index) splitwork[a->start_index] = (char)1;
+	for (; a->start_index < a->end_index; ++a->start_index) splitwork[a->start_index] = (int)((uptr)a->thread_arg);
 	return CU_THREAD_RETURN_VAL;
 }
 
@@ -31,12 +30,16 @@ TFUNC(cu_thread2)
 {
 	cu_thread_pool pool;
 	int nthreads = cu_thread_count(), i, c;
-	void **eacharg = (void **)malloc(sizeof(void *) * (size_t)nthreads);
-	for (i = 0; i < nthreads; ++i) eacharg[i] = (void *)0x2;
-	splitwork = (char *)malloc((size_t)nthreads * WORKMULT);
-	EXPECT(cu_thread_split(splitjob, (u64)(nthreads * WORKMULT), eacharg, nthreads));
-	for (i = c = 0; i < nthreads * WORKMULT; ++i) c += splitwork[i] != (char)1;
-	EXPECT(!c);
+	int *workcounts = (int *)malloc(sizeof *workcounts * (size_t)nthreads);
+	void **eacharg = (void **)malloc(sizeof *eacharg * (size_t)nthreads);
+	for (i = 0; i < nthreads; ++i) { eacharg[i] = (void *)((uptr)i); workcounts[i] = WORKMULT + (i < 2); }
+	splitwork = (int *)malloc(sizeof *splitwork * (size_t)nthreads * WORKMULT + (sizeof *splitwork * 3));
+	splitwork[nthreads * WORKMULT + 2] = nthreads;
+	EXPECT(cu_thread_split(splitjob, (u64)(nthreads * WORKMULT) + 2, eacharg, nthreads));
+	for (i = 0; i < nthreads * WORKMULT + 2; ++i) --workcounts[splitwork[i]];
+	for (i = c = 0; i < nthreads; ++i) c += !workcounts[i];
+	EXPECT(c == nthreads);
+	EXPECT(splitwork[nthreads * WORKMULT + 2] == nthreads);
 	cu_thread_mutex_init(&poolmutex);
 	poolwork = (int *)calloc((size_t)nthreads * WORKMULT, sizeof *poolwork);
 	EXPECT(cu_thread_pool_init(&pool, nthreads));
@@ -45,6 +48,7 @@ TFUNC(cu_thread2)
 	while (pooldone < pool.nthreads * WORKMULT) cu_thread_sleep(17000000, 0);
 	for (i = c = 0; i < pool.nthreads; ++i) c += poolwork[i] == 1000;
 	EXPECT(c == i);
+	free(workcounts);
 	free(poolwork);
 	free(splitwork);
 	free(eacharg);

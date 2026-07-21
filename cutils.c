@@ -226,7 +226,8 @@ int custr_fmt(custr *CU_RESTRICT c, char *CU_RESTRICT fmt, ...)
 	va_list va, copy;
 	int nchars, ret = 0;
 
-	memset(c, 0, sizeof *c);
+	c->str = NULL;
+	c->cap = 0;
 
 	va_start(va, fmt);
 
@@ -257,26 +258,10 @@ fail:
 
 int custr_cd(custr *CU_RESTRICT c, const char *CU_RESTRICT name)
 {
-	custr tmp;
-	int ret = 1;
-
+	if (name && c->str[c->len - 1] != CU_FILE_SEPARATOR && name[0] != CU_FILE_SEPARATOR && !custr_append(c, CU_FILE_SEPARATOR_DQ)) return 0;
+	if (!custr_append(c, name ? name : "..")) return 0;
 	custr_simplify(c);
-
-	if (!name) {
-		uptr ind = custr_find(c, 0, CU_FILE_SEPARATOR, -1 - (c->str[c->len - 1] == CU_FILE_SEPARATOR));
-		if (ind != CU_UPTRMAX) custr_shrinkto(c, ind + 1);
-		return 1;
-	}
-
-	if (c->str[c->len - 1] != CU_FILE_SEPARATOR && CU_UNLIKELY(!custr_append(c, CU_FILE_SEPARATOR_DQ))) return 0;
-
-	if (!custr_create(&tmp, name)) goto fail;
-	custr_simplify(&tmp);
-	ret = custr_append(c, tmp.str + (tmp.str[0] == CU_FILE_SEPARATOR));
-	custr_clear(&tmp);
-
-fail:
-	return ret;
+	return 1;
 }
 
 void custr_simplify(custr *c)
@@ -286,6 +271,7 @@ void custr_simplify(custr *c)
 
 	for (;; ++ind, dw = 1) {
 		if ((ind = custr_find(c, (prev = ind), CU_FILE_SEPARATOR, 0)) == CU_UPTRMAX) return;
+		if (ind == c->len - 1) return;
 
 		while (dw) {
 			dw = 0;
@@ -298,9 +284,11 @@ void custr_simplify(custr *c)
 				dw = 1;
 			}
 			if (!strncmp(c->str + ind, CU_FILE_SEPARATOR_DQ ".." , 3)) {
-				memmove(c->str + prev, c->str + ind + 3, (size_t)(c->len - ind - 2));
+				int eofs = (!ind && !CU_OS_WINDOWS) ? 1 : (ind == 2 && CU_OS_WINDOWS ? 3 : 0);
+				memmove(c->str + prev + eofs, c->str + ind + 3, (size_t)(c->len - ind - 2));
 				c->len -= (ind - prev) + 3;
 				ind = prev - 1;
+				if (ind == CU_UPTRMAX) return;
 				dw = 1;
 			}
 			if (!strncmp(c->str + ind, CU_FILE_SEPARATOR_DQ "." , 2)) {
@@ -1559,7 +1547,7 @@ uptr cu_res_username(char *namebuf)
 
 #if CU_SETTING_TIME_FUNCS
 
-#include <time.h>
+#include <string.h>
 
 #if CU_OS_MAC
 #  include <mach/clock.h>
@@ -1567,7 +1555,6 @@ uptr cu_res_username(char *namebuf)
 #elif CU_OS_UNIX
 #  include <sys/time.h>
 #elif CU_OS_WINDOWS
-   static LARGE_INTEGER cu_timer_freq;
 #  include <windows.h>
 #  include <stdlib.h>
 #endif
@@ -1581,7 +1568,6 @@ void cu_time_now(cu_ctime *tm)
 void cu_time_date(cu_ctime *tm, i64 timestamp)
 {
 	time_t now_val = (time_t)timestamp;
-	struct tm *now;
 
 #if CU_OS_WINDOWS
 	static char _cu_windows_tzname[32];
@@ -1590,48 +1576,29 @@ void cu_time_date(cu_ctime *tm, i64 timestamp)
 #endif
 
 #if CU_LANG_C >= CU_LANG_C23 && !CU_PLAT_MINGW
-	struct tm now_st;
 #if CU_COMP_MSVC
 	_tzset();
 #else
 	tzset();
 #endif
-	localtime_r(&now_val, &now_st);
-	now = &now_st;
+	localtime_r(&now_val, &tm->m);
 #elif CU_COMP_MSVC
-	struct tm now_st;
-	CU_UNUSED(localtime_s(&now_st, &now_val));
-	now = &now_st;
+	CU_UNUSED(localtime_s(&tm->m, &now_val));
 #elif CU_LANG_C11 && defined(__STDC_LIB_EXT1__)
-	struct tm now_st;
-	now = localtime_s(&now_val, &now_st);
-	now = &now_st;
+	localtime_s(&now_val, &tm->m);
 #elif CU_SETTING_THREAD_FUNCS
-	struct tm now_cp;
-	cu_thread_mutex mut;
+	static cu_thread_mutex mut;
 	cu_thread_mutex_init(&mut);
 	cu_thread_mutex_lock(&mut);
-	now_cp = *localtime(&now_val);
+	tm->m = *localtime(&now_val);
 	cu_thread_mutex_unlock(&mut);
 	cu_thread_mutex_destroy(&mut);
-	now = &now_cp;
 #else
-	now = localtime(&now_val);
+	tm->m = *localtime(&now_val);
 #endif
-
-	tm->second = now->tm_sec;
-	tm->minute = now->tm_min;
-	tm->hour = now->tm_hour;
-	tm->month_day = now->tm_mday;
-	tm->month = now->tm_mon;
-	tm->year = now->tm_year + 1900;
-	tm->week_day = now->tm_wday;
-	tm->year_day = now->tm_yday;
-	tm->isdst = now->tm_isdst;
-
 #if CU_OS_UNIX && defined(__USE_MISC)
-	tm->tznm = now->tm_zone;
-	tm->utcdif = (int)now->tm_gmtoff;
+	tm->tznm = tm->m.tm_zone;
+	tm->utcdif = (int)tm->m.tm_gmtoff;
 #elif CU_OS_WINDOWS
 	GetTimeZoneInformation(&tzinfo);
 	wcstombs_s(&i, _cu_windows_tzname, sizeof _cu_windows_tzname, tzinfo.StandardName, sizeof _cu_windows_tzname - 1);
@@ -1645,37 +1612,22 @@ void cu_time_date(cu_ctime *tm, i64 timestamp)
 
 void cu_time_subsec(cu_ctime *tm)
 {
-#if CU_OS_MAC
-	mach_timespec_t ts;
-	clock_serv_t cserv;
-	host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cserv);
-	clock_get_time(cserv, &ts);
-	mach_port_deallocate(mach_task_self(), cserv);
-	tm->nanosec = (int)(ts.tv_nsec % 1000);
-	tm->microsec = (int)((ts.tv_nsec / 1000) % 1000);
-	tm->millisec = (int)((ts.tv_nsec / 1000000) % 1000);
-#elif CU_OS_UNIX
-	struct timespec ts;
-	if (clock_gettime(CLOCK_REALTIME, &ts) == -1) ts.tv_nsec = 0;
-	tm->nanosec = (int)(ts.tv_nsec % 1000);
-	tm->microsec = (int)((ts.tv_nsec / 1000) % 1000);
-	tm->millisec = (int)((ts.tv_nsec / 1000000) % 1000);
-#elif CU_OS_WINDOWS
+	u64 cnsec;
+#if CU_OS_WINDOWS
 	ULARGE_INTEGER uli;
 	FILETIME ft;
-	u64 cnsec;
 	GetSystemTimePreciseAsFileTime(&ft);
 	uli.LowPart = ft.dwLowDateTime;
 	uli.HighPart = ft.dwHighDateTime;
 	cnsec = (uli.QuadPart * 100) % 1000000000;
+#else
+	cu_timer ts;
+	cu_timer_fill(&ts);
+	cnsec = ts.nsecs;
+#endif
 	tm->nanosec = (int)(cnsec % 1000);
 	tm->microsec = (int)((cnsec / 1000) % 1000);
 	tm->millisec = (int)((cnsec / 1000000) % 1000);
-#else
-	tm->nanosec = 0;
-	tm->microsec = 0;
-	tm->millisec = 0;
-#endif
 }
 
 void cu_timer_fill(cu_timer *tm)
@@ -1690,17 +1642,28 @@ void cu_timer_fill(cu_timer *tm)
 	tm->secs = (u64)ts.tv_sec;
 #elif CU_OS_UNIX
 	struct timespec ts;
+#  if defined (_POSIX_MONOTONIC_CLOCK)
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1 && clock_gettime(CLOCK_REALTIME, &ts) == -1) ts.tv_nsec = 0;
+#  else
 	if (clock_gettime(CLOCK_REALTIME, &ts) == -1) ts.tv_nsec = 0;
+#  endif
 	tm->nsecs = (u64)ts.tv_nsec;
 	tm->secs = (u64)ts.tv_sec;
 #elif CU_OS_WINDOWS
+	static LARGE_INTEGER cu_timer_freq;
 	LARGE_INTEGER usecs;
 	if (!cu_timer_freq.QuadPart) QueryPerformanceFrequency(&cu_timer_freq);
 	if (!QueryPerformanceCounter(&usecs)) usecs.QuadPart = 0;
 	usecs.QuadPart *= 1000000;
 	usecs.QuadPart /= cu_timer_freq.QuadPart;
-	tm->secs = usecs.QuadPart / 1000000;
 	tm->nsecs = usecs.QuadPart * 1000;
+	tm->secs = usecs.QuadPart / 1000000;
+#elif CU_LANG_C >= CU_LANG_C11
+	struct timespec ts;
+	memset(&ts, 0, sizeof ts);
+	timespec_get(&ts, TIME_UTC);
+	tm->secs = (u64)ts.tv_sec;
+	tm->nsecs = (u64)ts.tv_nsec;
 #else
 	tm->nsecs = 0;
 	tm->secs = 0;
@@ -2434,11 +2397,10 @@ int cu_thread_split(cu_thread_func func, u64 work_count, void **each_thread_arg,
 	struct cu_split { cu_thread thread; cu_thread_split_arg arg; } *thrs;
 	u64 effective_threads, div, remaining, c, i;
 
-	if (!work_count) return 0;
-	else if (thread_count <= 0) return 0;
+	if (CU_UNLIKELY(!work_count || thread_count <= 0)) return 0;
+	if (!(thrs = (struct cu_split *)calloc((size_t)thread_count, sizeof *thrs))) return 0;
 
 	effective_threads = (u64)(thread_count - 1);
-	if (!(thrs = (struct cu_split *)malloc(sizeof *thrs * (size_t)thread_count))) return 0;
 	div = work_count / (u64)thread_count;
 	remaining = work_count - (div * (u64)thread_count);
 
@@ -2446,16 +2408,13 @@ int cu_thread_split(cu_thread_func func, u64 work_count, void **each_thread_arg,
 		cu_thread_split_arg *a = &thrs[i].arg;
 		a->thread_arg = each_thread_arg ? each_thread_arg[i] : NULL;
 		a->start_index = c;
-		c += div + remaining ? 1 : 0;
+		a->end_index = (c += div + (remaining != 0));
 		if (remaining) --remaining;
-		a->end_index = c;
-		if (i == effective_threads || CU_UNLIKELY(!(thrs[i].thread = cu_thread_create(func, a)))) {
-			thrs[i].thread = 0;
-			func(a);
-		}
+		if (CU_LIKELY(i != effective_threads)) thrs[i].thread = cu_thread_create(func, a);
+		else func(a);
 	}
 
-	for (i = 0; i < effective_threads; ++i) if (thrs[i].thread) cu_thread_join(thrs[i].thread);
+	for (i = 0; i < effective_threads; ++i) cu_thread_join(thrs[i].thread);
 	free(thrs);
 
 	return 1;
@@ -2503,9 +2462,7 @@ int cu_thread_pool_init(cu_thread_pool *pool, int nthreads)
 	int i;
 	memset(pool, 0, sizeof *pool);
 
-	if (nthreads <= 0) return 0;
-
-	if (CU_UNLIKELY(!cu_thread_cond_init(&pool->cond))) return 0;
+	if (CU_UNLIKELY(nthreads <= 0 || !cu_thread_cond_init(&pool->cond))) return 0;
 	if (CU_UNLIKELY(!cu_thread_mutex_init(&pool->mutex))) {
 		cu_thread_cond_destroy(&pool->cond);
 		return 0;
@@ -2516,9 +2473,7 @@ int cu_thread_pool_init(cu_thread_pool *pool, int nthreads)
 
 	for (i = 0; i < nthreads; ++i) {
 		++pool->nthreads;
-		if ((pool->thrs[i] = cu_thread_create(cu_thread_pool_inner, pool))) continue;
-		cu_thread_pool_destroy(pool);
-		return 0;
+		if (!(pool->thrs[i] = cu_thread_create(cu_thread_pool_inner, pool))) goto fail;
 	}
 
 	return 1;

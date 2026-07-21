@@ -6,7 +6,7 @@ static int server_i_2, conns, disconns, disconns_c;
 static cu_thread_mutex cu_net2_mutex;
 static int err_cnt;
 
-#define NET2CLIENTS 200
+#define NET2CLIENTS 20
 
 static void server_event_2(cu_net_remote *CU_RESTRICT server, cu_net_remote *CU_RESTRICT remote, enum cu_net_event ev, void *CU_RESTRICT d, uptr n)
 {

@@ -5,7 +5,7 @@ CC=gcc
 
 # Normal flags to pass to compiler.
 # Adjust as you see fit. Original is designed for minimum size.
-CFLAGS=-Wall -Wextra -pedantic -std=c89 -Oz -fno-asynchronous-unwind-tables -fno-ident -ffast-math -fno-stack-protector
+CFLAGS=-Wall -Wextra -pedantic -std=c89 -Oz -fno-asynchronous-unwind-tables -fno-ident -fno-stack-protector
 
 # Any macro definitions to pass to compiler.
 # You can selectively disable function groups by defining its specific macro to 0, e.g. 'CU_SETTING_NETWORK_FUNCS=0'
@@ -22,7 +22,7 @@ EARG=
 EXM=$(wildcard examples/*.c)
 CFLAGS+=$(EARG)
 
-ifeq ($(CC),x86_64-w64-mingw32-gcc)
+ifneq (,$(filter $(CC),x86_64-w64-mingw32-gcc i686-w64-mingw32-gcc))
 	LIBS+=-lws2_32 -liphlpapi -lpowrprof
 	CFLAGS+=-Wno-format -Wno-long-long
 	EXT=.exe

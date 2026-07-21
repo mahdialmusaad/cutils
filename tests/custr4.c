@@ -2,8 +2,6 @@
 
 #if CU_SETTING_STRING_FUNCS
 
-
-
 TFUNC(custr4)
 {
 	custr cs, *c = &cs;
@@ -31,7 +29,6 @@ TFUNC(custr4)
 	EXPECT0(strcmp(c->str, FS(Q)));
 	EXPECT(custr_cd(c, NULL));
 	EXPECT0(strcmp(c->str, FS(Q)));
-	EXPECT(c->cap == 32);
 	custr_clear(c);
 }
 

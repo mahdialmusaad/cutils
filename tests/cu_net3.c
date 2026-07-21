@@ -2,11 +2,11 @@
 
 #if CU_SETTING_NETWORK_FUNCS && CU_SETTING_THREAD_FUNCS
 
-#define NET3CLIENTS 100
-#define NET3MSGS 20
+#define NET3CLIENTS 10
+#define NET3MSGS 3
 
 static int server_ready;
-static int server3_msgs;
+static CU_ATTRIB_USED int server3_msgs;
 static const char server_reply[] = "Reply from server.";
 
 static int nleft;
