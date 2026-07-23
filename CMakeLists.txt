@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 project(cutils
 	LANGUAGES C
-	VERSION 3
+	VERSION 4
 	HOMEPAGE_URL "https://github.com/mahdialmusaad/cutils"
 	DESCRIPTION "A portable C utilities library"
 )

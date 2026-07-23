@@ -39,6 +39,8 @@ You can selectively disable certain function groups by defining their specific `
 #define CU_SETTING_NETWORK_FUNCS 0
 #include "cutils.h"
 ```
+This also allows you to only compile required parts the library for your use case, further reducing code size.<br>
+See the [Build](#building) section for more details
 
 ### Optimization and Debugging
 Macros are also available for simplifying optimizing and debugging your code:
@@ -69,7 +71,7 @@ The macros are also written in such a way to simplify checks:
 ```
 
 ## Support
-This is mostly aimed towards being used for writing C code that can be compiled for Linux, MacOS and Windows as well as on major compilers without needing to write specific code for each - the source code is written in C89 and checks for feature support so any reasonable compiler should have no problem compiling it.
+This is mostly aimed towards being used for writing C code that can be compiled for Linux, MacOS and Windows on the major compilers (GCC, Clang and MSVC) without needing to write specific code for each, although the source code is written in C89 and checks for feature support so any reasonable compiler should have no problem compiling it.
 
 If you are attempting to build the library yourself but your system does not provide the required functionality, a warning will be emitted and the functions affected will not be available.
 
@@ -94,6 +96,13 @@ Optimization macros and some attributes are from [Hedley](https://github.com/nem
 Other macros are from own tests and may have incorrect detection.
 
 ## Changelog
+### cu4
+- Added containers functions (cu_list, a dynamic array and cu_hmap, a hash map)
+- Revamp for networking functions: support for both TCP and UDP, retrying connections and epoll
+- Revamp for cu_res_cpuinfo (see compinfo example): more information able to be retrieved, supports non-x86 CPUs as well
+- MinGW support and macro fixes and simplification
+- Improvements to cu_ctime and related functions
+
 ### cu3
 - Added thread pool/split, condition variables, directory listing and user/host name retrieval
 - Various bug fixes relating to functions and macros
