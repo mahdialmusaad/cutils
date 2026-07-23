@@ -661,12 +661,22 @@ extern "C" {
 
 #if defined (__MINGW32__) || defined (__MINGW64__)
 #  define CU_PLAT_MINGW 1
-#  ifdef __MINGW64__
-#    define CU_PLAT_MINGW64 CU_COMPVER_MAKE(__MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, 0)
-#    define CU_PLAT_MINGW32 0
+#  if defined (__MINGW64__)
+#    ifdef __MINGW64_VERSION_MAJOR
+#      define CU_PLAT_MINGW64 CU_COMPVER_MAKE(__MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, 0)
+#      define CU_PLAT_MINGW32 0
+#    else
+#      define CU_PLAT_MINGW64 1
+#      define CU_PLAT_MINGW32 0
+#    endif
 #  else
-#    define CU_PLAT_MINGW64 0
-#    define CU_PLAT_MINGW32 CU_COMPVER_MAKE(__MINGW64_VERSION_MAJOR, __MINGW64_VERSION_MINOR, 0)
+#    ifdef __MINGW32_VERSION_MAJOR
+#      define CU_PLAT_MINGW64 0
+#      define CU_PLAT_MINGW32 CU_COMPVER_MAKE(__MINGW32_VERSION_MAJOR, __MINGW32_VERSION_MINOR, 0)
+#    else
+#      define CU_PLAT_MINGW64 0
+#      define CU_PLAT_MINGW32 1
+#    endif
 #  endif
 #else
 #  define CU_PLAT_MINGW 0
@@ -1328,9 +1338,10 @@ extern "C" {
 #  define CU_DIAGNOSTICS_DISABLE_PREC11
 #endif
 
-#if CU_HAS_WARNING("-Wreserved-macro-identifier")
+#if CU_HAS_WARNING("-Wreserved-macro-identifier") && CU_HAS_WARNING("-Wreserved-identifier")
 #  define CU_DIAGNOSTICS_DISABLE_RESERVED \
 _Pragma("GCC diagnostic ignored \"-Wreserved-macro-identifier\"") \
+_Pragma("GCC diagnostic ignored \"-Wreserved-identifier\"") \
 _Pragma("GCC diagnostic ignored \"-Wreserved-id-macro\"")
 #elif CU_HAS_WARNING("-Wreserved-id-macro")
 #  define CU_DIAGNOSTICS_DISABLE_RESERVED _Pragma("GCC diagnostic ignored \"-Wreserved-id-macro\"")
@@ -2150,13 +2161,13 @@ struct cu_res_cpu_cache
    If any information is unable to be retrieved, it will be left as 0. */
 typedef struct cu_res_cpu
 {
-	char name[52];
+	char name[49];
 
 	/* Start of x86-specific data. */
 
 	/* Vendor string as determined from the CPUID instruction.
 	   Common examples include "GenuineIntel" and "AuthenticAMD". */
-	char vendor[16];
+	char vendor[15];
 	/* CPU identification IDs. */
 	u32 stepping_id, family_id, model_id;
 	/* Maximum CPUID supported leaf values. */
@@ -2171,10 +2182,6 @@ typedef struct cu_res_cpu
 	u32 vendor_id;
 
 	/* End of x86-specific data. */
-
-#if CU_DM_64BIT
-	u32 _padding;
-#endif
 
 	/* Clock speeds. */
 	u64 base_freq_hz; /* The base frequency, measured in Hertz. */

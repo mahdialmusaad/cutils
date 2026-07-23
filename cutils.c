@@ -939,9 +939,12 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((2)) static void cu_res_cpuinfo_fsearch(FILE
 #  include <powrprof.h>
 #  include <windows.h>
 #  include <psapi.h>
+CU_DIAGNOSTICS_PUSH
+CU_DIAGNOSTICS_DISABLE_RESERVED
 typedef struct _PROCESSOR_POWER_INFORMATION {
 	ULONG Number, MaxMhz, CurrentMhz, MhzLimit, MaxIdleState, CurrentIdleState;
 } PROCESSOR_POWER_INFORMATION, *PPROCESSOR_POWER_INFORMATION;
+CU_DIAGNOSTICS_POP
 CU_ATTRIB_NOTHROW static CU_ATTRIB_CONST u32 cu_res_winpopcnt(ULONG_PTR v)
 {
 	u32 n;
@@ -1310,7 +1313,7 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_corecache(cu
 	for (c = 0, ptr = buf, bufcnt = buflen / sizeof *buf; c < bufcnt; ++c, ++ptr) {
 		PCACHE_DESCRIPTOR cache;
 		struct cu_res_cpu_cache* target;
-		switch (ptr->Relationship) {
+		switch ((int)ptr->Relationship) {
 		case RelationProcessorCore:
 			++info->phyiscal_cores;
 			info->logical_cores += cu_res_winpopcnt(ptr->ProcessorMask);
@@ -1328,6 +1331,8 @@ CU_ATTRIB_NOTHROW CU_ATTRIB_NONNULL((1)) static void cu_res_cpuinfo_corecache(cu
 				break;
 			case 3:
 				target = &info->l3;
+				break;
+			default:
 				break;
 			}
 
@@ -1656,8 +1661,8 @@ void cu_timer_fill(cu_timer *tm)
 	if (!QueryPerformanceCounter(&usecs)) usecs.QuadPart = 0;
 	usecs.QuadPart *= 1000000;
 	usecs.QuadPart /= cu_timer_freq.QuadPart;
-	tm->nsecs = usecs.QuadPart * 1000;
-	tm->secs = usecs.QuadPart / 1000000;
+	tm->nsecs = (u64)usecs.QuadPart * 1000;
+	tm->secs = (u64)usecs.QuadPart / 1000000;
 #elif CU_LANG_C >= CU_LANG_C11
 	struct timespec ts;
 	memset(&ts, 0, sizeof ts);
@@ -2319,7 +2324,7 @@ void cu_thread_sleep(u64 nsecs, u64 secs)
 {
 	HANDLE timer;
 	LARGE_INTEGER ft;
-	ft.QuadPart = (secs * 10000000) + (nsecs / -100);
+	ft.QuadPart = (LONGLONG)((secs * 10000000) - (nsecs / 100));
 
 	timer = CreateWaitableTimer(NULL, TRUE, NULL);
 	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);

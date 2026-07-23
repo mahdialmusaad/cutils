@@ -6,7 +6,7 @@
 #define NET3MSGS 3
 
 static int server_ready;
-static CU_ATTRIB_USED int server3_msgs;
+static int server3_msgs;
 static const char server_reply[] = "Reply from server.";
 
 static int nleft;
@@ -93,6 +93,7 @@ TFUNC(cu_net3)
 	}
 	/* printf("lost %d ", (NET3CLIENTS * NET3MSGS) - server3_msgs);
 	fflush(stdout); */
+	CU_UNUSED(server3_msgs);
 	cu_thread_join(st);
 	cu_net_terminate();
 	EXPECT(c == NET3CLIENTS);
