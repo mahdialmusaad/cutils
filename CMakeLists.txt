@@ -6,6 +6,8 @@ project(cutils
 	DESCRIPTION "A portable C utilities library"
 )
 
+string(COMPARE EQUAL "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}" CU_STANDALONE)
+
 # ---------------------------- User options ----------------------------
 
 option(CU_SETTING_FUNCS "Enable main functions" ON)
@@ -19,7 +21,7 @@ if(CU_SETTING_FUNCS)
 	option(CU_SETTING_NETWORK_FUNCS "Build the networking functions" ON)
 	option(CU_SETTING_THREAD_FUNCS "Build the threading functions" ON)
 
-	option(CU_BUILD_MISC "Build the test and example programs" ON)
+	option(CU_BUILD_MISC "Build the test and example programs" ${CU_STANDALONE})
 endif()
 
 option(CU_SETTING_TYPES "Typedef fixed-width and other integer and float types" ON)
