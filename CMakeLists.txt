@@ -37,15 +37,15 @@ option(CU_INSTALL "Create installation target" OFF)
 add_library(cutils STATIC cutils.c)
 
 if(MSVC AND CU_DEFAULT_CFLAGS)
-	target_compile_options(cutils PUBLIC /W4)
+	target_compile_options(cutils PRIVATE /W4)
 elseif(CU_DEFAULT_CFLAGS)
-	target_compile_options(cutils PUBLIC -Wall -Wextra -pedantic -fno-asynchronous-unwind-tables -fno-ident -fno-stack-protector)
+	target_compile_options(cutils PRIVATE -Wall -Wextra -pedantic -fno-asynchronous-unwind-tables -fno-ident -fno-stack-protector)
 endif()
 
 string(TOLOWER ${CMAKE_C_COMPILER} CU_LOWER_COMPILER)
 if(MINGW OR CU_LOWER_COMPILER MATCHES "mingw")
 	target_link_libraries(cutils PRIVATE ws2_32 iphlpapi powrprof)
-	target_compile_options(cutils PUBLIC -Wno-long-long -Wno-format)
+	target_compile_options(cutils PRIVATE -Wno-long-long -Wno-format)
 endif()
 
 target_compile_definitions(cutils PRIVATE
